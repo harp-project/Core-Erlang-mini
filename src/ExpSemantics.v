@@ -64,6 +64,7 @@ Goal eval 10 (inc 2) = Some (ELit (Integer 3)). Proof. auto. Qed.
 Goal eval 10 (simplefun 10) = Some (ELit (Integer 10)). Proof. simpl. auto. Qed.
 Goal eval 10 (sum 2) = Some (ELit (Integer 3)). Proof. simpl. auto. Qed.
 Goal eval 100 (sum 10) = Some (ELit (Integer 55)). Proof. simpl. auto. Qed.
+Goal eval 100 (simplefun2 10 10) = Some (ELit (Integer 20)). Proof. simpl. auto. Qed.
 
 End functional_semantics.
 
@@ -88,13 +89,30 @@ Inductive Frame : Set :=
 
 Definition FrameStack := list Frame.
 
-Lemma empty_is_value : forall e, In e [] -> is_value e. Proof. firstorder. Qed. 
+Lemma empty_is_value : forall e, In e [] -> is_value e. Proof. firstorder. Qed.
+Lemma step_value : forall l v,
+  (forall e, In e l -> is_value e) -> is_value v
+->
+  (forall e, In e (l ++ [v]) -> is_value e).
+Proof.
+  intros. apply in_app_or in H1. destruct H1.
+  * apply H. auto.
+  * firstorder. subst. auto.
+Qed.
 
 Reserved Notation "| fs , e | --> | fs' , e' |" (at level 50).
 Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 (**  Reduction rules *)
-(* | red_app1 v l xs (H : is_value v): | (FApp1 l)::xs, v | --> ((FApp2 v H l [] empty_is_value)::xs *)
-(* | red_app2 ... *)
+| red_app_start v hd tl xs (H : is_value v): | (FApp1 (hd::tl))::xs, v | --> | (FApp2 v H tl [] empty_is_value)::xs, hd|
+
+(* TODO: RECFUN *)
+| red_app_fin xs e : | (FApp1 [])::xs, EFun [] e | --> | xs, e |
+
+| app2_step v H hd tl vs H2 xs v' H' : | (FApp2 v H (hd::tl) vs H2) :: xs, v' | --> | (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H')) :: xs, hd |
+
+(* TODO: RECFUN *)
+| red_app2 vl e vs v xs H H2 : | (FApp2 (EFun vl e) H [] vs H2) :: xs, v | --> | xs,  varsubst_list vl (vs ++ [v]) e |
+
 | red_let v val e2 xs (H : is_value val) : | (FLet v e2)::xs, val | --> |xs, varsubst v val e2|
 
 | red_if_true e2 e3 xs : | (FIf e2 e3)::xs, ELit (Integer 0) | --> |xs, e2|
@@ -126,6 +144,30 @@ Goal | [], inc 1 | -->* |[], ELit (Integer 2)|.
 Proof.
   repeat econstructor.
   Unshelve. simpl. constructor.
+Qed.
+
+Goal | [], simplefun 10 | -->* |[], ELit (Integer 10)|.
+Proof.
+  (* repeat econstructor. <- this works too *)
+  unfold simplefun.
+  apply step_trans with (fs' := [FLet XVar (EApp (EVar XVar) [])])
+                        (e' := EFun [] (ELit (Integer 10))).
+  * apply step_let.
+  * apply step_trans with (fs' := []) (e' := EApp (EFun [] (ELit (Integer 10))) []).
+    - apply red_let. constructor.
+    - apply step_trans with (fs' := [FApp1 []]) (e' := EFun [] (ELit (Integer 10))).
+      + apply step_app.
+      + econstructor.
+        ** apply red_app_fin.
+        ** apply step_refl.
+Qed.
+
+Goal | [], simplefun2 10 10 | -->* |[], ELit (Integer 20)|.
+Proof.
+  unfold simplefun2.
+  repeat econstructor.
+  Unshelve.
+  all : try constructor.
 Qed.
 
 End stack_machine_semantics.

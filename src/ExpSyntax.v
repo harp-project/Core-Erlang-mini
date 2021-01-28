@@ -83,6 +83,7 @@ Definition sum (n : Z) := ELetRec F1 [XVar] (EIf (EVar XVar) (EVar XVar) (
                                             (EApp (EFunId F1) [EPlus (EVar XVar) (ELit (Integer (-1)))]))))
                         (EApp (EFunId F1) [ELit (Integer n)]).
 Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit (Integer n))) (EApp (EVar XVar) []).
+Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar XVar) (EVar YVar))) [ELit (Integer n); ELit (Integer m)].
 
 Fixpoint in_list (v : Var) (l : list Var) : bool :=
 match l with
@@ -105,6 +106,9 @@ match wher with
  | EPlus e1 e2 => EPlus (varsubst v' what e1) (varsubst v' what e2)
  | EIf e1 e2 e3 => EIf (varsubst v' what e1) (varsubst v' what e2) (varsubst v' what e3) 
 end.
+
+Definition varsubst_list (l : list Var) (es : list Exp) (e : Exp) : Exp :=
+  fold_right (fun '(v, val) acc => varsubst v val acc) e (combine l es).
 
 Fixpoint funsubst (f' : FunctionIdentifier) (what wher : Exp) : Exp :=
 match wher with
