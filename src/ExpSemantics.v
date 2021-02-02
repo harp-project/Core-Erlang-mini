@@ -108,10 +108,14 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 (* TODO: RECFUN *)
 | red_app_fin xs e : | (FApp1 [])::xs, EFun [] e | --> | xs, e |
 
+| red_rec_app_fin xs e f : | (FApp1 [])::xs, ERecFun f [] e | --> | xs, funsubst f (ERecFun f [] e) e |
+
 | app2_step v H hd tl vs H2 xs v' H' : | (FApp2 v H (hd::tl) vs H2) :: xs, v' | --> | (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H')) :: xs, hd |
 
 (* TODO: RECFUN *)
 | red_app2 vl e vs v xs H H2 : | (FApp2 (EFun vl e) H [] vs H2) :: xs, v | --> | xs,  varsubst_list vl (vs ++ [v]) e |
+
+| red_rec_app2 vl f e vs v xs H H2 : | (FApp2 (ERecFun f vl e) H [] vs H2) :: xs, v | --> | xs,  funsubst f (ERecFun f vl e) (varsubst_list vl (vs ++ [v]) e) |
 
 | red_let v val e2 xs (H : is_value val) : | (FLet v e2)::xs, val | --> |xs, varsubst v val e2|
 
@@ -123,6 +127,9 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 
 | red_plus_right xs n m P :
    |(FPlus2 (ELit (Integer n)) P)::xs, (ELit (Integer m))| --> |xs, ELit (Integer (n + m))| 
+
+| red_letrec xs f vl b e:
+  | xs, ELetRec f vl b e | --> | xs, funsubst f (ERecFun f vl b) e|
 
 (** Steps *)
 | step_let xs v e1 e2 : |xs, ELet v e1 e2| --> |(FLet v e2)::xs, e1 |
@@ -166,6 +173,40 @@ Goal | [], simplefun2 10 10 | -->* |[], ELit (Integer 20)|.
 Proof.
   unfold simplefun2.
   repeat econstructor.
+  Unshelve.
+  all : try constructor.
+Qed.
+
+Goal | [], sum 1 | -->* |[], ELit (Integer 1)|.
+Proof.
+  unfold sum.
+  econstructor.
+  econstructor.
+  simpl.
+  econstructor.
+  econstructor.
+  econstructor.
+  econstructor.
+  econstructor.
+  eapply red_rec_app2. simpl.
+  econstructor. eapply step_if.
+  econstructor. eapply red_if_false. constructor.
+  econstructor. eapply step_plus.
+  econstructor. eapply red_plus_left.
+  econstructor. eapply step_app.
+  econstructor. eapply red_app_start.
+  econstructor. (* At this point we could say, that eapply red_rec_app2 !!! (However, 1 + -1 is NOT a value) <- smarter tactics are needed ! *)
+  eapply step_plus.
+repeat   econstructor.
+  econstructor. eapply red_plus_left.
+  econstructor. eapply red_plus_right. simpl Z.add.
+  econstructor. eapply red_rec_app2. simpl.
+  econstructor. eapply step_if.
+  econstructor. eapply red_if_true.
+  econstructor. eapply red_plus_right.
+  econstructor.
+  
+  (* repeat econstructor. *)
   Unshelve.
   all : try constructor.
 Qed.
