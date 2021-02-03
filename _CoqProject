@@ -1,3 +1,4 @@
 -R src Core_Erlang
 src/ExpSyntax.v
 src/ExpSemantics.v
+src/ExpEquiv.v

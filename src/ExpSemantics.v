@@ -1,4 +1,5 @@
 Require Export ExpSyntax.
+From Coq Require Export micromega.Lia.
 Import ListNotations.
 
 Section functional_semantics.
@@ -103,25 +104,33 @@ Qed.
 Reserved Notation "| fs , e | --> | fs' , e' |" (at level 50).
 Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 (**  Reduction rules *)
-| red_app_start v hd tl xs (H : is_value v): | (FApp1 (hd::tl))::xs, v | --> | (FApp2 v H tl [] empty_is_value)::xs, hd|
+| red_app_start v hd tl xs (H : is_value v):
+  | (FApp1 (hd::tl))::xs, v | --> | (FApp2 v H tl [] empty_is_value)::xs, hd|
 
-(* TODO: RECFUN *)
-| red_app_fin xs e : | (FApp1 [])::xs, EFun [] e | --> | xs, e |
+| red_app_fin xs e :
+  | (FApp1 [])::xs, EFun [] e | --> | xs, e |
 
-| red_rec_app_fin xs e f : | (FApp1 [])::xs, ERecFun f [] e | --> | xs, funsubst f (ERecFun f [] e) e |
+| red_rec_app_fin xs e f :
+  | (FApp1 [])::xs, ERecFun f [] e | --> | xs, funsubst f (ERecFun f [] e) e |
 
-| app2_step v H hd tl vs H2 xs v' H' : | (FApp2 v H (hd::tl) vs H2) :: xs, v' | --> | (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H')) :: xs, hd |
+| app2_step v H hd tl vs H2 xs v' (H' : is_value v') :
+  | (FApp2 v H (hd::tl) vs H2) :: xs, v' | --> | (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H')) :: xs, hd |
 
-(* TODO: RECFUN *)
-| red_app2 vl e vs v xs H H2 : | (FApp2 (EFun vl e) H [] vs H2) :: xs, v | --> | xs,  varsubst_list vl (vs ++ [v]) e |
+| red_app2 vl e vs v xs H H2 : 
+  is_value v ->
+  | (FApp2 (EFun vl e) H [] vs H2) :: xs, v | --> | xs,  varsubst_list vl (vs ++ [v]) e |
 
-| red_rec_app2 vl f e vs v xs H H2 : | (FApp2 (ERecFun f vl e) H [] vs H2) :: xs, v | --> | xs,  funsubst f (ERecFun f vl e) (varsubst_list vl (vs ++ [v]) e) |
+| red_rec_app2 vl f e vs v xs H H2 : 
+  is_value v ->
+  | (FApp2 (ERecFun f vl e) H [] vs H2) :: xs, v | --> | xs,  funsubst f (ERecFun f vl e) (varsubst_list vl (vs ++ [v]) e) |
 
 | red_let v val e2 xs (H : is_value val) : | (FLet v e2)::xs, val | --> |xs, varsubst v val e2|
 
 | red_if_true e2 e3 xs : | (FIf e2 e3)::xs, ELit (Integer 0) | --> |xs, e2|
 
-| red_if_false e2 e3 v xs (H : is_value v) : | (FIf e2 e3)::xs, v | --> |xs, e3|
+| red_if_false e2 e3 v xs (H : is_value v) :
+  v <> ELit (Integer 0) ->
+  | (FIf e2 e3)::xs, v | --> |xs, e3|
 
 | red_plus_left e2 xs v (H : is_value v): |(FPlus1 e2)::xs, v| --> |(FPlus2 v H)::xs, e2|
 
@@ -188,27 +197,27 @@ Proof.
   econstructor.
   econstructor.
   econstructor.
-  eapply red_rec_app2. simpl.
-  econstructor. eapply step_if.
-  econstructor. eapply red_if_false. constructor.
+  eapply red_rec_app2. constructor.
+  simpl. econstructor. eapply step_if.
+  econstructor. eapply red_if_false. constructor. congruence.
   econstructor. eapply step_plus.
   econstructor. eapply red_plus_left.
   econstructor. eapply step_app.
   econstructor. eapply red_app_start.
-  econstructor. (* At this point we could say, that eapply red_rec_app2 !!! (However, 1 + -1 is NOT a value) <- smarter tactics are needed ! *)
+  econstructor. (* At this point we could say that eapply red_rec_app2 !!! (However, 1 + -1 is NOT a value) <- smarter tactics are needed ! *)
   eapply step_plus.
-repeat   econstructor.
+(* repeat   econstructor. *)
   econstructor. eapply red_plus_left.
   econstructor. eapply red_plus_right. simpl Z.add.
-  econstructor. eapply red_rec_app2. simpl.
-  econstructor. eapply step_if.
+  econstructor. eapply red_rec_app2. constructor.
+  simpl. econstructor. eapply step_if.
   econstructor. eapply red_if_true.
   econstructor. eapply red_plus_right.
   econstructor.
   
   (* repeat econstructor. *)
   Unshelve.
-  all : try constructor.
+  all : constructor.
 Qed.
 
 End stack_machine_semantics.
