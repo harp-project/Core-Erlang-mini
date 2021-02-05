@@ -2,3 +2,4 @@
 src/ExpSyntax.v
 src/ExpSemantics.v
 src/ExpEquiv.v
+src/ExpTermination.v

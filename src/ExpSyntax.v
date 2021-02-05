@@ -5,16 +5,16 @@ From Coq Require Export Lists.List.
 
 Import ListNotations.
 
-Inductive Literal : Set :=
+(* Inductive Literal : Set :=
 | Atom (s: string)
-| Integer (x : Z).
+| Integer (x : Z). *)
 
 Definition Var : Set := string.
 
 Definition FunctionIdentifier : Set := string * nat.
 
 Inductive Exp : Set :=
-| ELit    (l : Literal)
+| ELit    (l : Z)
 | EVar    (v : Var)
 | EFunId  (f : FunctionIdentifier)
 | EFun    (vl : list Var) (e : Exp)
@@ -32,7 +32,7 @@ Section correct_exp_ind.
     (P : Exp -> Prop)(Q : list Exp -> Prop).
 
   Hypotheses
-   (H0 : forall (l : Literal), P (ELit l))
+   (H0 : forall (l : Z), P (ELit l))
    (H1 : forall (v : Var), P (EVar v))
    (H2 : forall (f : FunctionIdentifier), P (EFunId f))
    (H3 : forall (vl : list Var) (e : Exp), P e -> P (EFun vl e))
@@ -77,13 +77,13 @@ Definition ZVar : Var := "Z"%string.
 Definition F0 : FunctionIdentifier := ("f"%string, 0).
 Definition F1 : FunctionIdentifier := ("f"%string, 1).
 
-Definition inc (n : Z) := ELet XVar (ELit (Integer n)) (EPlus (EVar XVar) (ELit (Integer 1))).
+Definition inc (n : Z) := ELet XVar (ELit n) (EPlus (EVar XVar) (ELit 1)).
 Definition sum (n : Z) := ELetRec F1 [XVar] (EIf (EVar XVar) (EVar XVar) (
                                             (EPlus (EVar XVar)
-                                            (EApp (EFunId F1) [EPlus (EVar XVar) (ELit (Integer (-1)))]))))
-                        (EApp (EFunId F1) [ELit (Integer n)]).
-Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit (Integer n))) (EApp (EVar XVar) []).
-Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar XVar) (EVar YVar))) [ELit (Integer n); ELit (Integer m)].
+                                            (EApp (EFunId F1) [EPlus (EVar XVar) (ELit (-1))]))))
+                        (EApp (EFunId F1) [ELit n]).
+Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar XVar) []).
+Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar XVar) (EVar YVar))) [ELit n; ELit m].
 
 Fixpoint in_list (v : Var) (l : list Var) : bool :=
 match l with

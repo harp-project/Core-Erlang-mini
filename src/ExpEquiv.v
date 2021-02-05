@@ -2,12 +2,12 @@ Require Import ExpSemantics.
 
 Import ListNotations.
 
-Notation "| fs , e | -->* | fs' , e' |" := (step_rst fs e fs' e') (at level 50).
-Notation "| fs , e | --> | fs' , e' |" := (step fs e fs' e') (at level 50).
+Notation "⟨ fs , e ⟩ -->* ⟨ fs' , e' ⟩" := (step_rt fs e fs' e') (at level 50).
+Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" := (step fs e fs' e') (at level 50).
 
 Inductive Context : Set :=
 | CBox
-| CLit    (l : Literal)
+| CLit    (l : Z)
 | CVar    (v : Var)
 | CFunId  (f : FunctionIdentifier)
 | CFun    (vl : list Var) (c : Context)
@@ -35,8 +35,9 @@ end.
 
 Notation "C [[ e ]]" := (fill_boxes e C) (at level 30).
 
-Compute (CBox) [[ ELit (Integer 1) ]].
+Compute (CBox) [[ ELit 1 ]].
 
+(*
 Inductive value_equivalent : Exp -> Exp -> Prop :=
 | vrefl v : is_value v -> value_equivalent v v
 | vclos : forall v1 v2, is_value v1 -> is_value v2 ->
@@ -88,4 +89,4 @@ Theorem relations_simulation :
   R e1 e2.
 Proof.
 
-Admitted.
+Admitted.*)

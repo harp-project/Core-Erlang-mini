@@ -1,8 +1,21 @@
 Require Export ExpSyntax.
 From Coq Require Export micromega.Lia.
+From Coq Require Export Logic.ProofIrrelevance Program.Equality.
 Import ListNotations.
 
 Section functional_semantics.
+
+Fixpoint eval_list (f : Exp -> option Exp) (l : list Exp) : option (list Exp) :=
+match l with
+| [] => Some []
+| x::xs => match f x with
+           | Some v => match eval_list f xs with
+                       | Some vs => Some (v::vs)
+                       | None => None
+                       end
+           | None => None
+           end
+end.
 
 Fixpoint eval (clock : nat) (e : Exp) : option Exp :=
 match clock with
@@ -17,27 +30,17 @@ match clock with
                          (** In Core Erlang this check only happens later *)
                          | Some (EFun vl e) =>
                             (* This would be better with Monads *)
-                            let vals := map (eval n) l in
-                               let e' := fold_right (fun '(x, y) acc => 
-                                         match y, acc with
-                                         | Some v, Some acc' => Some (varsubst x v acc')
-                                         | _, _ => None
-                                         end) (Some e) (combine vl vals)
-                                  in match e' with
-                                     | Some ee => eval n ee
-                                     | None => None
-                                     end
+                            let vres := eval_list (eval n) l in
+                               match vres with
+                               | Some vals => eval n (varsubst_list vl vals e)
+                               | None => None
+                               end
                          | Some (ERecFun f vl e) =>
-                            let vals := map (eval n) l in
-                               let e' := fold_right (fun '(x, y) acc => 
-                                         match y, acc with
-                                         | Some v, Some acc' => Some (varsubst x v acc')
-                                         | _, _ => None
-                                         end) (Some (funsubst f (ERecFun f vl e) e)) (combine vl vals)
-                                  in match e' with
-                                     | Some ee => eval n ee
-                                     | None => None
-                                     end
+                            let vres := eval_list (eval n) l in
+                               match vres with
+                               | Some vals => eval n (funsubst f (ERecFun f vl e) (varsubst_list vl vals e))
+                               | None => None
+                               end
                          | _ => None
                          end
          | ELet v e1 e2 => match eval n e1 with
@@ -47,25 +50,25 @@ match clock with
          | ELetRec f vl b e => eval n (funsubst f (ERecFun f vl b) e)
          | EPlus e1 e2 => 
             match eval n e1, eval n e2 with
-            | Some (ELit (Integer n)), Some (ELit (Integer m)) => Some (ELit (Integer (n + m)))
+            | Some (ELit n), Some (ELit m) => Some (ELit (n + m))
             | _, _ => None
             end
          | EIf e1 e2 e3 =>
             match eval n e1 with
-            | Some (ELit (Integer 0)) => eval n e2
-            | Some _                  => eval n e3
-            | None                    => None
+            | Some (ELit 0) => eval n e2
+            | Some _        => eval n e3
+            | None          => None
             end
         end
 end.
 
 (** Tests: *)
 
-Goal eval 10 (inc 2) = Some (ELit (Integer 3)). Proof. auto. Qed.
-Goal eval 10 (simplefun 10) = Some (ELit (Integer 10)). Proof. simpl. auto. Qed.
-Goal eval 10 (sum 2) = Some (ELit (Integer 3)). Proof. simpl. auto. Qed.
-Goal eval 100 (sum 10) = Some (ELit (Integer 55)). Proof. simpl. auto. Qed.
-Goal eval 100 (simplefun2 10 10) = Some (ELit (Integer 20)). Proof. simpl. auto. Qed.
+Goal eval 10 (inc 2) = Some (ELit 3). Proof. auto. Qed.
+Goal eval 10 (simplefun 10) = Some (ELit 10). Proof. simpl. auto. Qed.
+Goal eval 10 (sum 2) = Some (ELit 3). Proof. simpl. auto. Qed.
+Goal eval 100 (sum 10) = Some (ELit 55). Proof. simpl. auto. Qed.
+Goal eval 100 (simplefun2 10 10) = Some (ELit 20). Proof. simpl. auto. Qed.
 
 End functional_semantics.
 
@@ -101,84 +104,84 @@ Proof.
   * firstorder. subst. auto.
 Qed.
 
-Reserved Notation "| fs , e | --> | fs' , e' |" (at level 50).
+Reserved Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" (at level 50).
 Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 (**  Reduction rules *)
 | red_app_start v hd tl xs (H : is_value v):
-  | (FApp1 (hd::tl))::xs, v | --> | (FApp2 v H tl [] empty_is_value)::xs, hd|
+  ⟨ (FApp1 (hd::tl))::xs, v ⟩ --> ⟨ (FApp2 v H tl [] empty_is_value)::xs, hd⟩
 
 | red_app_fin xs e :
-  | (FApp1 [])::xs, EFun [] e | --> | xs, e |
+  ⟨ (FApp1 [])::xs, EFun [] e ⟩ --> ⟨ xs, e ⟩
 
 | red_rec_app_fin xs e f :
-  | (FApp1 [])::xs, ERecFun f [] e | --> | xs, funsubst f (ERecFun f [] e) e |
+  ⟨ (FApp1 [])::xs, ERecFun f [] e ⟩ --> ⟨ xs, funsubst f (ERecFun f [] e) e ⟩
 
 | app2_step v H hd tl vs H2 xs v' (H' : is_value v') :
-  | (FApp2 v H (hd::tl) vs H2) :: xs, v' | --> | (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H')) :: xs, hd |
+  ⟨ (FApp2 v H (hd::tl) vs H2) :: xs, v' ⟩ --> ⟨ (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H')) :: xs, hd ⟩
 
 | red_app2 vl e vs v xs H H2 : 
   is_value v ->
-  | (FApp2 (EFun vl e) H [] vs H2) :: xs, v | --> | xs,  varsubst_list vl (vs ++ [v]) e |
+  ⟨ (FApp2 (EFun vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs,  varsubst_list vl (vs ++ [v]) e ⟩
 
 | red_rec_app2 vl f e vs v xs H H2 : 
   is_value v ->
-  | (FApp2 (ERecFun f vl e) H [] vs H2) :: xs, v | --> | xs,  funsubst f (ERecFun f vl e) (varsubst_list vl (vs ++ [v]) e) |
+  ⟨ (FApp2 (ERecFun f vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs,  funsubst f (ERecFun f vl e) (varsubst_list vl (vs ++ [v]) e) ⟩
 
-| red_let v val e2 xs (H : is_value val) : | (FLet v e2)::xs, val | --> |xs, varsubst v val e2|
+| red_let v val e2 xs (H : is_value val) : ⟨ (FLet v e2)::xs, val ⟩ --> ⟨ xs, varsubst v val e2⟩
 
-| red_if_true e2 e3 xs : | (FIf e2 e3)::xs, ELit (Integer 0) | --> |xs, e2|
+| red_if_true e2 e3 xs : ⟨ (FIf e2 e3)::xs, ELit 0 ⟩ --> ⟨ xs, e2 ⟩
 
 | red_if_false e2 e3 v xs (H : is_value v) :
-  v <> ELit (Integer 0) ->
-  | (FIf e2 e3)::xs, v | --> |xs, e3|
+  v <> ELit 0 ->
+  ⟨ (FIf e2 e3)::xs, v ⟩ --> ⟨ xs, e3 ⟩
 
-| red_plus_left e2 xs v (H : is_value v): |(FPlus1 e2)::xs, v| --> |(FPlus2 v H)::xs, e2|
+| red_plus_left e2 xs v (H : is_value v): ⟨ (FPlus1 e2)::xs, v ⟩ --> ⟨ (FPlus2 v H)::xs, e2 ⟩
 
 | red_plus_right xs n m P :
-   |(FPlus2 (ELit (Integer n)) P)::xs, (ELit (Integer m))| --> |xs, ELit (Integer (n + m))| 
+   ⟨ (FPlus2 (ELit n) P)::xs, (ELit m) ⟩ --> ⟨ xs, ELit (n + m) ⟩ 
 
 | red_letrec xs f vl b e:
-  | xs, ELetRec f vl b e | --> | xs, funsubst f (ERecFun f vl b) e|
+  ⟨ xs, ELetRec f vl b e ⟩ --> ⟨ xs, funsubst f (ERecFun f vl b) e ⟩
 
 (** Steps *)
-| step_let xs v e1 e2 : |xs, ELet v e1 e2| --> |(FLet v e2)::xs, e1 |
-| step_app xs e el: |xs, EApp e el| --> |(FApp1 el)::xs, e|
-| step_plus xs e1 e2 : |xs, EPlus e1 e2| --> |(FPlus1 e2)::xs, e1|
-| step_if xs e1 e2 e3 : |xs, EIf e1 e2 e3| --> |(FIf e2 e3)::xs, e1|
-where "| fs , e | --> | fs' , e' |" := (step fs e fs' e').
+| step_let xs v e1 e2 : ⟨ xs, ELet v e1 e2 ⟩ --> ⟨ (FLet v e2)::xs, e1 ⟩
+| step_app xs e el: ⟨ xs, EApp e el ⟩ --> ⟨ (FApp1 el)::xs, e ⟩
+| step_plus xs e1 e2 : ⟨ xs, EPlus e1 e2⟩ --> ⟨ (FPlus1 e2)::xs, e1⟩
+| step_if xs e1 e2 e3 : ⟨ xs, EIf e1 e2 e3⟩ --> ⟨ (FIf e2 e3)::xs, e1⟩
+where "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" := (step fs e fs' e').
 
-Reserved Notation "| fs , e | -->* | fs' , e' |" (at level 50).
-Inductive step_rst : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
-| step_refl fs e : | fs, e | -->* | fs, e |
+Reserved Notation "⟨ fs , e ⟩ -->* ⟨ fs' , e' ⟩" (at level 50).
+Inductive step_rt : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
+| step_refl e : is_value e -> ⟨ [], e ⟩ -->* ⟨ [], e ⟩
 | step_trans fs e fs' e' fs'' e'' :
-  | fs, e | --> |fs', e'| -> |fs', e'| -->* |fs'', e''|
+  ⟨ fs, e ⟩ --> ⟨ fs', e'⟩ -> ⟨fs', e'⟩ -->* ⟨fs'', e''⟩
 ->
-  | fs, e | -->* |fs'', e''|
-where "| fs , e | -->* | fs' , e' |" := (step_rst fs e fs' e').
+  ⟨ fs, e ⟩ -->* ⟨fs'', e''⟩
+where "⟨ fs , e ⟩ -->* ⟨ fs' , e' ⟩" := (step_rt fs e fs' e').
 
-Goal | [], inc 1 | -->* |[], ELit (Integer 2)|.
+Goal ⟨ [], inc 1 ⟩ -->* ⟨[], ELit 2⟩.
 Proof.
   repeat econstructor.
   Unshelve. simpl. constructor.
 Qed.
 
-Goal | [], simplefun 10 | -->* |[], ELit (Integer 10)|.
+Goal ⟨ [], simplefun 10 ⟩ -->* ⟨[], ELit 10⟩.
 Proof.
   (* repeat econstructor. <- this works too *)
   unfold simplefun.
   apply step_trans with (fs' := [FLet XVar (EApp (EVar XVar) [])])
-                        (e' := EFun [] (ELit (Integer 10))).
+                        (e' := EFun [] (ELit 10)).
   * apply step_let.
-  * apply step_trans with (fs' := []) (e' := EApp (EFun [] (ELit (Integer 10))) []).
+  * apply step_trans with (fs' := []) (e' := EApp (EFun [] (ELit 10)) []).
     - apply red_let. constructor.
-    - apply step_trans with (fs' := [FApp1 []]) (e' := EFun [] (ELit (Integer 10))).
+    - apply step_trans with (fs' := [FApp1 []]) (e' := EFun [] (ELit 10)).
       + apply step_app.
       + econstructor.
         ** apply red_app_fin.
-        ** apply step_refl.
+        ** apply step_refl. constructor.
 Qed.
 
-Goal | [], simplefun2 10 10 | -->* |[], ELit (Integer 20)|.
+Goal ⟨ [], simplefun2 10 10 ⟩ -->* ⟨[], ELit 20⟩.
 Proof.
   unfold simplefun2.
   repeat econstructor.
@@ -186,7 +189,7 @@ Proof.
   all : try constructor.
 Qed.
 
-Goal | [], sum 1 | -->* |[], ELit (Integer 1)|.
+Goal ⟨ [], sum 1 ⟩ -->* ⟨[], ELit 1⟩.
 Proof.
   unfold sum.
   econstructor.
@@ -218,6 +221,55 @@ Proof.
   (* repeat econstructor. *)
   Unshelve.
   all : constructor.
+Qed.
+
+Ltac proof_irr :=
+match goal with
+| [H1 : ?P, H2 : ?P |- _] => assert (H1 = H2) by apply proof_irrelevance; subst
+end.
+Ltac proof_irr_many := repeat proof_irr.
+
+Theorem step_determinism {e e' fs fs'} :
+  ⟨ fs, e ⟩ --> ⟨fs', e'⟩ ->
+  (forall fs'' e'', ⟨fs, e⟩ --> ⟨fs'', e''⟩ -> fs'' = fs' /\ e'' = e').
+Proof.
+  intro H. induction H; intros.
+  * inversion H0; subst; try inversion H; try (proof_irr; auto).
+  * inversion H; subst. auto.
+  * inversion H; subst. auto.
+  * inversion H0; subst; try inversion H'; try (proof_irr_many; auto).
+  * inversion H1; subst; try inversion H0; auto.
+  * inversion H1; subst; auto; try inversion H0.
+  * inversion H0; subst; auto; try inversion H.
+  * inversion H; subst; auto. congruence.
+  * inversion H1; subst; auto; try congruence; try inversion H.
+  * inversion H0; subst; try inversion H; try (proof_irr; auto).
+  * inversion H; subst. auto.
+  * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
+  * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
+  * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
+  * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
+  * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
+Qed.
+
+Theorem value_nostep v (H : is_value v) :
+  forall fs' v', ⟨ [], v ⟩ --> ⟨fs' , v'⟩ -> False.
+Proof.
+  induction H; unfold not; intros; inversion H; inversion H0; inversion H1.
+Qed.
+
+Theorem step_rt_determinism {e v fs} :
+  ⟨fs, e⟩ -->* ⟨ [] , v ⟩ -> is_value v
+->
+  (forall fs'' v', ⟨fs, e⟩ -->* ⟨fs'', v'⟩ -> fs'' = [] /\ v' = v).
+Proof.
+  intro. dependent induction H; intros.
+  * inversion H1; subst.
+    - auto.
+    - eapply value_nostep in H2. contradiction. auto.
+  * inversion H2; subst.
+    - apply value_nostep in H. contradiction. auto.
+    - pose (step_determinism H _ _ H3). destruct a. subst. apply IHstep_rt; auto.
 Qed.
 
 End stack_machine_semantics.
