@@ -557,21 +557,21 @@ Module wrong_rel.
 ->
   val_rel (VFun env vl b) (VFun env' vl' b')
 with exp_rel : Environment -> Environment -> Exp -> Exp -> Prop :=
-| exp_rel_cons env env' e1 e2: (* not transitive! *)
+(* | exp_rel_cons env env' e1 e2: (* not transitive! *)
   (forall v1 v2 clock,
       eval_env clock env e1 = Res v1 /\
       eval_env clock env' e2 = Res v2 ->
       val_rel v1 v2)
 ->
-  exp_rel env env' e1 e2
-(* | exp_rel_cons env env' e1 e2:
+  exp_rel env env' e1 e2 *)
+ | exp_rel_cons env env' e1 e2:
   (forall clock,
       match eval_env clock env e1, eval_env clock env' e2 with
       | Res v1, Res v2 => val_rel v1 v2
       | _, _ => True
       end)
 ->
-  exp_rel env env' e1 e2 *)
+  exp_rel env env' e1 e2
 (* | exp_rel_cons env env' e1 e2:
   (forall v1 v2 clock,
     val_rel v1 v2 ->
@@ -587,8 +587,10 @@ Axiom alma : forall f clock env, eval_env clock env (inf f) = Timeout.
 
 Goal forall f env, exp_rel env env (ELit 0) (inf f). (* Non-termination is equivalent to termination *)
 Proof.
-  intros. constructor. intros. inversion H.
-  pose alma. rewrite e in H1. inversion H1.
+  intros. constructor. intros.
+  destruct clock.
+  * simpl. auto.
+  * rewrite alma. break_match_goal; auto.
 Qed.
 
 End wrong_rel.
