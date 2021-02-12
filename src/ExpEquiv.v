@@ -931,7 +931,7 @@ Proof.
     - simpl in H0. inversion H0. subst. eexists. simpl. split. reflexivity.
       constructor.
       + auto.
-      + intros. constructor.
+      + intros. constructor. admit. admit.
         
     - simpl in H0. inversion H0. subst. eexists. simpl. split. reflexivity. constructor.
       + auto.
@@ -964,6 +964,109 @@ Proof.
   * intros. destruct H0, clock; inversion H0. destruct clock; inversion H1. repeat constructor.
 Qed.
 
+(* Lemma insert_value_comm :
+forall env v1 v2 val1 val2, v1 <> v2 ->
+  Permutation (insert_value (insert_value env v1 val1) v2 val2)
+  (insert_value (insert_value env v2 val2) v1 val1).
+Proof.
+  induction env; intros.
+  * simpl. apply var_funid_eqb_neq in H. rewrite H, (var_funid_eqb_sym _ _), H.
+Qed. *)
+
+Lemma swap_append_insert :
+forall env vl vals v val v', NoDup vl -> length vl = length vals -> ~ In v vl ->
+  get_value (append_vars_to_env vl vals (insert_value env (inl v) val)) v' =
+  get_value (insert_value (append_vars_to_env vl vals env) (inl v) val) v'.
+Proof.
+  induction vl using list_length_ind.
+  destruct vl, vals; intros.
+  * simpl. auto.
+  * inversion H1.
+  * inversion H1.
+  * inversion H0. subst. simpl. destruct (var_funid_eqb v' (inl v1)) eqn:P.
+    - apply var_funid_eqb_eq in P. subst. rewrite get_value_here. 
+Admitted.
+
+Lemma eval_varlist :
+forall x vl vals env, NoDup vl -> length vl = length vals ->
+  eval_list (eval_env (S x) (append_vars_to_env vl vals env)) (map EVar vl) = Res vals.
+Proof.
+  induction vl using list_length_ind.
+  destruct vals, vl; intros.
+  * simpl. auto.
+  * inversion H1.
+  * inversion H1.
+  * inversion H1. inversion H0. subst. remember (S x) as xx. simpl. rewrite Heqxx at 1. simpl. rewrite swap_append_insert. rewrite get_value_here. rewrite H. all: auto.
+Qed.
+
+Lemma insert_shadow env : forall v val1 val2,
+  insert_value (insert_value env v val1) v val2 =
+  insert_value env v val2.
+Proof.
+  induction env; intros.
+  * simpl. rewrite var_funid_eqb_refl. auto.
+  * simpl. destruct a. break_match_goal.
+    - simpl. rewrite var_funid_eqb_refl. auto.
+    - simpl. rewrite Heqb. rewrite IHenv. auto.
+Qed.
+
+Lemma append_shadow : forall vl env vals1 vals2,
+  length vals1 = length vals2 ->
+  append_vars_to_env vl vals1 (append_vars_to_env vl vals2 env) =
+  append_vars_to_env vl vals1 env.
+Proof.
+  induction vl; intros.
+  * simpl. destruct vals1, vals2; auto.
+  * simpl. destruct vals1, vals2; auto.
+    - inversion H.
+Admitted.
+
+
+Lemma element_exist {A : Type} : forall n (l : list A), S n = length l -> exists e l', l = e::l'.
+Proof.
+  intros. destruct l.
+  * inversion H.
+  * apply ex_intro with a. apply ex_intro with l. reflexivity.
+Qed.
+
+
+Lemma eta_conversion X b :
+  equiv_exp (EFun [X] b) (EFun [X] (EApp (EFun [X] b) [EVar X])).
+Proof.
+  unfold equiv_exp. intros. constructor.
+  * prove_term.
+  * intros. destruct H0, clock; inversion H0. inversion H1.
+    constructor. auto. intros. constructor.
+    - split; intros.
+      + destruct H7, H7. symmetry in H2. apply element_exist in H2 as H2'.
+        symmetry in H5. apply element_exist in H5 as H5'. destruct H2', H5', H8, H9. subst.
+        inversion H2.
+        inversion H5. apply eq_sym, length_zero_iff_nil in H4.
+        apply eq_sym, length_zero_iff_nil in H8. subst. simpl append_vars_to_env in *.
+        epose (H6 0 _). simpl in v.
+        apply eq_env_eval with (env' := (insert_value env' (inl X) x2)) in H7. destruct H7, H3.
+        exists x3. exists (S (S x0)).
+        remember (S x0) as xx. simpl. rewrite Heqxx at 1. simpl.
+        rewrite Heqxx at 1. simpl. rewrite get_value_here. rewrite insert_shadow. rewrite Heqxx.
+        eapply bigger_clock in H3. exact H3. lia. admit. (* this is just techincal *)
+      + admit. (* this is just techincal *)
+    - intros. destruct H7.
+      symmetry in H2. apply element_exist in H2 as H2'.
+      symmetry in H5. apply element_exist in H5 as H5'. destruct H2', H5', H9, H10. subst.
+      inversion H2.
+      inversion H5. apply eq_sym, length_zero_iff_nil in H4.
+      apply eq_sym, length_zero_iff_nil in H9. subst. simpl append_vars_to_env in *.
+      epose (H6 0 _). simpl in v.
+      apply eq_env_eval with (env' := (insert_value env' (inl X) x0)) in H7. destruct H7, H3.
+      destruct clock0. inversion H3. destruct clock0. inversion H8. remember (S clock0) as xx. simpl in H8.
+      rewrite Heqxx in H8 at 1. simpl in H8.
+      rewrite Heqxx in H8 at 1. simpl in H8. rewrite get_value_here in H8. rewrite insert_shadow in H8.
+      eapply bigger_clock in H8. rewrite H8 in H3. unfold val_rel_size in H4.
+      simpl. inversion H3. subst. admit. (* TODO: fix val_rel_size *)
+      lia. constructor. admit. admit. (* this is just techincal *)
+     Unshelve. all: auto.
+Admitted.
+
 Goal
   equiv_exp (EFun [] (ELit 1)) (EFun [] (EPlus (ELit 0) (ELit 1))).
 Proof.
@@ -975,6 +1078,81 @@ Proof.
   intros. destruct H2.
   destruct clock0; inversion H2. destruct clock0; inversion H3. constructor.
 Qed.
+
+Definition inf f := EApp (ERecFun f [] (EApp (EFunId f) [])) [].
+
+Axiom alma : forall f clock env, eval_env clock env (inf f) = Timeout.
+
+Goal forall f,
+  ~ equiv_exp (ELit 0) (inf f).
+Proof.
+  unfold not. intros. unfold equiv_exp in H.
+  epose (H [] [] _). inversion e. destruct H0.
+  epose (H0 _). destruct t, H3. rewrite alma in H3. inversion H3.
+  Unshelve. unfold eq_env. split. auto. intros. inversion H0.
+  eexists. exists 1. reflexivity.
+Qed.
+
+Definition wrong_E_rel (V_rel : relation Value) (env env' : Environment) (e1 e2 : Exp) : Prop :=
+  (forall clock v1 v2,
+    eval_env clock env e1 = Res v1 /\
+    eval_env clock env' e2 = Res v2 ->
+    V_rel v1 v2)
+.
+
+Inductive wrong_V_rel_fun (valr : relation Value) : relation Value :=
+| clos_rel21 vl env b vl' env' b' :
+  length vl = length vl' ->
+  (forall vals1 vals2, length vals1 = length vl -> length vals2 = length vl' ->
+    (forall i, i < length vl -> valr (nth i vals1 (VLit 0)) (nth i vals2 (VLit 0))) ->
+  wrong_E_rel valr (append_vars_to_env vl vals1 env) (append_vars_to_env vl' vals2 env') b b')
+->
+  wrong_V_rel_fun valr (VFun env vl b) (VFun env' vl' b')
+(** TODO: recfun *)
+| rec_clos_rel21 f vl env b f' vl' env' b' :
+  length vl = length vl' ->
+  (forall vals1 vals2, length vals1 = length vl -> length vals2 = length vl' ->
+    (forall i, i < length vl -> valr (nth i vals1 (VLit 0)) (nth i vals2 (VLit 0))) ->
+  wrong_E_rel valr (append_vars_to_env vl vals1 (insert_value env (inr f) (VRecFun env f vl b)))
+             (append_vars_to_env vl' vals2 (insert_value env' (inr f) (VRecFun env' f' vl' b'))) b b')
+->
+  wrong_V_rel_fun valr (VRecFun env f vl b) (VRecFun env' f' vl' b')
+.
+
+Fixpoint wrong_v_rel (n : nat) : relation Value :=
+fun v1 v2 =>
+match n with
+| 0 => False
+| S n' =>
+  match v1, v2 with
+  | VLit _, VLit _ => V_rel_refl v1 v2
+  | VFun _ _ _, VFun _ _ _ => wrong_V_rel_fun (wrong_v_rel n') v1 v2
+  | VRecFun _ _ _ _, VRecFun _ _ _ _ => wrong_V_rel_fun (wrong_v_rel n') v1 v2
+  | _, _ => False
+  end
+end.
+
+Definition wrong_val_rel_size : relation Value :=
+  fun v1 v2 => wrong_v_rel (val_size v1 + val_size v2) v1 v2.
+
+Definition wrong_eq_env : relation Environment :=
+ fun env env' =>
+  length env = length env' /\
+  forall i, i < length env -> wrong_val_rel_size (snd (nth i env (inl "X"%string, VLit 0))) (snd (nth i env' (inl "X"%string, VLit 0))) /\ fst (nth i env (inl "X"%string, VLit 0)) = fst (nth i env' (inl "X"%string, VLit 0)).
+
+Definition wrong_equiv_exp : Exp -> Exp -> Prop :=
+  fun e1 e2 =>
+  forall env env', eq_env env env'
+ ->
+  wrong_E_rel (v_rel (size e1 + size e2)) env env' e1 e2.
+
+Goal forall f,
+  wrong_equiv_exp (ELit 0) (inf f).
+Proof.
+  unfold wrong_equiv_exp. intros. unfold wrong_E_rel. intros. destruct H0.
+  rewrite alma in H1. inversion H1.
+Qed.
+
 
 End examples.
 
