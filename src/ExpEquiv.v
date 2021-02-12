@@ -21,6 +21,52 @@ Inductive Context : Set :=
 | CPlus   (c1 c2 : Context)
 | CIf (c1 c2 c3 : Context).
 
+Section correct_ctx_ind.
+
+  Variables
+    (P : Context -> Prop)(Q : list Context -> Prop).
+
+  Hypotheses
+   (H : P CBox)
+   (H0 : forall (l : Z), P (CLit l))
+   (H1 : forall (v : Var), P (CVar v))
+   (H2 : forall (f : FunctionIdentifier), P (CFunId f))
+   (H3 : forall (vl : list Var) (e : Context), P e -> P (CFun vl e))
+   (H4 : forall (f : FunctionIdentifier) (vl : list Var) (e : Context), P e -> P (CRecFun f vl e))
+   (H5 : forall (e : Context), P e -> forall (el : list Context), Q el 
+       -> P (CApp e el))
+   (H6 : forall (v : Var) (e1 : Context), P e1 -> forall e2 : Context, P e2 
+       -> P (CLet v e1 e2))
+   (H7 : forall (f : FunctionIdentifier) (vl : list Var) (b : Context), P b -> forall e : Context, P e 
+       -> P (CLetRec f vl b e))
+   (H8 : forall (e1 : Context), P e1 -> forall e2 : Context, P e2 
+       -> P (CPlus e1 e2))
+   (H9 : forall (e1 : Context), P e1 -> forall e2 : Context, P e2 -> forall e3 : Context, P e3
+       -> P (CIf e1 e2 e3))
+   (H' : forall v : Context, P v -> forall l:list Context, Q l -> Q (v :: l))
+   (H1' : Q []).
+
+  Fixpoint Context_ind2 (e : Context) : P e :=
+  match e as x return P x with
+  | CBox => H
+  | CLit l => H0 l
+  | CVar s => H1 s
+  | CFunId f => H2 f
+  | CFun vl e => H3 vl e (Context_ind2 e)
+  | CRecFun f vl e => H4 f vl e (Context_ind2 e)
+  | CApp e el => H5 e (Context_ind2 e) el ((fix l_ind (l':list Context) : Q l' :=
+                                         match l' as x return Q x with
+                                         | [] => H1'
+                                         | v::xs => H' v (Context_ind2 v) xs (l_ind xs)
+                                         end) el)
+  | CLet v e1 e2 => H6 v e1 (Context_ind2 e1) e2 (Context_ind2 e2)
+  | CLetRec f vl b e => H7 f vl b (Context_ind2 b) e (Context_ind2 e)
+  | CPlus e1 e2 => H8 e1 (Context_ind2 e1) e2 (Context_ind2 e2)
+  | CIf e1 e2 e3 => H9 e1 (Context_ind2 e1) e2 (Context_ind2 e2) e3 (Context_ind2 e3)
+  end.
+
+End correct_ctx_ind.
+
 Fixpoint fill_boxes (e : Exp) (C : Context) : Exp :=
 match C with
  | CBox => e
@@ -163,6 +209,31 @@ match clock with
         end
 end.
 
+Fixpoint finite_unfolding (n : nat) (f : FunctionIdentifier) (env : Environment) (vl : list Var) (b : Exp) : Value :=
+match n with
+(* | 0 => VRecFun env f vl b (* <- according to me *) *)
+| 0 => VRecFun env f vl (EApp (EFunId f) (map EVar vl))
+| S n' => VFun (insert_value env (inr f) (finite_unfolding n' f env vl b)) vl b
+end.
+
+Theorem unwinding clock :
+  forall env env' f e vl b val,
+  eval_env clock (insert_value env (inr f) (VRecFun env' f vl b)) e = Res val
+<->
+  exists n clock, eval_env clock (insert_value env (inr f) (finite_unfolding n f env' vl b)) e = Res val
+.
+Proof.
+  split. 
+  {
+    induction clock; intros.
+    * inversion H.
+    * admit.
+  }
+  {
+    admit.
+  }
+Admitted.
+
 Definition make_exp (v : Value) : Exp :=
 match v with
  | VLit z => ELit z
@@ -231,8 +302,6 @@ with exp_rel : Environment -> Environment -> Exp -> Exp -> Prop :=
 | nil_rel : list_rel [] []
 | cons_rel x y xs ys : val_rel x y -> list_rel ys ys -> list_rel (x::xs) (y::ys) *)
 .
-
-Set Positivity Checking.
 
 Scheme ind11 := Induction for val_rel Sort Prop
 with ind22 := Induction for exp_rel Sort Prop
@@ -655,7 +724,7 @@ Definition E_rel (V_rel : relation Value) (env env' : Environment) (e1 e2 : Exp)
   ((terminating e1 env) <-> (terminating e2 env')) /\
   (forall clock v1 v2,
     eval_env clock env e1 = Res v1 /\
-    eval_env clock env e2 = Res v2 ->
+    eval_env clock env' e2 = Res v2 ->
     V_rel v1 v2)
 .
 
@@ -669,7 +738,14 @@ Inductive V_rel_fun (valr : relation Value) : relation Value :=
 ->
   V_rel_fun valr (VFun env vl b) (VFun env' vl' b')
 (** TODO: recfun *)
-
+| rec_clos_rel2 f vl env b f' vl' env' b' :
+  length vl = length vl' ->
+  (forall vals1 vals2, length vals1 = length vl -> length vals2 = length vl' ->
+    (forall i, i < length vl -> valr (nth i vals1 (VLit 0)) (nth i vals2 (VLit 0))) ->
+  E_rel valr (append_vars_to_env vl vals1 (insert_value env (inr f) (VRecFun env f vl b)))
+             (append_vars_to_env vl' vals2 (insert_value env' (inr f) (VRecFun env' f' vl' b'))) b b')
+->
+  V_rel_fun valr (VRecFun env f vl b) (VRecFun env' f' vl' b')
 .
 
 (* Unset Positivity Checking. *)
@@ -694,11 +770,12 @@ Inductive V_rel_fun (valr : relation Value) : relation Value :=
 Fixpoint v_rel (n : nat) : relation Value :=
 fun v1 v2 =>
 match n with
-| 0 => True
+| 0 => False
 | S n' =>
   match v1, v2 with
   | VLit _, VLit _ => V_rel_refl v1 v2
   | VFun _ _ _, VFun _ _ _ => V_rel_fun (v_rel n') v1 v2
+  | VRecFun _ _ _ _, VRecFun _ _ _ _ => V_rel_fun (v_rel n') v1 v2
   | _, _ => False
   end
 end.
@@ -725,9 +802,154 @@ match e with
  | EIf e1 e2 e3 => 1 + size e1 + size e2 + size e3
 end.
 
+Definition val_size (v : Value) :=
+match v with
+| VLit _ => 1
+| VFun _ _ e => 1 + size e
+| VRecFun _ _ _ e => 1 + size e
+end.
+
+Definition val_rel_size : relation Value :=
+  fun v1 v2 => v_rel (val_size v1 + val_size v2) v1 v2.
+
+
+
+
+(* TODO: Here, we could say exists a nat, which is the parameter of v_rel, if needed *)
+Definition eq_env : relation Environment :=
+ fun env env' =>
+  length env = length env' /\
+  forall i, i < length env -> val_rel_size (snd (nth i env (inl "X"%string, VLit 0))) (snd (nth i env' (inl "X"%string, VLit 0))) /\ fst (nth i env (inl "X"%string, VLit 0)) = fst (nth i env' (inl "X"%string, VLit 0)).
+
+
+Section list_length_ind.  
+  Variable A : Type.
+  Variable P : list A -> Prop.
+
+  Hypothesis H : forall xs, (forall l, length l < length xs -> P l) -> P xs.
+
+  Theorem list_length_ind : forall xs, P xs.
+  Proof.
+    assert (forall xs l : list A, length l <= length xs -> P l) as H_ind.
+    { induction xs; intros l Hlen; apply H; intros l0 H0.
+      - inversion Hlen. lia.
+      - apply IHxs. simpl in Hlen. lia.
+    }
+    intros xs.
+    apply H_ind with (xs := xs).
+    lia.
+  Qed.
+End list_length_ind.
+
+
+Section nat_lt_ind.
+  Variable P : nat -> Prop.
+
+  Hypothesis H : forall n, (forall n', n' < n -> P n') -> P n.
+
+  Theorem nat_lt_ind : forall n, P n.
+  Proof.
+    assert (forall n n' : nat, n' <= n -> P n') as H_ind.
+    { induction n; intros l Hlen; apply H; intros l0 H0.
+      - inversion Hlen. subst. inversion H0.
+      - apply IHn. lia.
+    }
+    intros n.
+    apply H_ind with (n := n).
+    lia.
+  Qed.
+End nat_lt_ind.
+
+Theorem eq_env_get :
+  forall env env', eq_env env env'
+->
+  forall v val, get_value env v = Some val
+->
+  exists val', get_value env' v = Some val' /\ val_rel_size val val'.
+Proof.
+  induction env using list_length_ind.
+  intros. destruct H0. destruct env, env'.
+  * inversion H1.
+  * inversion H1.
+  * inversion H0.
+  * destruct p. destruct (var_funid_eqb v s) eqn:P.
+    - pose (H2 0 (Nat.lt_0_succ _)). destruct a. simpl in H3, H4.
+      destruct p0. simpl in H4, H3. subst. simpl. rewrite P. eexists.
+      split. reflexivity. simpl in H1. rewrite P in H1. inversion H1. subst. auto.
+    - simpl. destruct p0. simpl in H1. pose (H2 0 (Nat.lt_0_succ _)). destruct a. simpl in H4. subst.
+      rewrite P in *. apply H with (l := env).
+      + simpl. lia.
+      + split.
+        ** inversion H0. lia.
+        ** intros. Search lt S. pose (H2 (S i) (Lt.lt_n_S _ _ H4)). exact a.
+      + auto.
+Qed.
+
+Theorem eq_env_get_none :
+  forall env env', eq_env env env'
+->
+  forall v, get_value env v = None
+->
+  get_value env' v = None.
+Proof.
+(* Same proof as before *)
+  induction env using list_length_ind.
+  intros. destruct H0. destruct env, env'.
+  * auto.
+  * inversion H0.
+  * inversion H0.
+  * destruct p, p0. pose (H2 0 (Nat.lt_0_succ _)). destruct a. simpl in H3, H4. subst. 
+    destruct (var_funid_eqb v s0) eqn:P.
+    - simpl get_value in *. rewrite P in *. inversion H1.
+    - simpl get_value in *. rewrite P in *. apply H with (l := env).
+      + simpl. lia.
+      + split.
+        ** inversion H0. lia.
+        ** intros. Search lt S. pose (H2 (S i) (Lt.lt_n_S _ _ H4)). exact a.
+      + auto.
+Qed.
+
+Theorem eq_env_eval :
+  forall clock e env env' v, eq_env env env'
+->
+  eval_env clock env e = Res v
+->
+  exists v', eval_env clock env' e = Res v' /\ val_rel_size v v'.
+Proof.
+  induction clock; intros.
+  * inversion H0.
+  * destruct e.
+    - simpl in H0. inversion H0. eexists. simpl. split. reflexivity. constructor.
+    - simpl in H0. break_match_hyp.
+      + apply eq_env_get with (env' := env') in Heqo. 2: auto. simpl. destruct Heqo, H1. rewrite H1.
+        exists x. inversion H0. subst. split. auto. auto.
+      + apply eq_env_get_none with (env' := env') in Heqo. 2: auto. inversion H0.
+    - simpl in H0. break_match_hyp.
+      + apply eq_env_get with (env' := env') in Heqo. 2: auto. simpl. destruct Heqo, H1. rewrite H1.
+        exists x. inversion H0. subst. split. auto. auto.
+      + apply eq_env_get_none with (env' := env') in Heqo. 2: auto. inversion H0.
+    - simpl in H0. inversion H0. subst. eexists. simpl. split. reflexivity.
+      constructor.
+      + auto.
+      + intros. constructor.
+        
+    - simpl in H0. inversion H0. subst. eexists. simpl. split. reflexivity. constructor.
+      + auto.
+      + intros. constructor. admit. admit. (* this is problematic (endless recursive proof) -> finite unfolding *)
+    - admit.
+    
+Admitted.
+
+Corollary eq_env_term :
+  forall env env' e, equiv_env env env' -> terminating e env -> terminating e env'.
+Proof.
+  intros. unfold terminating in *. destruct H0, H0. eapply equiv_env_eval in H0. 2: exact H. destruct H0, H0.
+  eexists. exists x0. exact H0.
+Qed.
+
 Definition equiv_exp : Exp -> Exp -> Prop :=
   fun e1 e2 =>
-  forall env env', equiv_env env env'
+  forall env env', eq_env env env'
  ->
   E_rel (v_rel (size e1 + size e2)) env env' e1 e2.
 
@@ -756,7 +978,21 @@ Qed.
 
 End examples.
 
-Theorem v
+(* compatibility lemmas: *)
+
+Lemma compat_lit l : equiv_exp (ELit l) (ELit l).
+Proof.
+  constructor. prove_term.
+  * intros. destruct H0. destruct clock; inversion H0. inversion H1. constructor.
+Qed.
+
+Lemma compat_var v : equiv_exp (EVar v) (EVar v).
+Proof.
+  constructor.
+  * destruct (get_value env (inl v)) eqn:P.
+    - split; intros; destruct H0, H0, x0; inversion H0.
+      + rewrite P in H2. inversion H2. subst. eexists. exists (S x0). simpl.
+        
 
 (*
 (** Values at base type are V-related exactly when they are identical *)
