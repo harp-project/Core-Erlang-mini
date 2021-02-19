@@ -1,6 +1,6 @@
 
 From Coq Require Export ZArith.BinInt.
-From Coq Require Export Strings.String.
+Require Export ExpEnv.
 From Coq Require Export Lists.List.
 
 Import ListNotations.
