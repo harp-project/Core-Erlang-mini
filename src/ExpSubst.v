@@ -1,4 +1,4 @@
-Require Export ExpSemantics.
+Require Export ExpSyntax.
 Export PeanoNat.
 Export Relations.Relations.
 Export Classes.RelationClasses.
@@ -6,8 +6,8 @@ Require Export FSets.FMapFacts.
 
 Import ListNotations.
 
-Notation "⟨ fs , e ⟩ -->* ⟨ fs' , e' ⟩" := (step_rt fs e fs' e') (at level 50).
-Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" := (step fs e fs' e') (at level 50).
+(* Notation "⟨ fs , e ⟩ -->* ⟨ fs' , e' ⟩" := (step_rt fs e fs' e') (at level 50).
+Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" := (step fs e fs' e') (at level 50). *)
 
 Inductive Context : Set :=
 | CBox
@@ -21,6 +21,24 @@ Inductive Context : Set :=
 | CLetRec (f : FunctionIdentifier) (vl : list Var) (c1 c2 : Context)
 | CPlus   (c1 c2 : Context)
 | CIf (c1 c2 c3 : Context).
+
+Ltac break_match_hyp :=
+match goal with
+| [ H : context [ match ?X with _=>_ end ] |- _] =>
+     match type of X with
+     | sumbool _ _=>destruct X
+     | _=>destruct X eqn:? 
+     end 
+end.
+
+Ltac break_match_goal :=
+match goal with
+| [ |- context [ match ?X with _=>_ end ] ] => 
+    match type of X with
+    | sumbool _ _ => destruct X
+    | _ => destruct X eqn:?
+    end
+end.
 
 Section correct_ctx_ind.
 
@@ -87,33 +105,10 @@ Notation "C [[ e ]]" := (fill_boxes e C) (at level 30).
 
 Compute (CBox) [[ ELit 1 ]].
 
-Inductive Value : Set :=
-| VLit (z : Z)
-(* TODO: strictly positiveness check for maps fail :( *)
-| VFun (env : list (VarFunId * Value)) (vl : list Var) (b : Exp)
-| VRecFun (env : list (VarFunId * Value)) (f : FunctionIdentifier) (vl : list Var) (b : Exp).
-
-Definition Env : Type := Environment.t Value.
-
-
-(* The equality of function signatures *)
-  Definition funid_eqb (v1 v2 : FunctionIdentifier) : bool :=
-  match v1, v2 with
-  | (fid1, num1), (fid2, num2) => String.eqb fid1 fid2 && Nat.eqb num1 num2
-  end.
-
-  (* Extended equality between functions and vars *)
-  Definition var_funid_eqb (v1 v2 : VarFunId) : bool :=
-  match v1, v2 with
-  | inl s1, inl s2 => String.eqb s1 s2
-  | inr f1, inr f2 => funid_eqb f1 f2
-  | _, _ => false
-  end.
-
-(** Add bindings with two lists *)
-Definition append_vars_to_env (vl : list Var) (el : list Value) (d : Env)
-   : Env :=
-fold_right (fun '(key, val) Acc => Environment.add (inl key) val Acc) d (combine vl el).
+Inductive is_value : Exp -> Prop :=
+| ELit_val : forall l, is_value (ELit l)
+| EFun_val : forall vl e, is_value (EFun vl e)
+| ERecFun_val : forall f vl e, is_value (ERecFun f vl e).
 
 Inductive ResultType {T : Set} : Set :=
 | Timeout
@@ -121,7 +116,77 @@ Inductive ResultType {T : Set} : Set :=
 | Res (v : T)
 .
 
-Fixpoint eval_list (f : Exp -> @ResultType Value) (l : list Exp) : @ResultType (list Value) :=
+(* Fixpoint inb {A : Type} (eqb : A -> A -> bool) (x : A) (l : list A) : bool :=
+match l with
+| [] => false
+| x'::xs => if eqb x x' then true else inb eqb x xs
+end. *)
+
+(* The equality of function signatures *)
+Definition funid_eqb (v1 v2 : FunctionIdentifier) : bool :=
+match v1, v2 with
+| (fid1, num1), (fid2, num2) => String.eqb fid1 fid2 && Nat.eqb num1 num2
+end.
+
+(* Extended equality between functions and vars *)
+Definition var_funid_eqb (v1 v2 : Var + FunctionIdentifier) : bool :=
+match v1, v2 with
+| inl s1, inl s2 => String.eqb s1 s2
+| inr f1, inr f2 => funid_eqb f1 f2
+| _, _ => false
+end.
+
+Fixpoint varsubst (v' : Var) (what wher : Exp) : Exp :=
+match wher with
+ | ELit l => wher
+ | EVar v => if String.eqb v v' then what else EVar v
+ | EFunId f => wher
+ | EFun vl e => if in_list v' vl then EFun vl e else EFun vl (varsubst v' what e)
+ | ERecFun f vl e => if in_list v' vl then ERecFun f vl e else ERecFun f vl (varsubst v' what e)
+ | EApp exp l => EApp (varsubst v' what exp) (map (varsubst v' what) l)
+ | ELet v e1 e2 => if String.eqb v v' then ELet v (varsubst v' what e1) e2
+                               else ELet v (varsubst v' what e1) (varsubst v' what e2)
+ | ELetRec f vl b e => if in_list v' vl then ELetRec f vl b (varsubst v' what e) 
+                                        else ELetRec f vl (varsubst v' what b) (varsubst v' what e)
+ | EPlus e1 e2 => EPlus (varsubst v' what e1) (varsubst v' what e2)
+ | EIf e1 e2 e3 => EIf (varsubst v' what e1) (varsubst v' what e2) (varsubst v' what e3) 
+end.
+
+Fixpoint funsubst (f' : FunctionIdentifier) (what wher : Exp) : Exp :=
+match wher with
+ | ELit l => wher
+ | EVar v => EVar v
+ | EFunId f => if funid_eqb f f' then what else wher
+ | EFun vl e => EFun vl (funsubst f' what e)
+ | ERecFun f vl e => ERecFun f vl (funsubst f' what e)
+ | EApp exp l => EApp (funsubst f' what exp) (map (funsubst f' what) l)
+ | ELet v e1 e2 => ELet v (funsubst f' what e1) (funsubst f' what e2)
+ | ELetRec f vl b e => if funid_eqb f f'
+                       then ELetRec f vl b e
+                       else ELetRec f vl (funsubst f' what b) (funsubst f' what e)
+ | EPlus e1 e2 => EPlus (funsubst f' what e1) (funsubst f' what e2)
+ | EIf e1 e2 e3 => EIf (funsubst f' what e1) (funsubst f' what e2) (funsubst f' what e3)
+end.
+
+
+Definition varsubst_list (l : list Var) (es : list Exp) (e : Exp) : Exp :=
+  fold_right (fun '(v, val) acc => varsubst v val acc) e (combine l es).
+
+(** Closing substitution *)
+Definition subst (v' : VarFunId) (what wher : Exp) (p : is_value what) : Exp :=
+  match v' with
+  | inl v => varsubst v what wher
+  | inr f => funsubst f what wher
+  end
+.
+
+Inductive list_forall {A : Type} (P : A -> Prop) : list A -> Prop :=
+| forall_nil : list_forall P []
+| forall_cons x xs : P x -> list_forall P xs -> list_forall P (x::xs).
+
+
+
+Fixpoint eval_list (f : Exp -> @ResultType Exp) (l : list Exp) : @ResultType (list Exp) :=
 match l with
 | [] => Res []
 | x::xs => match f x with
@@ -134,68 +199,95 @@ match l with
            end
 end.
 
-Compute Environment.elements (Environment.add (inl "a"%string) 1 (Environment.empty _)).
-
-Definition make_env (l : list (VarFunId * Value)) : Env :=
-  fold_right (fun '(key, val) Acc => Environment.add key val Acc) (Environment.empty _) l.
-
-Fixpoint eval_env (clock : nat) (env : Env) (e : Exp) : @ResultType Value :=
+Fixpoint eval (clock : nat) (e : Exp) : @ResultType Exp :=
 match clock with
 | 0 => Timeout
 | S n => match e with
-         | ELit l => Res (VLit l)
-         | EVar v => match Environment.find (inl v) env with
-                     | Some val => Res val
-                     | None => Fail
-                     end
-         | EFunId f => match Environment.find (inr f) env with
-                       | Some val => Res val
-                       | None => Fail
-                       end
-         | EFun vl e => Res (VFun (Environment.elements env) vl e)
-         | ERecFun f vl e => Res (VRecFun (Environment.elements env) f vl e)
-         | EApp exp l => match eval_env n env exp with
+         | ELit l => Res (ELit l)
+         | EVar v => Fail
+         | EFunId f => Fail
+         | EFun vl e => Res (EFun vl e)
+         | ERecFun f vl e => Res (ERecFun f vl e)
+         | EApp exp l => match eval n exp with
                          (** In Core Erlang this check only happens later *)
-                         | Res (VFun env' vl e) =>
+                         | Res (EFun vl e) =>
                             (* This would be better with Monads *)
-                            let vres := eval_list (eval_env n env) l in
+                            let vres := eval_list (eval n) l in
                                match vres with
-                               | Res vals => eval_env n (append_vars_to_env vl vals (make_env env')) e
+                               | Res vals => eval n (varsubst_list vl vals e)
                                | Fail => Fail
                                | Timeout => Timeout
                                end
-                         | Res (VRecFun env' f vl e) =>
-                            let vres := eval_list (eval_env n env) l in
+                         | Res (ERecFun f vl e) =>
+                            let vres := eval_list (eval n) l in
                                match vres with
-                               | Res vals => eval_env n (append_vars_to_env vl vals (Environment.add (inr f) (VRecFun env' f vl e) (make_env env'))) e
+                               | Res vals => eval n (funsubst f (ERecFun f vl e) (varsubst_list vl vals e))
                                | Fail => Fail
                                | Timeout => Timeout
                                end
-                         | Res _  => Fail
+                         | Res _ => Fail
                          | r => r
                          end
-         | ELet v e1 e2 => match eval_env n env e1 with
-                           | Res val => eval_env n (Environment.add (inl v) val env) e2
+         | ELet v e1 e2 => match eval n e1 with
+                           | Res val => eval n (varsubst v val e2)
                            | r      => r
                            end
-         | ELetRec f vl b e => eval_env n (Environment.add (inr f) (VRecFun (Environment.elements env) f vl b) env) e
+         | ELetRec f vl b e => eval n (funsubst f (ERecFun f vl b) e)
          | EPlus e1 e2 => 
-            match eval_env n env e1, eval_env n env e2 with
-            | Res (VLit n), Res (VLit m) => Res (VLit (n + m))
+            match eval n e1, eval n e2 with
+            | Res (ELit n), Res (ELit m) => Res (ELit (n + m))
             | Res _, Res _ => Fail
             | Res _, r => r
             | r, _     => r
             end
          | EIf e1 e2 e3 =>
-            match eval_env n env e1 with
-            | Res (VLit 0) => eval_env n env e2
-            | Res _        => eval_env n env e3
+            match eval n e1 with
+            | Res (ELit 0) => eval n e2
+            | Res _        => eval n e3
             | r            => r
             end
         end
 end.
 
-Fixpoint finite_unfolding (n : nat) (f : FunctionIdentifier) (env : Env) (vl : list Var) (b : Exp) : Value :=
+Theorem list_result_is_value l : forall clock vals,
+  (forall e v : Exp, eval clock e = Res v -> is_value v)
+->
+  eval_list (eval clock) l = Res vals
+  ->
+  forall i, i < length vals -> is_value (nth i vals (ELit 0)).
+Proof.
+  induction l; intros.
+  * simpl in H0. inversion H0. subst. inversion H1.
+  * simpl in H0. break_match_hyp; try congruence. apply H in Heqr.
+    break_match_hyp; try congruence. inversion H0. subst.
+    pose (IHl _ _ H Heqr0). destruct i.
+    - simpl. auto.
+    - apply i0. simpl in H1. lia.
+Qed.
+
+Theorem result_is_value :
+  forall clock e v, eval clock e = Res v -> is_value v.
+Proof.
+  intro. induction clock; intros.
+  * inversion H.
+  * destruct e; inversion H.
+    - constructor.
+    - constructor.
+    - constructor.
+    - break_match_hyp; inversion H1. break_match_hyp; try congruence.
+      + break_match_hyp; try congruence. apply IHclock in H1. auto.
+      + break_match_hyp; try congruence. apply IHclock in H1. auto.
+    - break_match_hyp; try congruence. apply IHclock in H1. auto.
+    - apply IHclock in H1. auto.
+    - break_match_hyp; try congruence. break_match_hyp; try congruence; break_match_hyp; try congruence.
+      break_match_hyp; try congruence.
+      + inversion H1. constructor.
+    - break_match_hyp; try congruence. break_match_hyp; try congruence.
+      destruct l; apply IHclock in H1; auto.
+      all: apply IHclock in H1; auto.
+Qed.
+
+(* Fixpoint finite_unfolding (n : nat) (f : FunctionIdentifier) (env : Env) (vl : list Var) (b : Exp) : Value :=
 match n with
 (* | 0 => VRecFun env f vl b (* <- according to me *) *)
 | 0 => VRecFun (Environment.elements env) f vl (EApp (EFunId f) (map EVar vl))
@@ -295,91 +387,68 @@ var <> var' ->
 Environment.find var' (Environment.add var val env) = Environment.find var' env.
 Proof.
   apply EnvFacts.add_neq_o.
-Qed.
+Qed. *)
 
 (* equivalent, substitutional semantics would be better *)
-Lemma foo env x :
-  eval_env (S (S (S (S (S (S (S (S (S x))))))))) env (sum 2) = Res (VLit 3).
+Lemma foo x :
+  eval (10 + x) (sum 2) = Res (ELit 3).
 Proof.
-  remember (S (S (S (S (S (S x)))))) as xx. simpl.
-  rewrite get_value_here. rewrite Heqxx.
-  remember (S (S (S x))) as xxx. unfold append_vars_to_env. simpl. rewrite get_value_here.
-  rewrite get_value_there, get_value_here. 2: congruence. rewrite Heqxxx. simpl.
-  rewrite get_value_here. unfold append_vars_to_env. simpl. rewrite get_value_here.
-  rewrite get_value_there, get_value_here. 2: congruence. simpl.
-Admitted.
+  simpl. auto.
+Qed.
 
 (** Congruence *)
-
-Ltac break_match_hyp :=
-match goal with
-| [ H : context [ match ?X with _=>_ end ] |- _] =>
-     match type of X with
-     | sumbool _ _=>destruct X
-     | _=>destruct X eqn:? 
-     end 
-end.
-
-Ltac break_match_goal :=
-match goal with
-| [ |- context [ match ?X with _=>_ end ] ] => 
-    match type of X with
-    | sumbool _ _ => destruct X
-    | _ => destruct X eqn:?
-    end
-end.
 
 (* Future work, based on https://github.com/cobbal/ppl-ctx-equiv-coq 
   Trick: avoid positivity check by using typing
 *)
 
 Axiom bigger_clock :
-  forall env e clock v clock', clock' >= clock ->
-   eval_env clock env e = Res v ->
-   eval_env clock' env e = Res v.
+  forall e clock v clock', clock' >= clock ->
+   eval clock  e = Res v ->
+   eval clock' e = Res v.
 
-Definition terminating (e : Exp) (env : Env) : Prop :=
-  exists v clock, eval_env clock env e = Res v
+Definition terminating (e : Exp) : Prop :=
+  exists v clock, eval clock e = Res v
 .
 
-Definition E_rel (V_rel : relation Value) (env env' : Env) (e1 e2 : Exp) : Prop :=
-  ((terminating e1 env) <-> (terminating e2 env')) /\
+Definition E_rel (V_rel : relation Exp) (e1 e2 : Exp) : Prop :=
+  ((terminating e1) <-> (terminating e2)) /\
   (forall clock v1 v2,
-    eval_env clock env e1 = Res v1 /\
-    eval_env clock env' e2 = Res v2 ->
+    eval clock e1 = Res v1 /\
+    eval clock e2 = Res v2 ->
     V_rel v1 v2)
 .
 
-Lemma E_rel_refl : forall (V_rel : relation Value)(env env : Env),
+Lemma E_rel_refl : forall (V_rel : relation Exp),
   Reflexive V_rel
 ->
-  Reflexive (E_rel V_rel env env).
+  Reflexive (E_rel V_rel).
 Proof.
   intros. unfold Reflexive, E_rel in *. intros. split.
   * split; intros; auto.
   * intros. destruct H0. rewrite H0 in H1. inversion H1. subst. apply H.
 Qed.
 
-Lemma E_rel_sym : forall (V_rel : relation Value)(env env' : Env),
+Lemma E_rel_sym : forall (V_rel : relation Exp),
   Symmetric V_rel
 ->
-  (forall e e', E_rel V_rel env env' e e' -> E_rel V_rel env' env e' e).
+  (forall e e', E_rel V_rel e e' -> E_rel V_rel e' e).
 Proof.
   intros. unfold Symmetric, E_rel in *. destruct H0. intros. split.
   * symmetry. auto.
   * intros. destruct H2. apply H. eapply H1. split. exact H3. auto.
 Qed.
 
-Lemma E_rel_trans : forall (V_rel : relation Value)(env env' env'' : Env),
+Lemma E_rel_trans : forall (V_rel : relation Exp),
   Transitive V_rel
 ->
-  (forall e e' e'', E_rel V_rel env env' e e' -> E_rel V_rel env' env'' e' e''
+  (forall e e' e'', E_rel V_rel e e' -> E_rel V_rel e' e''
   ->
-  E_rel V_rel env env'' e e'').
+  E_rel V_rel e e'').
 Proof.
   intros. unfold Transitive, E_rel in *. destruct H0, H1. intros. split.
   * eapply iff_trans. exact H0. auto.
-  * intros. destruct H4, H0, H1. assert (exists v3 clock, eval_env clock env' e' = Res v3).
+  * intros. destruct H4, H0, H1. assert (exists v3 clock, eval clock e' = Res v3).
     { apply H0. eexists. eexists. exact H4. }
     destruct H8, H8.
     apply bigger_clock with (clock' := clock + x0) in H4.
@@ -399,23 +468,23 @@ Proof.
   unfold Transitive, V_rel_num. intros. lia.
 Qed.
 
-Inductive V_rel_fun (valr : relation Value) : relation Value :=
-| clos_rel2 vl env b vl' env' b' :
+Inductive V_rel_fun (valr : relation Exp) : relation Exp :=
+| clos_rel2 vl b vl' b' :
   length vl = length vl' ->
   (forall vals1 vals2, length vals1 = length vl -> length vals2 = length vl' ->
-    (forall i, i < length vl -> valr (nth i vals1 (VLit 0)) (nth i vals2 (VLit 0))) ->
-  E_rel valr (append_vars_to_env vl vals1 (make_env env)) (append_vars_to_env vl' vals2 (make_env env')) b b')
+    (forall i, i < length vl -> valr (nth i vals1 (ELit 0)) (nth i vals2 (ELit 0))) ->
+  E_rel valr (varsubst_list vl vals1 b) (varsubst_list vl vals2 b'))
 ->
-  V_rel_fun valr (VFun env vl b) (VFun env' vl' b')
+  V_rel_fun valr (EFun vl b) (EFun vl' b')
 (** TODO: recfun *)
-| rec_clos_rel2 f vl env b f' vl' env' b' :
+| rec_clos_rel2 f vl b f' vl' b' :
   length vl = length vl' ->
   (forall vals1 vals2, length vals1 = length vl -> length vals2 = length vl' ->
-    (forall i, i < length vl -> valr (nth i vals1 (VLit 0)) (nth i vals2 (VLit 0))) ->
-  E_rel valr (append_vars_to_env vl vals1 (Environment.add (inr f) (VRecFun env f vl b) (make_env env)))
-             (append_vars_to_env vl' vals2 (Environment.add (inr f) (VRecFun env' f' vl' b') (make_env env'))) b b')
+    (forall i, i < length vl -> valr (nth i vals1 (ELit 0)) (nth i vals2 (ELit 0))) ->
+  E_rel valr (varsubst_list vl vals1 (funsubst f (ERecFun f vl b) b))
+             (varsubst_list vl vals2 (funsubst f (ERecFun f vl b') b')))
 ->
-  V_rel_fun valr (VRecFun env f vl b) (VRecFun env' f' vl' b')
+  V_rel_fun valr (ERecFun f vl b) (ERecFun f' vl' b')
 .
 
 (* Unset Positivity Checking. *)
@@ -437,22 +506,84 @@ Inductive V_rel_fun (valr : relation Value) : relation Value :=
     v_rel (VFun env vl b) (VFun env' vl' b')
 .*)
 
-Fixpoint V_rel (n : nat) : relation Value :=
+Fixpoint V_rel (n : nat) : relation Exp :=
 fun v1 v2 =>
 match n with
 | 0 => (* False *) v1 = v2
 | S n' =>
   match v1, v2 with
-  | VLit n, VLit m => V_rel_num n m
-  | VFun _ _ _, VFun _ _ _ => V_rel_fun (V_rel n') v1 v2
-  | VRecFun _ _ _ _, VRecFun _ _ _ _ => V_rel_fun (V_rel n') v1 v2
+  | ELit n, ELit m => V_rel_num n m
+  | EFun _ _, EFun _ _ => V_rel_fun (V_rel n') v1 v2
+  | ERecFun _ _ _, ERecFun _ _ _ => V_rel_fun (V_rel n') v1 v2
   | _, _ => False
   end
 end.
 
 
+(* Lemma v_rel_refl n :
+  forall x, is_value x -> V_rel n x x.
+Proof.
+  induction n.
+  * unfold Reflexive. intros. simpl. auto.
+  * unfold Reflexive in *. intros. destruct x; try inversion H.
+    - simpl. apply V_rel_num_refl.
+    - simpl. constructor. auto. intros. split.
+      + admit. (* Equivalent environments *)
+      + intros. destruct H5. subst.
+Abort. *)
+
+(* For closed expressions: *)
+Definition Equiv_rel e1 e2 := exists n, E_rel (V_rel n) e1 e2.
+
+Theorem Equiv_rel_refl :
+  forall x, Equiv_rel x x.
+Proof.
+  intros. exists 0. constructor. simpl in H. subst.
+  intros. exact H.
+  intros. simpl in H. subst. exact H0.
+Qed.
 
 
+(*
+Definition E_rel (V_rel : relation Exp) (e1 e2 : Exp) : Prop :=
+ (*  ((terminating e1) <-> (terminating e2)) /\ *)
+  (forall v1 v2, V_rel v1 v2 ->
+    (exists clock, eval clock e1 = Res v1) <->
+    (exists clock, eval clock e2 = Res v2))
+.
+
+Goal Equiv_rel (ELit 3) (sum 2).
+Proof.
+  exists 0. constructor; simpl in H; subst.
+  intros. destruct H. destruct x; inversion H. subst.
+  exists 100. simpl. auto.
+  intros. destruct H. destruct x; inversion H.
+  destruct x; inversion H.
+  destruct x; inversion H.
+  destruct x; inversion H.
+  destruct x; inversion H.
+  destruct x; inversion H.
+  destruct x; inversion H.
+  destruct x; inversion H.
+  destruct x; inversion H.
+  destruct x; inversion H. simpl in H. subst. exists 1. simpl. auto.
+Qed.
+
+(* Very hard to prove, because we need to guess v2 backwards :( *)
+Goal Equiv_rel (EFun [] (ELit 3)) (EFun [] (sum 2)).
+Proof.
+  exists 1. constructor; simpl in H; intros; destruct H0.
+  destruct x; inversion H0. subst. exists 2. simpl.
+  destruct v2; try contradiction. inversion H. subst.
+  apply eq_sym, length_zero_iff_nil in H4. subst. specialize (H6 [] [] eq_refl eq_refl).
+  epose (H6 _). unfold varsubst_list in e. simpl in e. unfold E_rel in e. specialize (e (ELit 3) (ELit 3)).
+  destruct e. reflexivity. *)
+  
+
+Definition related_exps : relation Exp :=
+  fun e1 e2 =>
+    forall cl1 cl2, G_rel cl1 cl2 ->
+      E_rel (close cl1 e1) (close cl2 e2).
 
 (* depends on E_rel symm *)
 Lemma v_rel_refl n :
