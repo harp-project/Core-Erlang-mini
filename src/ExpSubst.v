@@ -533,6 +533,97 @@ Proof.
 Abort. *)
 
 (* For closed expressions: *)
+Definition Equiv_rel n := E_rel (V_rel n).
+
+(* 
+Theorem varsubst_eval :
+  exists clock, eval clock  *)
+
+Lemma varsubst_indep :
+  forall n v1 v2 b var,
+  E_rel (V_rel n) b b ->
+  V_rel n v1 v2 ->
+  E_rel (V_rel n) (varsubst var v1 b) (varsubst var v2 b).
+Proof.
+  (* TODO this is fundamental *)
+Admitted.
+
+Corollary varsubst_list_indep :
+  forall vals1 vals2 n b vl,
+  E_rel (V_rel n) b b -> 
+  (forall i : nat,
+     i < Datatypes.length vl -> V_rel n (nth i vals1 (ELit 0)) (nth i vals2 (ELit 0)))
+->
+  E_rel (V_rel n) (varsubst_list vl vals1 b) (varsubst_list vl vals2 b).
+Proof.
+  (* TODO, should be simple from varsubst_indep *)
+Admitted.
+
+Lemma funsubst_indep :
+  forall n f b e,
+  E_rel (V_rel n) b b
+->
+  E_rel (V_rel n) (funsubst f e b) (funsubst f e b).
+Proof.
+  (* TODO *)
+Admitted.
+
+
+(** WARNING: use only for termination checking: *)
+(*
+Axiom ff : False.
+*)
+
+Theorem Equiv_rel_refl :
+  forall x n, Equiv_rel n x x.
+Proof.
+  induction x; intros.
+  * constructor. split; intros; auto.
+    intros. destruct H. rewrite H in H0. inversion H0. subst.
+    destruct clock. inversion H. simpl in H. inversion H. subst. destruct n; simpl. auto. constructor.
+  * constructor. split; intros; auto.
+    intros. destruct H. destruct clock; inversion H.
+  * constructor. split; intros; auto.
+    intros. destruct H. destruct clock; inversion H.
+  * constructor. split; intros; auto.
+    intros. destruct H. destruct clock; inversion H. inversion H0. subst.
+    destruct n. simpl. auto.
+    simpl. constructor. auto. intros. apply varsubst_list_indep. 
+    apply IHx. apply H3.
+  * constructor. split; intros; auto.
+    intros. destruct H. destruct clock; inversion H. inversion H0. subst.
+    destruct n. simpl. auto.
+    simpl. constructor. auto. intros. apply varsubst_list_indep. apply funsubst_indep. apply IHx. apply H3.
+  * admit.
+  * constructor. split; intros; auto.
+    intros. destruct H. destruct clock. inversion H. simpl in H, H0.
+    break_match_hyp; try congruence. rewrite H in H0. inversion H0. subst.
+    pose (IHx1 n). destruct e. specialize (H2 _ _ _ (conj Heqr Heqr)).
+    pose (IHx2 n). epose (varsubst_indep n _ _ _ _ e H2). destruct e0. eapply H4.
+    split. exact H. exact H.
+  * constructor. split; intros; auto.
+    intros. destruct H. destruct clock. inversion H. simpl in H, H0.
+    rewrite H in H0. inversion H0. subst. pose (IHx2 n). eapply funsubst_indep in e. destruct e.
+    eapply H2. split. exact H. exact H.
+  * constructor. split; intros; auto.
+    intros. destruct H. destruct clock. inversion H. simpl in H, H0.
+    repeat break_match_hyp; try congruence.
+    rewrite H in H0. inversion H0. subst.
+    destruct n. reflexivity. inversion H. subst.
+    simpl. constructor.
+  * constructor. split; intros; auto.
+    intros. destruct H. destruct clock. inversion H. simpl in H, H0.
+    repeat break_match_hyp; try congruence; subst;
+    rewrite H in H0; inversion H0; subst.
+    2-12: eapply IHx3; split; exact H; assumption.
+    - eapply IHx2. split. exact H. assumption.
+Admitted.
+
+
+
+
+
+
 Definition Equiv_rel e1 e2 := exists n, E_rel (V_rel n) e1 e2.
 
 Theorem Equiv_rel_refl :
