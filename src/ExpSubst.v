@@ -214,14 +214,20 @@ match clock with
                             (* This would be better with Monads *)
                             let vres := eval_list (eval n) l in
                                match vres with
-                               | Res vals => eval n (varsubst_list vl vals e)
+                               | Res vals => 
+                                 if length vals =? length vl
+                                 then eval n (varsubst_list vl vals e)
+                                 else Fail
                                | Fail => Fail
                                | Timeout => Timeout
                                end
                          | Res (ERecFun f vl e) =>
                             let vres := eval_list (eval n) l in
                                match vres with
-                               | Res vals => eval n (funsubst f (ERecFun f vl e) (varsubst_list vl vals e))
+                               | Res vals => 
+                                 if length vals =? length vl
+                                 then eval n (varsubst_list vl vals (funsubst f (ERecFun f vl e) e))
+                                 else Fail
                                | Fail => Fail
                                | Timeout => Timeout
                                end
@@ -275,8 +281,8 @@ Proof.
     - constructor.
     - constructor.
     - break_match_hyp; inversion H1. break_match_hyp; try congruence.
-      + break_match_hyp; try congruence. apply IHclock in H1. auto.
-      + break_match_hyp; try congruence. apply IHclock in H1. auto.
+      + break_match_hyp; try congruence. break_match_hyp. 2: congruence. apply IHclock in H1. auto.
+      + break_match_hyp; try congruence. break_match_hyp. 2: congruence. apply IHclock in H1. auto.
     - break_match_hyp; try congruence. apply IHclock in H1. auto.
     - apply IHclock in H1. auto.
     - break_match_hyp; try congruence. break_match_hyp; try congruence; break_match_hyp; try congruence.
@@ -568,6 +574,41 @@ Proof.
   (* TODO *)
 Admitted.
 
+Theorem indexed_to_forall {A : Type} (l : list A) : forall P def,
+  list_forall P l
+<->
+  (forall i, i < length l -> P (nth i l def)).
+Proof.
+  induction l; split; intros.
+  * inversion H0.
+  * constructor.
+  * inversion H. subst. destruct i.
+    - simpl. auto.
+    - simpl. apply IHl. exact H4. simpl in H0. lia.
+  * constructor.
+    - apply (H 0). simpl. lia.
+    - eapply IHl. intros. apply (H (S i)). simpl. lia.
+Qed.
+
+Theorem list_eval_eq_length (el : list Exp) : forall clock vl,
+  eval_list (eval clock) el = Res vl -> length el = length vl.
+Proof.
+  induction el; intros; inversion H.
+  * auto.
+  * repeat break_match_hyp; try congruence. inversion H1. specialize (IHel _ _ Heqr0). simpl. lia.
+Qed.
+
+Theorem all_eval_single (el : list Exp) : forall clock v2,
+  eval_list (eval clock) el = Res v2
+->
+  (forall i, i < length el -> eval clock (nth i el (ELit 0)) = Res (nth i v2 (ELit 0))).
+Proof.
+  induction el.
+  * intros. inversion H0.
+  * intros. simpl in H. repeat break_match_hyp; try congruence. inversion H. subst. destruct i.
+    - exact Heqr.
+    - simpl. apply IHel. exact Heqr0. simpl in H0. lia.
+Qed.
 
 (** WARNING: use only for termination checking: *)
 (*
@@ -577,7 +618,7 @@ Axiom ff : False.
 Theorem Equiv_rel_refl :
   forall x n, Equiv_rel n x x.
 Proof.
-  induction x; intros.
+  induction x using Exp_ind2 with (Q := fun l => list_forall (fun e => forall n, Equiv_rel n e e) l); intros.
   * constructor. split; intros; auto.
     intros. destruct H. rewrite H in H0. inversion H0. subst.
     destruct clock. inversion H. simpl in H. inversion H. subst. destruct n; simpl. auto. constructor.
@@ -594,7 +635,44 @@ Proof.
     intros. destruct H. destruct clock; inversion H. inversion H0. subst.
     destruct n. simpl. auto.
     simpl. constructor. auto. intros. apply varsubst_list_indep. apply funsubst_indep. apply IHx. apply H3.
-  * admit.
+  * constructor. split; intros; auto.
+    intros. destruct H. destruct clock. inversion H. simpl in H, H0. break_match_hyp; try congruence.
+    break_match_hyp; try congruence.
+    - break_match_hyp; try congruence. break_match_hyp; try congruence.
+      rewrite H in H0. inversion H0. subst. pose (IHx (S n)). destruct e0.
+      specialize (H2 _ _ _ (conj Heqr Heqr)). simpl in H2. inversion H2. subst. apply Nat.eqb_eq in Heqb.
+      pose (indexed_to_forall el (fun e : Exp => forall n : nat, Equiv_rel n e e) (ELit 0)).
+      destruct i. specialize (H3 IHx0). clear H4.
+      assert (forall i : nat,
+     i < Datatypes.length v0 -> V_rel n (nth i v0 (ELit 0)) (nth i v0 (ELit 0))).
+     {
+       intros. apply list_eval_eq_length in Heqr0 as ll. rewrite ll in H3.
+       specialize (H3 i H4 n). destruct H3. eapply H5. split; eapply all_eval_single in Heqr0.
+       * exact Heqr0.
+       * rewrite ll. auto.
+       * exact Heqr0.
+       * rewrite ll. auto.
+     }
+      rewrite Heqb in H4. specialize (H8 v0 v0 Heqb Heqb H4). inversion H8. eapply H7.
+      split; exact H.
+    - break_match_hyp; try congruence. break_match_hyp; try congruence.
+      rewrite H in H0. inversion H0. subst. pose (IHx (S n)). destruct e0.
+      specialize (H2 _ _ _ (conj Heqr Heqr)).
+      pose (indexed_to_forall el (fun e : Exp => forall n : nat, Equiv_rel n e e) (ELit 0)).
+      destruct i. specialize (H3 IHx0). clear H4.
+      assert (forall i : nat,
+     i < Datatypes.length v0 -> V_rel n (nth i v0 (ELit 0)) (nth i v0 (ELit 0))).
+     {
+       intros. apply list_eval_eq_length in Heqr0 as ll. rewrite ll in H3.
+       specialize (H3 i H4 n). destruct H3. eapply H5. split; eapply all_eval_single in Heqr0.
+       * exact Heqr0.
+       * rewrite ll. auto.
+       * exact Heqr0.
+       * rewrite ll. auto.
+     }
+      apply Nat.eqb_eq in Heqb. rewrite Heqb in H4.
+      simpl in H2. inversion H2. subst. specialize (H12 v0 v0 Heqb Heqb H4).
+      destruct H12. eapply H6. split; exact H. 
   * constructor. split; intros; auto.
     intros. destruct H. destruct clock. inversion H. simpl in H, H0.
     break_match_hyp; try congruence. rewrite H in H0. inversion H0. subst.
@@ -617,7 +695,9 @@ Proof.
     rewrite H in H0; inversion H0; subst.
     2-12: eapply IHx3; split; exact H; assumption.
     - eapply IHx2. split. exact H. assumption.
-Admitted.
+  * constructor. apply IHx. apply IHx0.
+  * constructor.
+Qed.
 
 
 
