@@ -1,13 +1,11 @@
 Require Export ExpSyntax.
+Require Import ccs.Trans_Sys.
 Export PeanoNat.
 Export Relations.Relations.
 Export Classes.RelationClasses.
 Require Export FSets.FMapFacts.
 
 Import ListNotations.
-
-(* Notation "⟨ fs , e ⟩ -->* ⟨ fs' , e' ⟩" := (step_rt fs e fs' e') (at level 50).
-Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" := (step fs e fs' e') (at level 50). *)
 
 Inductive Context : Set :=
 | CBox
@@ -115,12 +113,6 @@ Inductive ResultType {T : Set} : Set :=
 | Fail
 | Res (v : T)
 .
-
-(* Fixpoint inb {A : Type} (eqb : A -> A -> bool) (x : A) (l : list A) : bool :=
-match l with
-| [] => false
-| x'::xs => if eqb x x' then true else inb eqb x xs
-end. *)
 
 (* The equality of function signatures *)
 Definition funid_eqb (v1 v2 : FunctionIdentifier) : bool :=
@@ -329,109 +321,6 @@ Proof.
       all: apply IHclock in H1; auto.
 Qed.
 
-(* Fixpoint finite_unfolding (n : nat) (f : FunctionIdentifier) (env : Env) (vl : list Var) (b : Exp) : Value :=
-match n with
-(* | 0 => VRecFun env f vl b (* <- according to me *) *)
-| 0 => VRecFun (Environment.elements env) f vl (EApp (EFunId f) (map EVar vl))
-| S n' => VFun (Environment.elements (Environment.add (inr f) (finite_unfolding n' f env vl b) env)) vl b
-end.
-
-Theorem unwinding clock :
-  forall env env' f e vl b val,
-  eval_env clock (Environment.add (inr f) (VRecFun (Environment.elements env') f vl b) env) e = Res val
-<->
-  exists n clock, eval_env clock (Environment.add (inr f) (finite_unfolding n f env' vl b) env) e = Res val
-.
-Proof.
-  split. 
-  {
-    induction clock; intros.
-    * inversion H.
-    * admit.
-  }
-  {
-    admit.
-  }
-Admitted.
-
-Proposition var_funid_eqb_neq (v0 v : Var + FunctionIdentifier):
-    var_funid_eqb v0 v = false <-> v0 <> v.
-  Proof.
-    split; intros.
-    { destruct v0, v.
-      * simpl in *. apply eqb_neq in H. unfold not in *. intros. apply H. inversion H0. reflexivity.
-      * unfold not. intro. inversion H0.
-      * unfold not. intro. inversion H0.
-      * destruct f, f0. simpl in H. apply Bool.andb_false_iff in H. inversion H.
-        - apply eqb_neq in H0. unfold not in *. intro. apply H0. inversion H1. reflexivity.
-        - apply Nat.eqb_neq in H0. unfold not in *. intro. apply H0. inversion H1. reflexivity.
-    }
-    { destruct v0, v.
-      * simpl in *. apply eqb_neq. unfold not in *. intro. apply H. subst. reflexivity.
-      * simpl. reflexivity.
-      * simpl. reflexivity.
-      * simpl. destruct f, f0. simpl. apply Bool.andb_false_iff.
-        unfold not in H. case_eq ((s =? s0)%string); intros.
-        - right. apply String.eqb_eq in H0. apply Nat.eqb_neq. unfold not. intro. apply H. subst. reflexivity.
-        - left. reflexivity.
-    }
-  Qed.
-
-  Proposition var_funid_eqb_refl (var : Var + FunctionIdentifier) :
-  var_funid_eqb var var = true.
-  Proof.
-    destruct var.
-    * simpl. apply String.eqb_refl.
-    * destruct f. simpl. rewrite String.eqb_refl, Nat.eqb_refl. simpl. reflexivity.
-  Qed.
-
-  Proposition var_funid_eqb_sym (v1 v2 : Var + FunctionIdentifier) :
-    var_funid_eqb v1 v2 = var_funid_eqb v2 v1.
-  Proof.
-    destruct v1, v2.
-    * simpl. rewrite eqb_sym. reflexivity.
-    * simpl. reflexivity.
-    * simpl. reflexivity.
-    * simpl. destruct f, f0. simpl. rewrite eqb_sym, Nat.eqb_sym. reflexivity.
-  Qed.
-  
-  Proposition var_funid_eqb_eq (v0 v : Var + FunctionIdentifier):
-    var_funid_eqb v0 v = true <-> v0 = v.
-  Proof.
-    intros. split; intros.
-    { destruct v0, v.
-      * inversion H. apply String.eqb_eq in H1. subst. reflexivity.
-      * inversion H.
-      * inversion H.
-      * inversion H. destruct f, f0. inversion H1. apply Bool.andb_true_iff in H2. inversion H2.
-        apply String.eqb_eq in H0. apply Nat.eqb_eq in H3. subst. reflexivity.
-    }
-    { destruct v, v0.
-      * inversion H. subst. simpl. apply String.eqb_refl.
-      * inversion H.
-      * inversion H.
-      * inversion H. simpl. destruct f. simpl. rewrite String.eqb_refl, Nat.eqb_refl. simpl. reflexivity.
-    }
-  Qed.
-
-Module EnvFacts := WFacts_fun VarFunid_as_OT Environment.
-
-Proposition get_value_here (env : Env) (var : Var + FunctionIdentifier) (val : Value):
-Environment.find var (Environment.add var val env) = Some val.
-Proof.
-  apply EnvFacts.add_eq_o. auto.
-Qed.
-
-(** Previous append result *)
-Proposition get_value_there (env : Env) (var var' : Var + FunctionIdentifier) 
-     (val : Value):
-var <> var' ->
-Environment.find var' (Environment.add var val env) = Environment.find var' env.
-Proof.
-  apply EnvFacts.add_neq_o.
-Qed. *)
-
-(* equivalent, substitutional semantics would be better *)
 Lemma foo x :
   eval (10 + x) (sum 2) = Res (ELit 3).
 Proof.
@@ -467,13 +356,14 @@ Definition E_rel (V_rel : relation Exp) (e1 e2 : Exp) : Prop :=
 .
 
 Lemma E_rel_refl : forall (V_rel : relation Exp),
-  Reflexive V_rel
+  (forall x, is_value x -> V_rel x x)
 ->
   Reflexive (E_rel V_rel).
 Proof.
   intros. unfold Reflexive, E_rel in *. intros. split.
   * split; intros; auto.
   * intros. destruct H0. rewrite H0 in H1. inversion H1. subst. apply H.
+    eapply result_is_value. exact H0.
 Qed.
 
 Lemma E_rel_sym : forall (V_rel : relation Exp),
@@ -504,79 +394,63 @@ Proof.
     pose (H2 _ _ _ (conj H4 H8)). pose (H3 _ _ _ (conj H8 H5)). eapply H. exact v. auto.
 Qed.
 
-Definition V_rel_num : relation Z := eq.
-Lemma V_rel_num_refl : Reflexive V_rel_num. Proof. firstorder. Qed.
-Lemma V_rel_num_sym : Symmetric V_rel_num.
-Proof.
-  unfold Symmetric. intros. unfold V_rel_num in *. auto.
-Qed.
-Lemma V_rel_num_trans : Transitive V_rel_num. 
-Proof.
-  unfold Transitive, V_rel_num. intros. lia.
-Qed.
-
-Inductive V_rel_fun (valr : relation Exp) : relation Exp :=
+Inductive V_rel_base (valr : relation Exp) : relation Exp :=
+| refl_base v : is_value v -> V_rel_base valr v v
 | clos_rel2 vl b vl' b' :
   length vl = length vl' ->
   (forall vals1 vals2, length vals1 = length vl -> length vals2 = length vl' ->
-    (forall i, i < length vl -> valr (nth i vals1 (ELit 0)) (nth i vals2 (ELit 0))) ->
+      (forall i, i < length vl -> is_value (nth i vals1 (ELit 0))) ->
+      (forall i, i < length vl -> is_value (nth i vals2 (ELit 0))) ->
+    (forall i, i < length vl -> 
+    valr (nth i vals1 (ELit 0)) (nth i vals2 (ELit 0))) ->
   E_rel valr (varsubst_list vl vals1 b) (varsubst_list vl' vals2 b'))
 ->
-  V_rel_fun valr (EFun vl b) (EFun vl' b')
+  V_rel_base valr (EFun vl b) (EFun vl' b')
 
 | rec_clos_rel2 f vl b f' vl' b' :
   length vl = length vl' ->
   (forall vals1 vals2, length vals1 = length vl -> length vals2 = length vl' ->
-    (forall i, i < length vl -> valr (nth i vals1 (ELit 0)) (nth i vals2 (ELit 0))) ->
+    (forall i, i < length vl -> is_value (nth i vals1 (ELit 0))) ->
+    (forall i, i < length vl -> is_value (nth i vals2 (ELit 0))) ->
+    (forall i, i < length vl -> 
+     valr (nth i vals1 (ELit 0)) (nth i vals2 (ELit 0))) ->
   E_rel valr (varsubst_list vl vals1 (funsubst f (ERecFun f vl b) b))
              (varsubst_list vl' vals2 (funsubst f' (ERecFun f' vl' b') b')))
 ->
-  V_rel_fun valr (ERecFun f vl b) (ERecFun f' vl' b')
+  V_rel_base valr (ERecFun f vl b) (ERecFun f' vl' b')
 .
 
-(* Unset Positivity Checking. *)
+Fixpoint V_rel (n : nat) : relation Exp :=
+fun v1 v2 =>
+match n with
+| 0 => (* False *) v1 = v2
+| S n' => V_rel_base (V_rel n') v1 v2
+end.
 
-(* THe problem is not with endlessly recursive closures, because:
-  - their type would be a -> b, but b will not be extended! e.g. fun f X -> f X 
-                                     this is an application, not a closure  ^^^^
-  Probematic:
-  fun X -> fun X -> fun X -> .... <- however, this will be finite, because terms are finite
-  thus, we can take a natural number to measure the size instead of typing
-    ~> this number is decreased by applications, and increased by function definitions
-    - Idea: it should be the size of the term?
-*)
-
-(* Inductive v_rel : relation Value :=
-| rel_v v1 v2 : V_rel_refl v1 v2 -> v_rel v1 v2
-| rel_clos env env' vl vl' b b' : V_rel_fun v_rel (VFun env vl b) (VFun env' vl' b')
-  ->
-    v_rel (VFun env vl b) (VFun env' vl' b')
-.*)
-
-Lemma V_rel_fun_sym vrel:
-  Symmetric vrel -> Symmetric (V_rel_fun vrel).
+Theorem V_rel_refl :
+  forall n x, is_value x -> (V_rel n) x x.
 Proof.
-  unfold Symmetric. intros. destruct x, y; try inversion H0; subst.
-  * constructor. auto. intros.
-    apply E_rel_sym. auto. apply H6; auto. intros. apply H. apply H3. lia.
-  * constructor. auto. intros.
-    apply E_rel_sym. auto. apply H8; auto. intros. apply H. apply H4. lia.
+  induction n.
+  * simpl. auto.
+  * simpl. constructor. auto.
 Qed.
 
-Lemma V_rel_fun_trans vrel:
-  Reflexive vrel -> Transitive vrel -> Transitive (V_rel_fun vrel).
+Theorem V_rel_sym :
+  forall n x1 x2, (V_rel n) x1 x2 -> (V_rel n) x2 x1.
 Proof.
-  unfold Transitive. intros. destruct x, y; try inversion H1; try inversion H2. subst.
-  * constructor. lia. intros.
-    epose (H8 vals1 _ _ _ _).
-    epose (H13 _ vals2 _ _ _).
-    eapply E_rel_trans. auto. exact e. exact e0.
-    Unshelve. all: try lia. 3: exact H5. all: try lia. clear e. intros. apply H. 
-  * constructor. lia. intros.
-    epose (H10 vals1 _ _ _ _).
-    epose (H16 _ vals2 _ _ _).
-    eapply E_rel_trans. auto. exact e. exact e0.
-    Unshelve. all: try lia. 3: exact H19. all: try lia. clear e. intros. apply H. 
+  induction n; intros.
+  * simpl in *. auto.
+  * simpl in *. apply V_rel_base_sym. unfold Symmetric; intros. apply IHn. auto. auto.
+Qed.
+
+Theorem V_rel_trans :
+  forall n, Transitive (V_rel n).
+Proof.
+  induction n; unfold Transitive; intros; simpl in *.
+  * subst. auto.
+  * eapply V_rel_base_trans. 3: apply H. 3: apply H0.
+    2: apply IHn.
+    apply V_rel_refl. 
 Qed.
 
 Fixpoint size (e : Exp) : nat :=
@@ -593,18 +467,71 @@ match e with
  | EIf e1 e2 e3 => 1 + size e1 + size e2 + size e3
 end.
 
-Fixpoint V_rel (n : nat) : relation Exp :=
-fun v1 v2 =>
-match n with
-| 0 => (* False *) v1 = v2
-| S n' =>
-  match v1, v2 with
-  | ELit n, ELit m => V_rel_num n m
-  | EFun _ _, EFun _ _ => V_rel_fun (V_rel n') v1 v2
-  | ERecFun _ _ _, ERecFun _ _ _ => V_rel_fun (V_rel n') v1 v2
-  | _, _ => False
-  end
-end.
+(* For closed expressions: *)
+Definition Equiv_rel_size e1 e2 : Prop := E_rel (V_rel (size e1 + size e2)) e1 e2.
+
+Theorem size_inc_exp :
+  forall n,
+  (forall v1 v2 : Exp, is_value v1 -> is_value v2 -> V_rel n v1 v2 -> V_rel (S n) v1 v2) ->
+  forall e1 e2, E_rel (V_rel n) e1 e2 -> E_rel (V_rel (S n)) e1 e2.
+Proof.
+  intros. destruct H0.
+  constructor. auto. intros.
+  specialize (H1 _ _ _ H2). destruct H2. apply result_is_value in H2. apply result_is_value in H3.
+  apply H; auto.
+Qed.
+
+
+Theorem size_inc : forall n v1 v2, 
+  is_value v1 -> is_value v2 ->
+  V_rel n v1 v2 -> V_rel (S n) v1 v2.
+Proof.
+  induction n; intros.
+  * simpl in H1. subst. eapply V_rel_refl. auto.
+  * simpl in H1. simpl. inversion H1.
+    - subst. eapply V_rel_refl. auto.
+    - subst. remember (S n) as n'. simpl. constructor. auto. intros.
+      specialize (H3 vals1 vals2 H4 H5 H6 H7).
+      rewrite Heqn'. apply size_inc_exp. rewrite Heqn' in IHn. apply IHn. apply H3.
+      intros. specialize (H8 i H9).
+      assert ().
+     { intros. unfold E_rel.
+Admitted.
+
+Theorem Equiv_rel_size_refl : Reflexive Equiv_rel_size.
+Proof. unfold Reflexive. intros. apply E_rel_refl. apply V_rel_refl. Qed.
+
+Theorem Equiv_rel_size_sym : Symmetric Equiv_rel_size.
+Proof.
+  unfold Symmetric. intros. apply E_rel_sym.
+  * unfold Symmetric. apply V_rel_sym.
+  * rewrite Nat.add_comm. exact H.
+Qed.
+
+Theorem Equiv_rel_size_trans : Transitive Equiv_rel_size.
+Proof.
+  unfold Transitive. intros.
+  eapply E_rel_trans.
+  * apply V_rel_trans.
+  * admit.
+  * admit.
+Abort.
+
+(* Definition Equiv_rel_ex e1 e2 : Prop := exists n, E_rel (V_rel n) e1 e2.
+
+Theorem Equiv_rel_ex_refl : Reflexive Equiv_rel_ex.
+Proof. unfold Reflexive. intros. eexists. apply E_rel_refl. apply V_rel_refl. Unshelve. exact 0. Qed.
+
+Theorem Equiv_rel_ex_sym : Symmetric Equiv_rel_ex.
+Proof.
+  unfold Symmetric. intros. destruct H. exists x0. apply E_rel_sym.
+  * unfold Symmetric. apply V_rel_sym.
+  * exact H.
+Qed.
+
+Theorem Equiv_rel_size_trans : Transitive Equiv_rel_ex.
+Proof.
+  unfold Transitive. intros. destruct H. destruct H0. *)
 
 (* Program Fixpoint V_rel v1 v2 : Prop :=
 match size v1, size v2 with

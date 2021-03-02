@@ -125,4 +125,3 @@ match wher with
  | EPlus e1 e2 => EPlus (funsubst f' what e1) (funsubst f' what e2)
  | EIf e1 e2 e3 => EIf (funsubst f' what e1) (funsubst f' what e2) (funsubst f' what e3)
 end.
-

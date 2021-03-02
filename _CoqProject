@@ -1,9 +1,12 @@
 -R src Core_Erlang
+src/ccs/Trans_Sys.v
 src/ExpEnv.v
 src/ExpSyntax.v
 src/ExpSemantics.v
 src/ExpBSSubst.v
 src/ExpEquiv.v
+src/ExpSubst2.v
+src/ExpSubst3.v
 src/ExpSubst.v
 src/ExpEquivMap.v
 src/ExpTermination.v
