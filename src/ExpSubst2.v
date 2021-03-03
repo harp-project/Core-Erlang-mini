@@ -420,6 +420,39 @@ Inductive V_rel_base (valr : relation Exp) : relation Exp :=
   V_rel_base valr (ERecFun f vl b) (ERecFun f' vl' b')
 .
 
+Lemma V_rel_base_refl : forall vrel x, is_value x -> (V_rel_base vrel) x x.
+Proof.
+  intros. constructor. auto.
+Qed.
+
+Lemma V_rel_base_sym : forall vrel, Symmetric vrel -> Symmetric (V_rel_base vrel).
+Proof.
+  intros. intro. intros. inversion H0; subst.
+  * apply V_rel_base_refl. auto.
+  * constructor. auto. intros. apply E_rel_sym. auto. apply H2; auto. intros. apply H6. lia.
+    intros. apply H5. lia. intros. apply H. apply H7. lia.
+  * constructor. auto. intros. apply E_rel_sym. auto. apply H2; auto. intros. apply H6. lia.
+    intros. apply H5. lia. intros. apply H. apply H7. lia.
+Qed.
+
+Lemma V_rel_base_trans : forall (vrel : Exp -> Exp -> Prop),
+  (forall x, is_value x -> vrel x x) ->
+  Transitive vrel
+->
+  Transitive (V_rel_base vrel).
+Proof.
+  intros. intro. intros. inversion H1; inversion H2; subst; auto.
+  * inversion H9. subst. constructor. lia. intros. eapply E_rel_trans. auto.
+    apply H4; auto. lia. apply H8; auto. lia. intros. apply H10. lia. intros. apply H11. lia.
+    intros. apply H12. lia.
+  * inversion H9.
+  * inversion H9.
+  * inversion H9. subst. constructor. lia. intros. eapply E_rel_trans. auto.
+    apply H4; auto. lia. apply H8; auto. lia. intros. apply H10. lia. intros. apply H11. lia.
+    intros. apply H12. lia.
+Qed.
+
+
 Fixpoint V_rel (n : nat) : relation Exp :=
 fun v1 v2 =>
 match n with
@@ -489,14 +522,14 @@ Proof.
   induction n; intros.
   * simpl in H1. subst. eapply V_rel_refl. auto.
   * simpl in H1. simpl. inversion H1.
-    - subst. eapply V_rel_refl. auto.
+    - subst. eapply V_rel_base_refl. auto.
     - subst. remember (S n) as n'. simpl. constructor. auto. intros.
       specialize (H3 vals1 vals2 H4 H5 H6 H7).
       rewrite Heqn'. apply size_inc_exp. rewrite Heqn' in IHn. apply IHn. apply H3.
       intros. specialize (H8 i H9).
       assert ().
      { intros. unfold E_rel.
-Admitted.
+Abort.
 
 Theorem Equiv_rel_size_refl : Reflexive Equiv_rel_size.
 Proof. unfold Reflexive. intros. apply E_rel_refl. apply V_rel_refl. Qed.
