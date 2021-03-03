@@ -7,6 +7,7 @@ src/ExpBSSubst.v
 src/ExpEquiv.v
 src/ExpSubst2.v
 src/ExpSubst3.v
+src/ExpSubst4.v
 src/ExpSubst.v
 src/ExpEquivMap.v
 src/ExpTermination.v

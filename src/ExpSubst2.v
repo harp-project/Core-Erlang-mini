@@ -486,6 +486,176 @@ Proof.
     apply V_rel_refl. 
 Qed.
 
+
+
+
+Section step_indexed_equivalence.
+
+
+(** Because of this, preorder is enough *)
+Goal forall T : Type, forall R : relation T, Reflexive R -> Transitive R ->
+  let R' := fun x y => R x y /\ R y x in Reflexive R' /\ Symmetric R' /\ Transitive R'.
+Proof.
+  intros. split. 2: split.
+  * intro. unfold R'. split; apply H.
+  * intro. intros. unfold R' in *. destruct H1.
+    split; auto.
+  * intro. intros. unfold R' in *. destruct H1, H2. split.
+    - eapply H0; eauto.
+    - eapply H0; eauto.
+Qed.
+
+Definition is_value_b (e : Exp) : bool :=
+match e with
+| ELit _ | EFun _ _ | ERecFun _ _ _ => true
+| _ => false
+end.
+
+Theorem is_value_equiv :
+  forall v, is_value v <-> is_value_b v = true.
+Proof.
+  split.
+  {
+    destruct v; intros; inversion H; auto.
+  }
+  {
+    destruct v; intros; simpl in H; try congruence; constructor.
+  }
+Qed.
+
+Theorem is_value_nequiv :
+  forall v, ~ is_value v <-> is_value_b v = false.
+Proof.
+  split.
+  {
+    intros; destruct v; auto; exfalso; apply H; constructor.
+  }
+  {
+    intros; destruct v; simpl in H; try congruence; intro; inversion H0.
+  }
+Qed.
+
+(* Definition step (e : Exp) : option Exp :=
+match e with
+ | ELit l => e
+ | EVar v => None
+ | EFunId f => None
+ | EFun vl b => e
+ | ERecFun f vl b => e
+ | EApp exp l => match exp with
+                 | ELit _ => None
+                 | EFun vl b => 
+ | ELet v e1 e2 => _
+ | ELetRec f vl b e => _
+ | EPlus e1 e2 => _
+ | EIf e1 e2 e3 => _
+end. 
+
+Definition Erel'
+           (n : nat)
+           (Vrel : forall m, m <= n -> Expr -> Expr -> Prop)
+           (e1 e2 : Expr) : Prop :=
+  ECLOSED e1 /\ ECLOSED e2 /\
+  forall m (Hmn : m <= n) K1 K2 (A : Measurable R),
+    Krel' m (fun m' H => Vrel m' (le_trans _ _ _ H Hmn)) K1 K2 ->
+    Rbar_le (μeval m e1 K1 A) (μeval_star e2 K2 A).
+*)
+
+Fixpoint closed_exp (l : list VarFunId) (e : Exp) : Prop :=
+match e with
+ | ELit l => True
+ | EVar v => In (inl v) l
+ | EFunId f => In (inr f) l
+ | EFun vl e => closed_exp (l ++ map inl vl) e
+ | ERecFun f vl e => closed_exp (l ++ map inl vl ++ [(inr f)]) e
+ | EApp exp el => fold_right (fun e acc => acc /\ closed_exp l e) (closed_exp l exp) el
+ | ELet v e1 e2 => closed_exp l e1 /\ closed_exp (inl v::l) e2 
+ | ELetRec f vl b e => closed_exp (inr f::l) e /\ closed_exp (l ++ (map inl vl)) b
+ | EPlus e1 e2 => closed_exp l e1 /\ closed_exp l e2
+ | EIf e1 e2 e3 => closed_exp l e1 /\ closed_exp l e2 /\ closed_exp l e3
+end.
+
+Definition closed (e : Exp) : Prop := closed_exp [] e.
+
+Definition exp_rel (n : nat)
+                   (Vrel : forall m, m <= n -> Exp -> Exp -> Prop)
+                   (e1 e2 : Exp)
+                 : Prop :=
+  closed e1 /\ closed e2 /\
+  forall m (Hmn : m <= n) v1 v2,
+    Vrel m Hmn v1 v2 /\ (* maybe -> ? *)
+  (eval n e1 = Res v1) -> (exists clock, eval clock e2 = Res v2)
+.
+
+(*
+
+Definition Vrel_rec
+           (n : nat)
+           (Vrel : forall m, m < n -> Expr -> Expr -> Prop)
+           (v1 v2 : Expr) :=
+  VCLOSED v1 /\ VCLOSED v2 /\
+  match v1, v2 with
+  | Const r1, Const r2 => r1 = r2
+  | Fun b1, Fun b2 =>
+    forall m (Hmn : (m < n)%nat),
+    forall (v1' v2' : Expr),
+      Vrel m Hmn v1' v2' ->
+      Erel' m (fun m' H => Vrel m' (le_lt_trans _ _ _ H Hmn)) (b1.[v1'/]) (b2.[v2'/])
+  | _,_ => False
+  end.
+
+*)
+Inductive list_biforall {T : Type} (P : T -> T -> Prop) : list T -> list T -> Prop :=
+| biforall_nil : list_biforall P [] []
+| biforall_cons hd hd' tl tl' : P hd hd' -> list_biforall P tl tl' -> list_biforall P (hd::tl) (hd'::tl').
+
+
+Definition Vrel_rec (n : nat)
+                    (Vrel : forall m, m < n -> Exp -> Exp -> Prop)
+                    (v1 v2 : Exp) : Prop :=
+  closed v1 /\ closed v2 /\
+  match v1, v2 with
+  | ELit l1, ELit l2 => l1 = l2
+  | EFun vl1 b1, EFun vl2 b2 =>
+     forall m (Hmn : m < n), forall (vals1 vals2 : list Exp),
+       list_biforall (Vrel m Hmn) vals1 vals2 
+     ->
+       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) (varsubst_list vl1 vals1 b1) 
+                                                                     (varsubst_list vl2 vals2 b2)
+  | _, _ => False
+  end
+.
+
+Definition Vrel : nat -> Exp -> Exp -> Prop :=
+  Fix Wf_nat.lt_wf _ Vrel_rec.
+
+Theorem fundamental_property :
+forall v, closed v ->
+forall n, Vrel n v v.
+Proof.
+
+Qed.
+
+
+
+
+End step_indexed_equivalence. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Fixpoint size (e : Exp) : nat :=
 match e with
  | ELit l => 1
@@ -525,10 +695,10 @@ Proof.
     - subst. eapply V_rel_base_refl. auto.
     - subst. remember (S n) as n'. simpl. constructor. auto. intros.
       specialize (H3 vals1 vals2 H4 H5 H6 H7).
-      rewrite Heqn'. apply size_inc_exp. rewrite Heqn' in IHn. apply IHn. apply H3.
+      (* rewrite Heqn'. apply size_inc_exp. rewrite Heqn' in IHn. apply IHn. apply H3.
       intros. specialize (H8 i H9).
       assert ().
-     { intros. unfold E_rel.
+     { intros. unfold E_rel. *)
 Abort.
 
 Theorem Equiv_rel_size_refl : Reflexive Equiv_rel_size.
