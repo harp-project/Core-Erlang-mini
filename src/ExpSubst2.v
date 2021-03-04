@@ -394,6 +394,14 @@ Proof.
     pose (H2 _ _ _ (conj H4 H8)). pose (H3 _ _ _ (conj H8 H5)). eapply H. exact v. auto.
 Qed.
 
+(*
+
+for n = 0 : v1 = v2
+for n = 1 : fun(xs) -> b = fun(ys) -> b2 , fun(x) -> x(x) <- not typeable!
+for n = 2 : fun(xs) -> fun(xs2) -> b =  fun(xs) -> fun(xs2) -> b
+
+*)
+
 Inductive V_rel_base (valr : relation Exp) : relation Exp :=
 | refl_base v : is_value v -> V_rel_base valr v v
 | clos_rel2 vl b vl' b' :
@@ -561,7 +569,7 @@ Definition Erel'
     Rbar_le (μeval m e1 K1 A) (μeval_star e2 K2 A).
 *)
 
-Fixpoint closed_exp (l : list VarFunId) (e : Exp) : Prop :=
+(* Fixpoint closed_exp (l : list VarFunId) (e : Exp) : Prop :=
 match e with
  | ELit l => True
  | EVar v => In (inl v) l
@@ -573,18 +581,24 @@ match e with
  | ELetRec f vl b e => closed_exp (inr f::l) e /\ closed_exp (l ++ (map inl vl)) b
  | EPlus e1 e2 => closed_exp l e1 /\ closed_exp l e2
  | EIf e1 e2 e3 => closed_exp l e1 /\ closed_exp l e2 /\ closed_exp l e3
-end.
+end. *)
 
-Definition closed (e : Exp) : Prop := closed_exp [] e.
+(* Inductive exp_closed (vars : list VarFunId) (e : Exp) : Prop :=
+| app_closed :
+  exp_closed exp -> list_forall (exp_closed vars) el
+->
+  exp_closed vars (EApp exp el) *)
+
+(* Definition closed (e : Exp) : Prop := closed_exp [] e. *)
 
 Definition exp_rel (n : nat)
                    (Vrel : forall m, m <= n -> Exp -> Exp -> Prop)
                    (e1 e2 : Exp)
                  : Prop :=
-  closed e1 /\ closed e2 /\
+  (* closed e1 /\ closed e2 /\ *)
   forall m (Hmn : m <= n) v1 v2,
-    Vrel m Hmn v1 v2 /\ (* maybe -> ? *)
-  (eval n e1 = Res v1) -> (exists clock, eval clock e2 = Res v2)
+    Vrel m Hmn v1 v2 -> (* maybe -> ? *)
+  ((eval m e1 = Res v1) -> (exists clock, eval clock e2 = Res v2))
 .
 
 (*
@@ -613,15 +627,21 @@ Inductive list_biforall {T : Type} (P : T -> T -> Prop) : list T -> list T -> Pr
 Definition Vrel_rec (n : nat)
                     (Vrel : forall m, m < n -> Exp -> Exp -> Prop)
                     (v1 v2 : Exp) : Prop :=
-  closed v1 /\ closed v2 /\
+  (* closed v1 /\ closed v2 /\ *)
   match v1, v2 with
   | ELit l1, ELit l2 => l1 = l2
   | EFun vl1 b1, EFun vl2 b2 =>
      forall m (Hmn : m < n), forall (vals1 vals2 : list Exp),
        list_biforall (Vrel m Hmn) vals1 vals2 
      ->
-       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) (varsubst_list vl1 vals1 b1) 
+       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) (varsubst_list vl1 vals1 b1)
                                                                      (varsubst_list vl2 vals2 b2)
+  | ERecFun f1 vl1 b1, ERecFun f2 vl2 b2 =>
+     forall m (Hmn : m < n), forall (vals1 vals2 : list Exp),
+       list_biforall (Vrel m Hmn) vals1 vals2 
+     ->
+       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) (varsubst_list vl1 vals1 (funsubst f1 (ERecFun f1 vl1 b1) b1)) 
+                                                                     (varsubst_list vl2 vals2 (funsubst f2 (ERecFun f2 vl2 b2) b2))
   | _, _ => False
   end
 .
@@ -629,11 +649,111 @@ Definition Vrel_rec (n : nat)
 Definition Vrel : nat -> Exp -> Exp -> Prop :=
   Fix Wf_nat.lt_wf _ Vrel_rec.
 
+Definition Erel (n : nat) (e1 e2 : Exp) : Prop :=
+  exp_rel n (fun m _ => Vrel m) e1 e2.
+
+Import FunctionalExtensionality.
+
+Lemma Vrel_rec_pointwise {n : nat} :
+  forall (f g : forall m : nat, (m < n)%nat -> Exp -> Exp -> Prop),
+    (forall (m : nat) (p : (m < n)%nat), f m p = g m p) ->
+    Vrel_rec n f = Vrel_rec n g.
+Proof.
+  intros.
+  unfold Vrel_rec.
+  extensionality v1.
+  extensionality v2.
+  destruct v1, v2; auto.
+  extensionality m.
+  extensionality Hmn.
+  extensionality v1'.
+  extensionality v2'.
+  rewrite H.
+  extensionality x.
+  f_equal.
+  extensionality m'.
+  extensionality H0.
+  trivial.
+  
+  extensionality m.
+  extensionality Hmn.
+  extensionality v1'.
+  extensionality v2'.
+  rewrite H.
+  extensionality x.
+  f_equal.
+  extensionality m'.
+  extensionality H0.
+  trivial.
+Qed.
+
+Lemma Vrel_Fix_eq : forall {n : nat} {v1 v2 : Exp},
+  Vrel n v1 v2
+  = 
+  Vrel_rec n (fun (m : nat) (_ : m < n) => Vrel m) v1 v2.
+Proof.
+  intros.
+  unfold Vrel.
+  rewrite Fix_eq by (auto using Vrel_rec_pointwise).
+  trivial.
+Qed.
+
+Scheme le_dep_ind := Induction for le Sort Prop.
+Check le_dep_ind. 
+
+Lemma Vrel_downclosed :
+  forall {n m : nat} {Hmn : m <= n} {v1 v2 : Exp},
+    Vrel n v1 v2 ->
+    Vrel m v1 v2.
+Proof.
+  induction 1 using le_dep_ind;
+    intros;
+    eauto.
+  rewrite Vrel_Fix_eq.
+  rewrite Vrel_Fix_eq in H.
+  unfold Vrel_rec at 1.
+  unfold Vrel_rec at 1 in H.
+  destruct v1, v2;
+    intuition.
+  epose (H m1 _ vals1 vals2 H0). apply e. 
+  epose (H m1 _ vals1 vals2 H0). apply e.
+  Unshelve. all: lia.
+Qed.
+
+Lemma Erel_downclosed :
+  forall {n m : nat} {Hmn : m <= n} {e1 e2 : Exp},
+    Erel n e1 e2 ->
+    Erel m e1 e2.
+Proof.
+  intros.
+  unfold Erel, exp_rel.
+  unfold Erel, exp_rel in H.
+  intros. eapply (H m0); eauto. lia.
+Qed.
+
+Goal Erel 0 (ELit 0) (ELit 0).
+Proof.
+  econstructor. inversion Hmn. subst.
+  inversion H0. Unshelve. exact 0.
+Qed.
+
+Goal Erel 5 (ELit 0) (ELit 0).
+Proof.
+  econstructor. induction Hmn.
+  * destruct m. inversion H0. inversion H0. subst.
+    rewrite Vrel_Fix_eq in H. simpl in H. destruct v2; try inversion H.
+    instantiate (1 := 1). reflexivity.
+  * exact IHHmn.
+Qed.
+
 Theorem fundamental_property :
-forall v, closed v ->
+forall v, (* closed v -> *) is_value v ->
 forall n, Vrel n v v.
 Proof.
-
+  induction v; intros; inversion H.
+  * constructor.
+  * subst. unfold Vrel. econstructor.
+    destruct H1.
 Qed.
 
 
