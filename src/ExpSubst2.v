@@ -750,9 +750,12 @@ Theorem fundamental_property :
 forall v, (* closed v -> *) is_value v ->
 forall n, Vrel n v v.
 Proof.
-  induction v; intros; inversion H.
+  induction v; intros; try inversion H.
   * constructor.
-  * subst. unfold Vrel. econstructor.
+  * subst.
+    rewrite Vrel_Fix_eq. econstructor. instantiate (1 := 1).
+  
+    unfold Vrel. econstructor.
     destruct H1.
 Qed.
 
