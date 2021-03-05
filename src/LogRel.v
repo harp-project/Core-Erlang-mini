@@ -63,12 +63,51 @@ Definition exp_rel (n : nat)
     (Vrel m Hmn v1 v2 /\ (* maybe -> ? *)
      eval m e1 = Res v1) -> (exists clock, eval clock e2 = Res v2)
 . *)
+Reserved Notation "'EXP' Γ ⊢ e"
+         (at level 69, no associativity).
+
+Reserved Notation "'VAL' Γ ⊢ v"
+         (at level 69, no associativity).
+Inductive ExpScoped (l : list VarFunId) : Exp -> Prop :=
+| scoped_var v : In (inl v) l -> EXP l ⊢ EVar v
+| scoped_funid f : In (inr f) l -> EXP l ⊢ EFunId f
+| scoped_app exp vals : 
+  EXP l ⊢ exp -> list_forall (ExpScoped l) vals
+->
+  EXP l ⊢ EApp exp vals
+| scoped_let v e1 e2 :
+  EXP l ⊢ e1 -> EXP (l ++ [inl v]) ⊢ e2 
+->
+  EXP l ⊢ ELet v e1 e2
+| scoped_letrec f vl b e :
+  EXP (l ++ map inl vl) ⊢ b -> EXP (l ++ [inr f]) ⊢ e
+->
+  EXP l ⊢ ELetRec f vl b e
+| scoped_plus e1 e2 :
+  EXP l ⊢ e1 -> EXP l ⊢ e2
+->
+  EXP l ⊢ EPlus e1 e2
+| scoped_if e1 e2 e3 :
+  EXP l ⊢ e1 -> EXP l ⊢ e2 -> EXP l ⊢ e3
+->
+  EXP l ⊢ EIf e1 e2 e3
+| scoped_val v :
+  VAL l ⊢ v -> EXP l ⊢ v
+with ValScoped (l : list VarFunId) : Exp -> Prop :=
+| scoped_lit lit : VAL l ⊢ ELit lit
+| scoped_fun vl e : EXP (l ++ (map inl vl)) ⊢ e -> VAL l ⊢ EFun vl e
+| scoped_recfun f vl e : EXP (l ++ [inr f] ++ (map inl vl)) ⊢ e -> VAL l ⊢ ERecFun f vl e
+where "'EXP' Γ ⊢ e" := (ExpScoped Γ e)
+and "'VAL' Γ ⊢ e" := (ValScoped Γ e).
+
+Notation "'EXPCLOSED' e" := (EXP [] ⊢ e) (at level 5).
+Notation "'VALCLOSED' v" := (VAL [] ⊢ v) (at level 5).
 
 Definition exp_rel (n : nat)
                    (Vrel : forall m, m <= n -> Exp -> Exp -> Prop)
                    (e1 e2 : Exp)
                  : Prop :=
-  (* closed e1 /\ closed e2 /\ *)
+  EXPCLOSED e1 /\ EXPCLOSED e2 /\
   forall m (Hmn : m <= n) v1,
      eval m e1 = Res v1 -> (exists v2, (exists clock, eval clock e2 = Res v2) /\ Vrel m Hmn v1 v2)
 .
@@ -82,7 +121,7 @@ Check list_eq_dec. Print sumbool.
 Definition Vrel_rec (n : nat)
                     (Vrel : forall m, m < n -> Exp -> Exp -> Prop)
                     (v1 v2 : Exp) : Prop :=
-  (* closed v1 /\ closed v2 /\ *)
+  VALCLOSED v1 /\ VALCLOSED v2 /\
   match v1, v2 with
   | ELit l1, ELit l2 => l1 = l2
   | EFun vl1 b1, EFun vl2 b2 => 
@@ -129,6 +168,7 @@ Proof.
   extensionality v1.
   extensionality v2.
   destruct v1, v2; auto. break_match_goal. 2: auto.
+  f_equal. f_equal.
   extensionality m.
   extensionality Hmn.
   extensionality v1'.
@@ -141,6 +181,7 @@ Proof.
   extensionality H0.
   trivial.
   
+  f_equal. f_equal.
   break_match_goal; auto. extensionality m.
   extensionality Hmn.
   extensionality v1'.
@@ -176,6 +217,8 @@ Section Tests.
 
   Goal Erel 0 e1 e1.
   Proof.
+    split. 2: split.
+    1-2: repeat constructor.
     exists e1. split.
     * destruct m; inversion H; inversion Hmn.
     * inversion Hmn. subst. inversion H.
@@ -183,31 +226,44 @@ Section Tests.
   
   Goal Erel 3 e1 e1.
   Proof.
+    split. 2: split.
+    1-2: repeat constructor.
     exists e1. split.
     * destruct m; inversion H. exists 1. reflexivity.
-    * destruct m; inversion H. reflexivity.
+    * destruct m; inversion H.
+      split; try split; try constructor.
   Qed.
   
   Goal Erel 3 e2 e2.
   Proof.
+    split. 2: split.
+    1-2: repeat constructor.
     exists e2. split.
     * destruct m; inversion H. exists 1. reflexivity.
-    * destruct m; inversion H. subst. rewrite Vrel_Fix_eq. simpl.
+    * destruct m; inversion H. subst. rewrite Vrel_Fix_eq.
+      split; try split; repeat constructor.
+      simpl.
       intros. apply length_zero_iff_nil in H0. apply length_zero_iff_nil in H1. subst.
       exists e1. split.
       - exists 1. reflexivity.
-      - destruct m1; inversion H0. subst. reflexivity.
+      - destruct m1; inversion H3. subst.
+        split; try split; try constructor.
   Qed.
   
   Goal Erel 3 e2 e3.
   Proof.
+    split; try split.
+    1-2: repeat constructor.
     exists e3. split.
     * destruct m; inversion H. exists 1. reflexivity.
-    * destruct m; inversion H. subst. rewrite Vrel_Fix_eq. simpl.
+    * destruct m; inversion H. subst. rewrite Vrel_Fix_eq.
+      split; try split; repeat constructor.
+      simpl.
       intros. apply length_zero_iff_nil in H0. apply length_zero_iff_nil in H1. subst.
       exists e1. split.
       - exists 3. reflexivity.
-      - destruct m1; inversion H0. subst. reflexivity.
+      - destruct m1; inversion H3. subst.
+        split; try split; repeat constructor.
   Qed.
 
 End Tests.
