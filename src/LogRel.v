@@ -376,7 +376,7 @@ Notation "'SUBSCOPE' Γ ⊢ ξ :: Γ'" := (subscoped Γ Γ' ξ) (at level 69, ξ
 *)
 
 Definition subscoped (l' : list VarFunId) (vals : list Exp) : Prop :=
-  forall v, In v vals -> ValScoped l' v
+  forall i, i < length l' -> ValScoped l' (nth i vals (ELit 0))
 .
 
 (* Def: closed values are related *)
@@ -621,6 +621,125 @@ Corollary vclosed_ignores_funsub :
 Proof.
   intros. pose (scoped_ignores_funsub []). destruct a. apply H0. auto. intuition.
 Qed.
+
+
+
+(** Closing substitution *)
+Definition subst (v' : VarFunId) (what wher : Exp) : Exp :=
+  match v' with
+  | inl v => varsubst v what wher
+  | inr f => funsubst f what wher
+  end.
+
+Lemma subst_ignores_var : forall v v' val, inl v <> v' -> subst v' val (EVar v) = EVar v.
+Proof.
+  intros. unfold subst. simpl. destruct v'; auto.
+  break_match_goal; auto. apply eqb_eq in Heqb. subst. congruence.
+Qed.
+
+Lemma subst_ignores_funid : forall v v' val, inr v <> v' -> subst v' val (EFunId v) = EFunId v.
+Proof.
+  intros. unfold subst. simpl. destruct v'; auto.
+  break_match_goal; auto. apply funid_eqb_eq in Heqb. subst. congruence.
+Qed.
+
+Definition subst_list (l : list VarFunId) (es : list Exp) (e : Exp) : Exp :=
+  fold_right (fun '(v, val) acc => subst v val acc) e (combine l es).
+
+Check scoped_ind.
+Check Exp_ind2.
+
+Theorem In_asd :
+  forall e Γ v, In v Γ -> EXP (v :: Γ) ⊢ e -> EXP Γ ⊢ e.
+Proof.
+  einduction e using Exp_ind2 with 
+      (Q := fun l => list_forall (fun e => forall Γ v, In v Γ -> EXP (v :: Γ) ⊢ e -> EXP Γ ⊢ e) l); intros.
+  * constructor. constructor.
+  * inversion H0. subst. 2: inversion H1. constructor. inversion H2; subst; auto.
+  * inversion H0. subst. 2: inversion H1. constructor. inversion H2; subst; auto.
+  * constructor. constructor. inversion H0. inversion H1. subst.
+    rewrite <- app_comm_cons in H4. apply IHe0 in H4; auto. apply in_or_app. left. auto.
+  * constructor. constructor. inversion H0. inversion H1. subst.
+    rewrite <- app_comm_cons in H4. apply IHe0 in H4; auto. apply in_or_app. left. auto.
+  * inversion H0. 2: inversion H1. subst. rewrite indexed_to_forall in IHe1.
+    constructor.
+    - eapply IHe0; eauto.
+    - intros. eapply IHe1; eauto.
+  * inversion H0. 2: inversion H1. subst. constructor.
+    - eapply IHe0_1. exact H. auto.
+    - rewrite <- app_comm_cons in H5. eapply IHe0_2. 2: exact H5.
+      apply in_or_app. left. auto.
+  * inversion H0. 2: inversion H1. subst. constructor.
+    - eapply IHe0_1. apply in_or_app. left. eauto. rewrite <- app_comm_cons in H3. auto.
+    - eapply IHe0_2. apply in_or_app. left. eauto. rewrite <- app_comm_cons in H6. auto.
+  * inversion H0. 2: inversion H1. subst. constructor.
+    - eapply IHe0_1; eauto.
+    - eapply IHe0_2; eauto.
+  * inversion H0. 2: inversion H1. subst. constructor.
+    - eapply IHe0_1; eauto.
+    - eapply IHe0_2; eauto.
+    - eapply IHe0_3; eauto.
+  * constructor; eauto.
+  * constructor.
+Qed.
+
+Require Import Sorting.Permutation.
+
+Theorem perm_scoped :
+  forall Γ Γ', Permutation Γ Γ' -> forall e, EXP Γ ⊢ e -> EXP Γ' ⊢ e.
+Proof.
+  (* TODO *)
+Admitted.
+
+Theorem scope_ext : forall Γ,
+  (forall e, VAL Γ ⊢ e -> forall v, VAL v::Γ ⊢ e) /\
+  forall e, EXP Γ ⊢ e -> forall v, EXP v::Γ ⊢ e.
+Proof.
+  apply scoped_ind.
+  * intros. constructor.
+  * intros. constructor. apply H.
+  * intros. constructor. apply H.
+  * intros. constructor. constructor 2. auto.
+  * intros. constructor. constructor 2. auto.
+  * intros. constructor. apply H. intros. eapply H0. auto.
+  * intros. constructor. apply H. apply H0.
+  * intros. constructor. apply H. apply H0.
+  * intros. constructor. apply H. apply H0.
+  * intros. constructor. apply H. apply H0. apply H1.
+  * intros. constructor. apply H.
+Qed.
+
+Theorem alma v : forall e,
+  (forall Γ, VAL (inl v::Γ) ⊢ e -> forall val, VAL Γ ⊢ val -> VAL Γ ⊢ (varsubst v val e)) /\
+  (forall Γ, EXP (inl v::Γ) ⊢ e -> forall val, EXP Γ ⊢ val -> EXP Γ ⊢ (varsubst v val e)).
+Proof.
+  einduction e using Exp_ind2; intros.
+  * admit.
+  * split; intros. inversion H.
+    inversion H. 2: inversion H1.
+    subst. simpl. break_match_goal.
+    - apply eqb_eq in Heqb. subst. simpl. auto.
+    - apply eqb_neq in Heqb. inversion H2. inversion H1. congruence.
+      constructor. auto.
+  * split; intros. inversion H.
+    inversion H. 2: inversion H1.
+    subst. simpl. inversion H2. inversion H1. constructor. auto.
+  * admit.
+  * admit.
+  * split; intros. inversion H. admit.
+  * split; intros; inversion H; subst.
+    - simpl. break_match_goal.
+      + apply eqb_eq in Heqb. subst. constructor. apply IHe0_1; eauto.
+        apply In_asd in H5. 2: apply in_or_app; right; constructor; auto.
+        exact H5.
+      + apply eqb_neq in Heqb. constructor.
+        apply IHe0_1; eauto.
+        apply IHe0_2; eauto.
+        eapply scope_ext in H0. eapply perm_scoped in H0. exact H0.
+        apply Permutation_cons_append.
+    - inversion H1.
+  * admit.
+Admitted.
 
 (* Lemma VarFunId_eq_dec (v v' : VarFunId) : {v = v'} + {v <> v'}.
 Proof. decide equality. apply string_dec. repeat decide equality. Qed. *)

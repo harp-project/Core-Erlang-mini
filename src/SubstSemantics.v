@@ -160,14 +160,6 @@ end.
 Definition varsubst_list (l : list Var) (es : list Exp) (e : Exp) : Exp :=
   fold_right (fun '(v, val) acc => varsubst v val acc) e (combine l es).
 
-(** Closing substitution *)
-Definition subst (v' : VarFunId) (what wher : Exp) (p : is_value what) : Exp :=
-  match v' with
-  | inl v => varsubst v what wher
-  | inr f => funsubst f what wher
-  end
-.
-
 Inductive list_forall {A : Type} (P : A -> Prop) : list A -> Prop :=
 | forall_nil : list_forall P []
 | forall_cons x xs : P x -> list_forall P xs -> list_forall P (x::xs).
