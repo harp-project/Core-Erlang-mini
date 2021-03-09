@@ -50,6 +50,78 @@ match v1, v2 with
 | _, _ => false
 end.
 
+  Proposition funid_eqb_eq (f f' : FunctionIdentifier):
+    funid_eqb f f' = true <-> f = f'.
+  Proof.
+    intuition.
+    * destruct f, f'. simpl in H. apply Bool.andb_true_iff in H. destruct H.
+      apply eqb_eq in H. apply Nat.eqb_eq in H0. subst. reflexivity.
+    * subst. destruct f'. simpl. rewrite eqb_refl, Nat.eqb_refl. auto.
+  Qed.
+
+  Proposition funid_eqb_neq (f f0 : FunctionIdentifier):
+    funid_eqb f f0 = false <-> f <> f0.
+  Proof.
+    intuition.
+    * destruct f, f0. simpl in H. apply Bool.andb_false_iff in H. inversion H.
+        - apply eqb_neq in H1. unfold not in *. apply H1. inversion H0. reflexivity.
+        - apply Nat.eqb_neq in H1. unfold not in *. apply H1. inversion H0. reflexivity.
+    * simpl. destruct f, f0. simpl. apply Bool.andb_false_iff.
+        unfold not in H. case_eq ((s =? s0)%string); intros.
+        - right. apply eqb_eq in H0. apply Nat.eqb_neq. unfold not. intro. apply H. subst. reflexivity.
+        - left. reflexivity.
+  Qed.
+
+  Proposition var_funid_eqb_eq (v0 v : Var + FunctionIdentifier):
+    var_funid_eqb v0 v = true <-> v0 = v.
+  Proof.
+    intros. split; intros.
+    { destruct v0, v.
+      * inversion H. apply eqb_eq in H1. subst. reflexivity.
+      * inversion H.
+      * inversion H.
+      * apply funid_eqb_eq in H. subst. auto.
+    }
+    { destruct v, v0.
+      * inversion H. subst. simpl. apply eqb_refl.
+      * inversion H.
+      * inversion H.
+      * simpl. apply funid_eqb_eq. inversion H. auto.
+    }
+  Qed.
+
+  Proposition var_funid_eqb_neq (v0 v : Var + FunctionIdentifier):
+    var_funid_eqb v0 v = false <-> v0 <> v.
+  Proof.
+    split; intros.
+    { destruct v0, v.
+      * simpl in *. apply eqb_neq in H. unfold not in *. intros. apply H. inversion H0. reflexivity.
+      * unfold not. intro. inversion H0.
+      * unfold not. intro. inversion H0.
+      * apply funid_eqb_neq in H. intro. congruence.
+    }
+    { destruct v0, v.
+      * simpl in *. apply eqb_neq. unfold not in *. intro. apply H. subst. reflexivity.
+      * simpl. reflexivity.
+      * simpl. reflexivity.
+      * apply funid_eqb_neq. intro. congruence.
+    }
+  Qed.
+
+  Proposition funid_eqb_refl (f : FunctionIdentifier) :
+    funid_eqb f f = true.
+  Proof.
+    destruct f. simpl. simpl. rewrite eqb_refl, Nat.eqb_refl. simpl. reflexivity.
+  Qed.
+
+  Proposition var_funid_eqb_refl (var : Var + FunctionIdentifier) :
+    var_funid_eqb var var = true.
+  Proof.
+    destruct var.
+    * simpl. apply eqb_refl.
+    * destruct f. simpl. rewrite eqb_refl, Nat.eqb_refl. simpl. reflexivity.
+  Qed.
+
 Fixpoint varsubst (v' : Var) (what wher : Exp) : Exp :=
 match wher with
  | ELit l => wher
@@ -72,7 +144,9 @@ match wher with
  | EVar v => EVar v
  | EFunId f => if funid_eqb f f' then what else wher
  | EFun vl e => EFun vl (funsubst f' what e)
- | ERecFun f vl e => ERecFun f vl (funsubst f' what e)
+ | ERecFun f vl e => if funid_eqb f f' 
+                     then ERecFun f vl e
+                     else ERecFun f vl (funsubst f' what e)
  | EApp exp l => EApp (funsubst f' what exp) (map (funsubst f' what) l)
  | ELet v e1 e2 => ELet v (funsubst f' what e1) (funsubst f' what e2)
  | ELetRec f vl b e => if funid_eqb f f'

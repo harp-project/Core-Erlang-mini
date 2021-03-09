@@ -72,7 +72,8 @@ Inductive ExpScoped (l : list VarFunId) : Exp -> Prop :=
 | scoped_var v : In (inl v) l -> EXP l ⊢ EVar v
 | scoped_funid f : In (inr f) l -> EXP l ⊢ EFunId f
 | scoped_app exp vals : 
-  EXP l ⊢ exp -> list_forall (ExpScoped l) vals
+  EXP l ⊢ exp ->
+  (forall i, i < length vals -> EXP l ⊢ nth i vals (ELit 0))
 ->
   EXP l ⊢ EApp exp vals
 | scoped_let v e1 e2 :
@@ -155,6 +156,10 @@ Definition Vrel : nat -> Exp -> Exp -> Prop :=
 
 Definition Erel (n : nat) (e1 e2 : Exp) : Prop :=
   exp_rel n (fun m _ => Vrel m) e1 e2.
+
+(** ξ and η assigns closed expressions to vars in Γ 
+  Basically this says, ξ and η are equivalent pointwise for Γ
+*)
 
 Require Import FunctionalExtensionality Coq.Logic.PropExtensionality.
 
@@ -284,8 +289,8 @@ Proof.
   unfold Vrel_rec at 1.
   unfold Vrel_rec at 1 in H.
   destruct v1, v2; intuition; break_match_hyp; intros.
-  epose (H m1 _ vals1 vals2 H0 H1 H2). apply e0. contradiction.
-  epose (H m1 _ vals1 vals2 H0 H1 H2). apply e0. contradiction.
+  epose (H2 m1 _ vals1 vals2 H1 H3 H4). apply e0. contradiction.
+  epose (H2 m1 _ vals1 vals2 H1 H3 H4). apply e0. contradiction.
   Unshelve. all: lia.
 Qed.
 
@@ -297,8 +302,521 @@ Proof.
   intros.
   unfold Erel, exp_rel.
   unfold Erel, exp_rel in H.
-  intros. eapply (H m0); eauto. lia.
+  destruct H, H0. split; auto. split; auto.
+  intros. eapply (H1 m0); eauto. lia.
 Qed.
+
+Lemma Vrel_closed : forall {n : nat} {v1 v2 : Exp},
+    Vrel n v1 v2 ->
+    VALCLOSED v1 /\ VALCLOSED v2.
+Proof.
+  intros.
+  destruct H as [? [? ?] ].
+  destruct v1, v2; intuition.
+Qed.
+
+Lemma Vrel_closed_l : forall {n : nat} {v1 v2 : Exp},
+    Vrel n v1 v2 ->
+    VALCLOSED v1.
+Proof.
+  intros.
+  apply Vrel_closed in H.
+  intuition.
+Qed.
+
+Hint Resolve Vrel_closed_l.
+
+Lemma Vrel_closed_r : forall {n : nat} {v1 v2 : Exp},
+    Vrel n v1 v2 ->
+    VALCLOSED v2.
+Proof.
+  intros.
+  apply Vrel_closed in H.
+  intuition.
+Qed.
+
+Hint Resolve Vrel_closed_r.
+
+Lemma Erel_closed : forall {n : nat} {e1 e2 : Exp},
+    Erel n e1 e2 ->
+    EXPCLOSED e1 /\ EXPCLOSED e2.
+Proof.
+  intros.
+  unfold Erel, exp_rel in H.
+  intuition.
+Qed.
+
+Lemma Erel_closed_l : forall {n : nat} {e1 e2 : Exp},
+    Erel n e1 e2 ->
+    EXPCLOSED e1.
+Proof.
+  intros.
+  apply Erel_closed in H.
+  intuition.
+Qed.
+
+Hint Resolve Erel_closed_l.
+
+Lemma Erel_closed_r : forall {n : nat} {e1 e2 : Exp},
+    Erel n e1 e2 ->
+    EXPCLOSED e2.
+Proof.
+  intros.
+  apply Erel_closed in H.
+  intuition.
+Qed.
+
+Hint Resolve Erel_closed_r.
+
+(*
+Definition subscoped (l l' : list VarFunId) (ξ : VarFunId -> Exp) : Prop :=
+  forall v, In v l -> ValScoped l' (ξ v).
+
+Notation "'SUBSCOPE' Γ ⊢ ξ :: Γ'" := (subscoped Γ Γ' ξ) (at level 69, ξ at level 99, no associativity).
+*)
+
+Definition subscoped (l' : list VarFunId) (vals : list Exp) : Prop :=
+  forall v, In v vals -> ValScoped l' v
+.
+
+(* Def: closed values are related *)
+Definition Grel (n : nat) (vals1 vals2 : list Exp) : Prop :=
+  subscoped [] vals1 /\ subscoped [] vals2 /\ length vals1 = length vals2 /\
+  list_biforall (Vrel n) vals1 vals2.
+
+
+(** Closing substitutions  *)
+
+(* Definition Grel (n : nat) (Γ : list VarFunId) (ξ η : VarFunId -> Exp) : Prop :=
+  (subscoped Γ [] ξ) /\
+  (subscoped Γ [] η) /\
+  forall x, In x Γ -> Vrel n (ξ x) (η x). *)
+
+Section list_length_ind.  
+  Variable A : Type.
+  Variable P : list A -> Prop.
+
+  Hypothesis H : forall xs, (forall l, length l < length xs -> P l) -> P xs.
+
+  Theorem list_length_ind : forall xs, P xs.
+  Proof.
+    assert (forall xs l : list A, length l <= length xs -> P l) as H_ind.
+    { induction xs; intros l Hlen; apply H; intros l0 H0.
+      - inversion Hlen. lia.
+      - apply IHxs. simpl in Hlen. lia.
+    }
+    intros xs.
+    apply H_ind with (xs := xs).
+    lia.
+  Qed.
+End list_length_ind.
+
+Lemma Grel_downclosed_helper : forall vals1 vals2 m n,
+  m <= n -> length vals1 = length vals2 ->
+  list_biforall (Vrel n) vals1 vals2 ->
+  list_biforall (Vrel m) vals1 vals2.
+Proof.
+  intro. induction vals1 using list_length_ind; intros.
+  destruct vals1, vals2.
+  * constructor.
+  * inversion H1.
+  * inversion H1.
+  * inversion H2. subst. constructor. 
+    - eapply Vrel_downclosed. eauto.
+    - eapply H; eauto.
+Unshelve. auto.
+Qed.
+
+Lemma Grel_downclosed :
+  forall {n m : nat} {Hmn : m <= n} {vals1 vals2 : list Exp},
+    Grel n vals1 vals2 ->
+    Grel m vals1 vals2.
+Proof.
+  unfold Grel; intros; intuition. eapply Grel_downclosed_helper; eauto.
+Qed.
+
+Corollary app_not_in {T : Type} : forall (x:T) (l1 l2 : list T),
+  ~In x l1 -> ~In x l2 -> ~In x (l1 ++ l2).
+Proof.
+  intros.
+  intro. eapply in_app_or in H1. destruct H1; contradiction.
+Qed.
+
+Theorem in_list_sound : forall l e, in_list e l = true <-> In e l.
+Proof.
+  induction l; intros.
+  * split; intros; inversion H.
+  * split; intros.
+    - simpl in H. break_match_hyp.
+      + apply eqb_eq in Heqb. simpl. left. auto.
+      + apply eqb_neq in Heqb. simpl. right. apply IHl. auto.
+    - destruct (eqb e a) eqn:P.
+      + apply eqb_eq in P. subst. simpl. rewrite eqb_refl. auto.
+      + simpl. rewrite P. apply IHl. inversion H.
+        ** apply eqb_neq in P. congruence.
+        ** auto.
+Qed.
+
+Hint Resolve in_list_sound.
+
+Theorem not_in_list_sound : forall l e, in_list e l = false <-> ~In e l.
+Proof.
+  induction l; intros.
+  * split; intros. intro. inversion H0. reflexivity.
+  * split; intros.
+    - simpl in H. break_match_hyp.
+      + inversion H.
+      + apply eqb_neq in Heqb. simpl. intro. inversion H0. symmetry in H1. contradiction.
+        eapply IHl; eauto.
+    - simpl. break_match_goal.
+      apply eqb_eq in Heqb. subst. exfalso. apply H. intuition.
+      apply eqb_neq in Heqb. eapply IHl. apply not_in_cons in H. destruct H. auto.
+Qed.
+
+Hint Resolve not_in_list_sound.
+
+Definition Injective {A B} (f : A->B) :=
+ forall x y, f x = f y -> x = y.
+
+Theorem map_not_in {T T' : Type} : forall (l : list T) (x: T) (f : T -> T'),
+  Injective f -> ~In x l -> ~In (f x) (map f l).
+Proof.
+  induction l; intros; intro.
+  * inversion H1.
+  * inversion H1.
+    - apply H in H2. subst. apply H0. intuition.
+    - eapply IHl; eauto. apply not_in_cons in H0. destruct H0. auto.
+Qed.
+
+Scheme ValScoped_ind2 := Induction for ValScoped Sort Prop
+  with ExpScoped_ind2 := Induction for ExpScoped Sort Prop.
+Combined Scheme scoped_ind from ValScoped_ind2, ExpScoped_ind2.
+Check scoped_ind.
+
+Theorem scoped_ignores_sub_helper vals : forall x l v,
+  (forall i : nat,
+     i < Datatypes.length vals ->
+     forall (x : ExpEnv.Var) (v : Exp),
+     ~ In (@inl Var FunctionIdentifier x) l -> varsubst x v (nth i vals (ELit 0)) = nth i vals (ELit 0)) ->
+  ~ In (inl x) l ->
+  (map (varsubst x v) vals) = vals.
+Proof.
+  induction vals; intros.
+  * reflexivity.
+  * simpl. epose (H 0 _ _ _ H0). simpl in e. rewrite e.
+    erewrite IHvals; eauto. intros. eapply (H (S i)). simpl. lia. auto.
+Unshelve. simpl. lia.
+Qed.
+
+Theorem scoped_ignores_sub : forall Γ,
+  (forall e, VAL Γ ⊢ e -> forall x v, ~ In (inl x) Γ -> varsubst x v e = e) /\
+  (forall e, EXP Γ ⊢ e -> forall x v, ~ In (inl x) Γ -> varsubst x v e = e).
+Proof.
+  apply scoped_ind.
+  * intros. reflexivity.
+  * intros. simpl. break_match_goal; auto. rewrite H; auto.
+    apply app_not_in; auto. intuition. apply not_in_list_sound in Heqb.
+    eapply map_not_in in Heqb. exact (Heqb H1). intro. intros. inversion H2. auto.
+  * intros. simpl. break_match_goal; auto. rewrite H; auto.
+    repeat apply app_not_in; auto. intro. inversion H1; try congruence. contradiction.
+    apply not_in_list_sound in Heqb.
+    eapply map_not_in in Heqb. intro. exact (Heqb H1). intro. intros. inversion H1. auto.
+  * intros. simpl. break_match_goal; auto. apply eqb_eq in Heqb. subst. contradiction.
+  * intros. simpl. auto.
+  * intros. simpl. rewrite H; auto. erewrite scoped_ignores_sub_helper; eauto.
+  * intros. simpl. break_match_goal.
+    - rewrite H; auto.
+    - rewrite H, H0; auto. eapply app_not_in; auto.
+      intro. inversion H2. 2: contradiction. apply eqb_neq in Heqb. inversion H3. congruence.
+  * intros. simpl. break_match_goal; auto.
+    - rewrite H0; auto. eapply app_not_in; auto.
+      intro. inversion H2; try contradiction; try congruence.
+    - rewrite H, H0. auto.
+      + eapply app_not_in; auto.
+      intro. inversion H2; try contradiction; try congruence.
+      + apply app_not_in; auto. Search In map. intro.
+        apply not_in_list_sound in Heqb0.
+        eapply map_not_in in Heqb0. exact (Heqb0 H2). intro. intros. inversion H3. auto.
+  * intros. simpl. rewrite H, H0; auto.
+  * intros. simpl. rewrite H, H0, H1; auto.
+  * intros. eapply H; eauto.
+Qed.
+
+Corollary eclosed_ignores_sub :
+  forall e x v,
+  EXPCLOSED e -> varsubst x v e = e.
+Proof.
+  intros. eapply scoped_ignores_sub with (Γ := []). auto. intuition.
+Qed.
+
+Corollary vclosed_ignores_sub :
+  forall e x v,
+  VALCLOSED e -> varsubst x v e = e.
+Proof.
+  intros. pose (scoped_ignores_sub []). destruct a. apply H0. auto. intuition.
+Qed.
+
+Theorem scoped_ignores_funsub_helper vals : forall x l v,
+  (forall i : nat,
+     i < Datatypes.length vals ->
+     forall (x : FunctionIdentifier) (v : Exp),
+     ~ In (@inr Var FunctionIdentifier x) l -> funsubst x v (nth i vals (ELit 0)) = nth i vals (ELit 0)) ->
+  ~ In (inr x) l ->
+  (map (funsubst x v) vals) = vals.
+Proof.
+  induction vals; intros.
+  * reflexivity.
+  * simpl. epose (H 0 _ _ _ H0). simpl in e. rewrite e.
+    erewrite IHvals; eauto. intros. eapply (H (S i)). simpl. lia. auto.
+Unshelve. simpl. lia.
+Qed.
+
+Lemma inr_inl_map x l:
+  In (@inr Var FunctionIdentifier x) (map inl l) -> False.
+Proof.
+  induction l; intros; inversion H.
+  inversion H0. apply IHl. auto.
+Qed.
+
+Theorem scoped_ignores_funsub : forall Γ,
+  (forall e, VAL Γ ⊢ e -> forall x v, ~ In (inr x) Γ -> funsubst x v e = e) /\
+  (forall e, EXP Γ ⊢ e -> forall x v, ~ In (inr x) Γ -> funsubst x v e = e).
+Proof.
+  apply scoped_ind.
+  * intros. reflexivity.
+  * intros. simpl. rewrite H; auto.
+    apply app_not_in; auto. intuition.
+    apply inr_inl_map in H1. auto.
+  * intros. simpl. break_match_goal; auto.
+    rewrite H; auto.
+    repeat apply app_not_in; auto.
+    intro. inversion H1. inversion H2. apply funid_eqb_neq in Heqb. 1-2: contradiction.
+    exact (inr_inl_map x vl).
+  * intros. simpl. auto.
+  * intros. simpl. break_match_goal; auto. apply funid_eqb_eq in Heqb. subst. contradiction.
+  * intros. simpl. rewrite H; auto. erewrite scoped_ignores_funsub_helper; eauto.
+  * intros. simpl. rewrite H, H0; auto. eapply app_not_in; auto.
+      intro. inversion H2. 2: contradiction. inversion H3.
+  * intros. simpl. break_match_goal; auto.
+    - rewrite H, H0. auto.
+      + eapply app_not_in; auto.
+        intro. inversion H2. 2: contradiction. inversion H3. subst.
+        pose (funid_eqb_refl x). rewrite e5 in Heqb0. inversion Heqb0.
+      + apply app_not_in; auto. exact (inr_inl_map x vl).
+  * intros. simpl. rewrite H, H0; auto.
+  * intros. simpl. rewrite H, H0, H1; auto.
+  * intros. eapply H; eauto.
+Qed.
+
+Corollary eclosed_ignores_funsub :
+  forall e x v,
+  EXPCLOSED e -> funsubst x v e = e.
+Proof.
+  intros. eapply scoped_ignores_funsub with (Γ := []). auto. intuition.
+Qed.
+
+Corollary vclosed_ignores_funsub :
+  forall e x v,
+  VALCLOSED e -> funsubst x v e = e.
+Proof.
+  intros. pose (scoped_ignores_funsub []). destruct a. apply H0. auto. intuition.
+Qed.
+
+(* Lemma VarFunId_eq_dec (v v' : VarFunId) : {v = v'} + {v <> v'}.
+Proof. decide equality. apply string_dec. repeat decide equality. Qed. *)
+
+Fixpoint mem {E : Type} (eqb : E -> E -> bool) (e : E) (l : list E) :=
+match l with
+| [] => false
+| x::xs => if eqb x e then true else mem eqb e xs
+end.
+
+Compute mem var_funid_eqb (inl "X"%string) [inl "X"%string].
+
+Theorem mem_sound : forall l e, mem var_funid_eqb e l = true <-> In e l.
+Proof.
+  induction l; intros.
+  * split; intros; inversion H.
+  * split; intros.
+    - simpl in H. break_match_hyp.
+      + apply var_funid_eqb_eq in Heqb. simpl. left. auto.
+      + apply var_funid_eqb_neq in Heqb. simpl. right. apply IHl. auto.
+    - destruct (var_funid_eqb a e) eqn:P.
+      + apply var_funid_eqb_eq in P. subst. simpl. rewrite var_funid_eqb_refl. auto.
+      + simpl. rewrite P. apply IHl. inversion H.
+        ** apply var_funid_eqb_neq in P. congruence.
+        ** auto.
+Qed.
+
+Fixpoint subst_free (e' : Exp) (ξ : VarFunId -> Exp) (l : list VarFunId) : Exp :=
+match e' with
+ | ELit l => ELit l
+ | EVar v => if mem var_funid_eqb (inl v) l then EVar v else ξ (inl v)
+ | EFunId f => if mem var_funid_eqb (inr f) l then EFunId f else ξ (inr f)
+ | EFun vl e => EFun vl (subst_free e ξ (l ++ map inl vl))
+ | ERecFun f vl e => ERecFun f vl (subst_free e ξ (l ++ [inr f] ++ map inl vl))
+ | EApp exp l' => EApp (subst_free exp ξ l) (map (fun x => subst_free x ξ l) l')
+ | ELet v e1 e2 => ELet v (subst_free e1 ξ l) (subst_free e2 ξ (l ++ [inl v]))
+ | ELetRec f vl b e => ELetRec f vl (subst_free b ξ (l ++ [inr f] ++ map inl vl)) (subst_free e ξ (l ++ [inr f]))
+ | EPlus e1 e2 => EPlus (subst_free e1 ξ l) (subst_free e2 ξ l)
+ | EIf e1 e2 e3 => EIf  (subst_free e1 ξ l) (subst_free e2 ξ l) (subst_free e3 ξ l)
+end.
+
+Notation "e [[ ξ ]]" := (subst_free e ξ []) (at level 5).
+
+
+Definition Vrel_open (Γ : list VarFunId) (e1 e2 : Exp) :=
+  forall n ξ η,
+  Grel n Γ ξ η ->
+  Vrel n e1[[ξ]] e2[[η]].
+
+Definition Erel_open (Γ : list VarFunId) (e1 e2 : Exp) :=
+  forall n ξ η,
+  Grel n Γ ξ η ->
+  Erel n e1[[ξ]] e2[[η]].
+
+Ltac solve_inversion :=
+  match goal with
+  | [ H : _ |- _ ] => solve [inversion H]
+  end.
+
+Lemma Vrel_Var_compatible :
+  forall Γ x,
+    In (inl x) Γ ->
+    Vrel_open Γ (EVar x) (EVar x).
+Proof.
+  unfold Vrel_open, Grel.
+  cbn. (* intros. destruct H0, H1. apply H2. auto. *)
+  intuition.
+Qed.
+
+Hint Resolve Vrel_Var_compatible.
+
+Lemma Vrel_FunId_compatible :
+  forall Γ x,
+    In (inr x) Γ ->
+    Vrel_open Γ (EFunId x) (EFunId x).
+Proof.
+  unfold Vrel_open, Grel.
+  cbn.
+  intuition.
+Qed.
+
+Hint Resolve Vrel_FunId_compatible.
+
+Lemma Erel_Var_compatible :
+  forall Γ x,
+    In (inl x) Γ ->
+    Erel_open Γ (EVar x) (EVar x).
+Proof.
+  unfold Erel_open, Grel.
+  cbn. (* intros. destruct H0, H1. apply H2. auto. *)
+  intuition. specialize (H3 _ H).
+  unfold Erel, exp_rel. split. 2: split. 1-2: admit. intros. apply H3. 
+Qed.
+
+Hint Resolve Vrel_Var_compatible.
+
+Lemma Vrel_FunId_compatible :
+  forall Γ x,
+    In (inr x) Γ ->
+    Erel_open Γ (EFunId x) (EFunId x).
+Proof.
+  unfold Vrel_open, Grel.
+  cbn.
+  intuition.
+Qed.
+
+Hint Resolve Vrel_FunId_compatible.
+
+Lemma Vrel_Lit_compatible_closed :
+  forall m r,
+    Vrel m (ELit r) (ELit r).
+Proof.
+  intros.
+  rewrite Vrel_Fix_eq.
+  unfold Vrel_rec.
+  intuition constructor.
+Qed.
+
+Hint Resolve Vrel_Lit_compatible_closed.
+
+Lemma Vrel_Lit_compatible :
+  forall Γ r,
+    Vrel_open Γ (ELit r) (ELit r).
+Proof.
+  unfold Vrel_open, Grel.
+  intros.
+  cbn.
+  apply Vrel_Lit_compatible_closed.
+Qed.
+
+Hint Resolve Vrel_Lit_compatible.
+
+
+Theorem Erel_Vrel_Fundamental_helper :
+  forall (e : Exp),
+    (forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e) /\
+    (forall Γ, VAL Γ ⊢ e -> Vrel_open Γ e e).
+Proof.
+  induction e;
+    intuition auto;
+    try solve_inversion.
+  - eapply 
+  - eapply Erel_App_compatible; eauto.
+  - eapply Erel_Seq_compatible; eauto.
+  - eapply Erel_Op1_compatible; eauto.
+  - eapply Erel_Op2_compatible; eauto.
+  - eapply Erel_Cond_compatible; eauto.
+Qed.
+
+
+
+
+
+Lemma Erel_open_closed : forall {Γ e1 e2},
+    Erel_open Γ e1 e2 ->
+    forall γ, subscoped Γ [] γ ->
+              EXPCLOSED (e1[[γ]]) /\ EXPCLOSED (e2[[γ]]).
+Proof.
+  
+Qed.
+
+Lemma Erel_open_closed : forall {Γ e1 e2},
+    Erel_open Γ e1 e2 ->
+    forall γ, subscoped Γ [] γ ->
+              EXPCLOSED (e1[[γ]]) /\ EXPCLOSED (e2[[γ]]).
+Proof.
+  intros.
+  apply @Erel_closed with (n:=0).
+  apply H.
+  unfold Grel.
+  intuition idtac.
+  pose (E := H0 x H1). rewrite Vrel_Fix_eq. inversion E. 
+  unfold Vrel_rec. split. 2: split; auto. 1-2: constructor.
+  
+  
+  remember E as E'. clear HeqE' E.
+  break_match_goal; auto. 1-2, 5-9: inversion E'.
+  break_match_goal; try congruence; intros.
+  
+  
+  
+  
+  unfold Vrel_rec at 1; intuition.
+  break_match_goal; auto; try inversion E'.
+Qed.
+
+
+
+
+
+
+
+
+
+
+
 (* 
 Lemma exp_rel_trans :
   forall n, Transitive (exp_rel n).
@@ -315,6 +833,7 @@ Proof.
     intros. (* Here use exp_rel trans! *)
 Abort. *)
 
+(* 
 Theorem fundamental_property :
 forall v, (* closed v -> *) is_value v ->
 forall n, Vrel n v v.
@@ -327,4 +846,4 @@ Proof.
     unfold Vrel. econstructor.
     destruct H1.
 Qed.
-
+*)
