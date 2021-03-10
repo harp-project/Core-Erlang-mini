@@ -689,15 +689,25 @@ Qed.
 
 Require Import Sorting.Permutation.
 
-Theorem perm_scoped :
-  (forall e Γ Γ', Permutation Γ Γ' -> EXP Γ ⊢ e -> EXP Γ' ⊢ e) /\
-  forall e Γ Γ', Permutation Γ Γ' -> VAL Γ ⊢ e -> VAL Γ' ⊢ e.
+Theorem perm_scoped : forall Γ,
+  (forall e, VAL Γ ⊢ e -> forall Γ', Permutation Γ Γ' -> VAL Γ' ⊢ e) /\
+  (forall e, EXP Γ ⊢ e -> forall Γ', Permutation Γ Γ' ->  EXP Γ' ⊢ e).
 Proof.
-  split. einduction e using Exp_ind2; intros.
-  * constructor. constructor.
-  * constructor. eapply Permutation_in. exact H. inversion H0. auto. inversion H1.
-  * admit.
-Admitted.
+  apply scoped_ind; intros.
+  * constructor.
+  * constructor. apply H. apply Permutation_app; intuition.
+  * constructor. apply H. apply Permutation_app; intuition.
+  * constructor. eapply Permutation_in. exact H. auto.
+  * constructor. eapply Permutation_in. exact H. auto.
+  * constructor; intuition.
+  * constructor; intuition. apply H0.
+    apply Permutation_app; intuition.
+  * constructor. apply H. apply Permutation_app; intuition.
+    apply H0. apply Permutation_app; intuition.
+  * constructor; intuition.
+  * constructor; intuition.
+  * constructor; intuition.
+Qed.
 
 Theorem scope_ext : forall Γ,
   (forall e, VAL Γ ⊢ e -> forall v, VAL v::Γ ⊢ e) /\
