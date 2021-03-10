@@ -81,7 +81,7 @@ Inductive ExpScoped (l : list VarFunId) : Exp -> Prop :=
 ->
   EXP l ⊢ ELet v e1 e2
 | scoped_letrec f vl b e :
-  EXP (l ++ map inl vl) ⊢ b -> EXP (l ++ [inr f]) ⊢ e
+  EXP (l ++ [inr f] ++ map inl vl) ⊢ b -> EXP (l ++ [inr f]) ⊢ e
 ->
   EXP l ⊢ ELetRec f vl b e
 | scoped_plus e1 e2 :
@@ -376,7 +376,7 @@ Notation "'SUBSCOPE' Γ ⊢ ξ :: Γ'" := (subscoped Γ Γ' ξ) (at level 69, ξ
 *)
 
 Definition subscoped (l' : list VarFunId) (vals : list Exp) : Prop :=
-  forall i, i < length l' -> ValScoped l' (nth i vals (ELit 0))
+  forall i, i < length vals -> ValScoped l' (nth i vals (ELit 0))
 .
 
 (* Def: closed values are related *)
@@ -534,9 +534,11 @@ Proof.
     - rewrite H, H0. auto.
       + eapply app_not_in; auto.
       intro. inversion H2; try contradiction; try congruence.
-      + apply app_not_in; auto. Search In map. intro.
+      + apply app_not_in; auto. Search In map. eapply app_not_in. intro.
+        inversion H2; try contradiction; try congruence.
         apply not_in_list_sound in Heqb0.
-        eapply map_not_in in Heqb0. exact (Heqb0 H2). intro. intros. inversion H3. auto.
+        eapply map_not_in in Heqb0. intro. exact (Heqb0 H2).
+        intro. intros. inversion H2. auto.
   * intros. simpl. rewrite H, H0; auto.
   * intros. simpl. rewrite H, H0, H1; auto.
   * intros. eapply H; eauto.
@@ -602,7 +604,9 @@ Proof.
       + eapply app_not_in; auto.
         intro. inversion H2. 2: contradiction. inversion H3. subst.
         pose (funid_eqb_refl x). rewrite e5 in Heqb0. inversion Heqb0.
-      + apply app_not_in; auto. exact (inr_inl_map x vl).
+      + apply app_not_in; auto. eapply app_not_in.
+        intro. inversion H2; inversion H3. subst. apply funid_eqb_neq in Heqb0. congruence.
+        exact (inr_inl_map x vl).
   * intros. simpl. rewrite H, H0; auto.
   * intros. simpl. rewrite H, H0, H1; auto.
   * intros. eapply H; eauto.
@@ -644,12 +648,12 @@ Proof.
 Qed.
 
 Definition subst_list (l : list VarFunId) (es : list Exp) (e : Exp) : Exp :=
-  fold_right (fun '(v, val) acc => subst v val acc) e (combine l es).
+  fold_left (fun acc '(v, val) => subst v val acc) (combine l es) e.
 
 Check scoped_ind.
 Check Exp_ind2.
 
-Theorem In_asd :
+Theorem scope_duplicate :
   forall e Γ v, In v Γ -> EXP (v :: Γ) ⊢ e -> EXP Γ ⊢ e.
 Proof.
   einduction e using Exp_ind2 with 
@@ -686,9 +690,13 @@ Qed.
 Require Import Sorting.Permutation.
 
 Theorem perm_scoped :
-  forall Γ Γ', Permutation Γ Γ' -> forall e, EXP Γ ⊢ e -> EXP Γ' ⊢ e.
+  (forall e Γ Γ', Permutation Γ Γ' -> EXP Γ ⊢ e -> EXP Γ' ⊢ e) /\
+  forall e Γ Γ', Permutation Γ Γ' -> VAL Γ ⊢ e -> VAL Γ' ⊢ e.
 Proof.
-  (* TODO *)
+  split. einduction e using Exp_ind2; intros.
+  * constructor. constructor.
+  * constructor. eapply Permutation_in. exact H. inversion H0. auto. inversion H1.
+  * admit.
 Admitted.
 
 Theorem scope_ext : forall Γ,
@@ -709,12 +717,34 @@ Proof.
   * intros. constructor. apply H.
 Qed.
 
-Theorem alma v : forall e,
+Theorem app_cons_swap {T : Type} : forall (l l' : list T) (a : T),
+  l ++ a::l' = l ++ [a] ++ l'.
+Proof.
+  firstorder.
+Qed.
+
+Corollary scope_ext_app : forall l Γ,
+  (forall e, VAL Γ ⊢ e -> VAL Γ ++ l ⊢ e) /\
+  forall e, EXP Γ ⊢ e -> EXP Γ ++ l ⊢ e.
+Proof.
+ induction l; intros.
+ * repeat rewrite app_nil_r. split; intros; auto.
+ * rewrite app_cons_swap. pose (scope_ext Γ). specialize (IHl (Γ ++ [a])).
+   destruct IHl, a0. split; intros.
+   - specialize (H1 e H3 a). eapply perm_scoped in H1. rewrite app_assoc.
+     apply H. exact H1. apply Permutation_cons_append.
+   - specialize (H2 e H3 a). eapply perm_scoped in H2. rewrite app_assoc.
+     apply H0. exact H2. apply Permutation_cons_append.
+Qed.
+
+Theorem scope_sub v : forall e,
   (forall Γ, VAL (inl v::Γ) ⊢ e -> forall val, VAL Γ ⊢ val -> VAL Γ ⊢ (varsubst v val e)) /\
   (forall Γ, EXP (inl v::Γ) ⊢ e -> forall val, EXP Γ ⊢ val -> EXP Γ ⊢ (varsubst v val e)).
 Proof.
-  einduction e using Exp_ind2; intros.
-  * admit.
+  einduction e using Exp_ind2 with 
+  (Q := fun l => list_forall (fun e => (forall Γ, VAL (inl v::Γ) ⊢ e -> forall val, VAL Γ ⊢ val -> VAL Γ ⊢ (varsubst v val e)) /\
+  (forall Γ, EXP (inl v::Γ) ⊢ e -> forall val, EXP Γ ⊢ val -> EXP Γ ⊢ (varsubst v val e))) l); intros.
+  * split; intros; simpl; constructor. constructor.
   * split; intros. inversion H.
     inversion H. 2: inversion H1.
     subst. simpl. break_match_goal.
@@ -724,22 +754,182 @@ Proof.
   * split; intros. inversion H.
     inversion H. 2: inversion H1.
     subst. simpl. inversion H2. inversion H1. constructor. auto.
-  * admit.
-  * admit.
-  * split; intros. inversion H. admit.
+  * split; intros; inversion H; subst; simpl; break_match_goal; constructor.
+    3-4: constructor.
+    - apply in_list_sound in Heqb. rewrite <- app_comm_cons in H2.
+      eapply scope_duplicate in H2; auto. apply in_app_iff. right. apply in_map. auto.
+    - apply IHe0. rewrite <- app_comm_cons in H2. auto.
+      eapply scope_ext_app. constructor. auto.
+    - apply in_list_sound in Heqb. inversion H1; subst. 
+      rewrite <- app_comm_cons in H3.
+      eapply scope_duplicate in H3; auto. apply in_app_iff. right. apply in_map. auto.
+    - inversion H1. subst. apply IHe0. rewrite app_comm_cons. auto.
+      eapply scope_ext_app. auto.
+  * split; intros; inversion H; subst; simpl; break_match_goal; constructor.
+    3-4: constructor.
+    - apply in_list_sound in Heqb. rewrite <- app_comm_cons in H2.
+      eapply scope_duplicate in H2; auto. apply in_app_iff. right.
+      apply in_app_iff. right. apply in_map. auto.
+    - apply IHe0. rewrite <- app_comm_cons in H2. auto.
+      eapply scope_ext_app. constructor. auto.
+    - apply in_list_sound in Heqb. inversion H1; subst. 
+      rewrite <- app_comm_cons in H3.
+      eapply scope_duplicate in H3; auto. apply in_app_iff. right.
+      apply in_app_iff. right. apply in_map. auto.
+    - inversion H1. subst. apply IHe0. rewrite app_comm_cons. auto.
+      eapply scope_ext_app. auto.
+  * split; intros. inversion H.
+    simpl. inversion H. 2: inversion H1. subst. constructor.
+    - apply IHe0. auto. auto.
+    - rewrite indexed_to_forall in IHe1.
+      intros. epose (IHe1 i _). destruct a. clear H2 IHe1. Search map nth.
+      replace (ELit 0) with ((varsubst v val) (ELit 0)). rewrite map_nth. apply H5.
+      apply H4. rewrite map_length in H1. auto. auto. reflexivity.
   * split; intros; inversion H; subst.
     - simpl. break_match_goal.
       + apply eqb_eq in Heqb. subst. constructor. apply IHe0_1; eauto.
-        apply In_asd in H5. 2: apply in_or_app; right; constructor; auto.
+        apply scope_duplicate in H5. 2: apply in_or_app; right; constructor; auto.
         exact H5.
       + apply eqb_neq in Heqb. constructor.
         apply IHe0_1; eauto.
         apply IHe0_2; eauto.
-        eapply scope_ext in H0. eapply perm_scoped in H0. exact H0.
-        apply Permutation_cons_append.
+        eapply scope_ext_app in H0. eauto.
     - inversion H1.
-  * admit.
-Admitted.
+  * split; intros. inversion H. subst.
+    simpl. inversion H. 2: inversion H1. subst. break_match_goal.
+    - constructor. rewrite <- app_comm_cons in H3. eapply scope_duplicate.
+      2: exact H3. apply in_list_sound in Heqb. apply in_app_iff. right.
+      apply in_app_iff. right.
+      apply in_map. auto.
+      apply IHe0_2. rewrite <- app_comm_cons in H6. auto.
+      eapply scope_ext_app in H0. eauto.
+    - constructor.
+      apply IHe0_1; eauto. eapply scope_ext_app. eauto.
+      apply IHe0_2; eauto. eapply scope_ext_app. eauto.
+  * split; intros. inversion H. subst. simpl. inversion H. 2: inversion H1. subst.
+    constructor. 
+    eapply IHe0_1; auto. eapply IHe0_2; auto.
+  * split; intros. inversion H. subst. simpl. inversion H. 2: inversion H1. subst.
+    constructor. 
+    eapply IHe0_1; auto. eapply IHe0_2; auto. eapply IHe0_3; auto.
+  * constructor. apply IHe0. apply IHe1.
+  * constructor.
+Unshelve. rewrite map_length in H1. auto.
+Qed.
+
+Theorem scope_funsub v : forall e,
+  (forall Γ, VAL (inr v::Γ) ⊢ e -> forall val, VAL Γ ⊢ val -> VAL Γ ⊢ (funsubst v val e)) /\
+  (forall Γ, EXP (inr v::Γ) ⊢ e -> forall val, EXP Γ ⊢ val -> EXP Γ ⊢ (funsubst v val e)).
+Proof.
+  einduction e using Exp_ind2 with 
+  (Q := fun l => list_forall (fun e => (forall Γ, VAL (inr v::Γ) ⊢ e -> forall val, VAL Γ ⊢ val -> VAL Γ ⊢ (funsubst v val e)) /\
+  (forall Γ, EXP (inr v::Γ) ⊢ e -> forall val, EXP Γ ⊢ val -> EXP Γ ⊢ (funsubst v val e))) l); intros.
+  * split; intros; simpl; constructor. constructor.
+  * split; intros. inversion H.
+    inversion H. 2: inversion H1. simpl. subst. constructor.
+    inversion H2. inversion H1. auto.
+  * split; intros; simpl; break_match_goal; auto. inversion H. constructor.
+    inversion H. 2: inversion H1. subst. apply funid_eqb_neq in Heqb. inversion H2.
+    - inversion H1. subst. congruence.
+    - auto.
+  * split; intros; inversion H; subst; simpl; constructor. 2: constructor.
+    - apply IHe0. rewrite app_comm_cons. auto. apply scope_ext_app. constructor. auto.
+    - inversion H1. subst. apply IHe0. rewrite app_comm_cons. auto.
+      apply scope_ext_app. auto.
+  * split; intros; inversion H; subst; simpl; break_match_goal.
+    - apply funid_eqb_eq in Heqb. subst. constructor. rewrite <- app_comm_cons in H2.
+      eapply scope_duplicate. 2: exact H2.
+      apply in_app_iff. right. apply in_app_iff. left. constructor. auto.
+    - constructor. apply IHe0. rewrite app_comm_cons. auto.
+      apply scope_ext_app. constructor. auto.
+    - inversion H1. subst. apply funid_eqb_eq in Heqb. subst.
+      constructor. constructor. rewrite <- app_comm_cons in H3.
+      eapply scope_duplicate. 2: exact H3.
+      apply in_app_iff. right. apply in_app_iff. left. constructor. auto.
+    - constructor. constructor. inversion H1. subst.
+      apply IHe0. rewrite app_comm_cons. auto.
+      apply scope_ext_app. auto.
+  * split; intros. inversion H.
+    simpl. inversion H. 2: inversion H1. subst. constructor.
+    - apply IHe0. auto. auto.
+    - rewrite indexed_to_forall in IHe1.
+      intros. epose (IHe1 i _). destruct a. clear H2 IHe1. Search map nth.
+      replace (ELit 0) with ((funsubst v val) (ELit 0)). rewrite map_nth. apply H5.
+      apply H4. rewrite map_length in H1. auto. auto. reflexivity.
+  * split; intros; inversion H; subst.
+    - simpl. constructor.
+      apply IHe0_1; eauto.
+      apply IHe0_2; eauto.
+      eapply scope_ext_app in H0. eauto.
+    - inversion H1.
+  * split; intros; inversion H. subst.
+    simpl. break_match_goal.
+    - constructor. apply funid_eqb_eq in Heqb. subst. rewrite <- app_comm_cons in H3.
+      eapply scope_duplicate. 2: exact H3. apply in_app_iff. right.
+      apply in_app_iff. left. constructor. auto.
+      apply funid_eqb_eq in Heqb. subst. rewrite <- app_comm_cons in H6.
+      eapply scope_duplicate. 2: exact H6. apply in_app_iff. intuition.
+    - apply funid_eqb_neq in Heqb. constructor.
+      apply IHe0_1. try rewrite app_comm_cons; eauto.
+      apply scope_ext_app. auto.
+      apply IHe0_2. rewrite app_comm_cons; auto.
+      apply scope_ext_app. auto.
+    - inversion H1.
+  * split; intros. inversion H. subst. simpl. inversion H. 2: inversion H1. subst.
+    constructor. 
+    eapply IHe0_1; auto. eapply IHe0_2; auto.
+  * split; intros. inversion H. subst. simpl. inversion H. 2: inversion H1. subst.
+    constructor. 
+    eapply IHe0_1; auto. eapply IHe0_2; auto. eapply IHe0_3; auto.
+  * constructor. apply IHe0. apply IHe1.
+  * constructor.
+Unshelve. rewrite map_length in H1. auto.
+Qed.
+
+Corollary scope_subst v : forall e,
+  (forall Γ, VAL (v::Γ) ⊢ e -> forall val, VAL Γ ⊢ val -> VAL Γ ⊢ (subst v val e)) /\
+  (forall Γ, EXP (v::Γ) ⊢ e -> forall val, EXP Γ ⊢ val -> EXP Γ ⊢ (subst v val e)).
+Proof.
+  destruct v.
+  - apply scope_sub.
+  - apply scope_funsub.
+Qed.
+
+Lemma element_exist {A : Type} : forall n (l : list A), S n = length l -> exists e l', l = e::l'.
+Proof.
+  intros. destruct l.
+  * inversion H.
+  * apply ex_intro with a. apply ex_intro with l. reflexivity.
+Qed.
+
+Corollary scope_subst_list Γ : forall e,
+  (VAL Γ ⊢ e -> forall vals, length vals = length Γ -> subscoped [] vals -> VAL Γ ⊢ (subst_list Γ vals e)) /\
+  (EXP Γ ⊢ e -> forall vals, length vals = length Γ -> subscoped [] vals -> EXP Γ ⊢ (subst_list Γ vals e)).
+Proof.
+  induction Γ; split; intros.
+  * unfold subst_list. simpl. auto.
+  * unfold subst_list. simpl. auto.
+  * unfold subscoped in H1. apply eq_sym, element_exist in H0 as EE. destruct EE, H2.
+    subst. unfold subst_list. simpl.
+    replace (fold_left (fun (acc : Exp) '(v, val) => subst v val acc) (combine Γ x0) (subst a x e)) with (subst_list Γ x0 (subst a x e)). 2: reflexivity.
+    specialize (IHΓ (subst a x e)). destruct IHΓ.
+    inversion H0.
+    epose (H2 _ x0 (eq_sym H5) _). apply scope_ext. auto.
+  * unfold subscoped in H1. apply eq_sym, element_exist in H0 as EE. destruct EE, H2.
+    subst. unfold subst_list. simpl.
+    replace (fold_left (fun (acc : Exp) '(v, val) => subst v val acc) (combine Γ x0) (subst a x e)) with (subst_list Γ x0 (subst a x e)). 2: reflexivity.
+    specialize (IHΓ (subst a x e)). destruct IHΓ.
+    inversion H0.
+    epose (H3 _ x0 (eq_sym H5) _). apply scope_ext. auto.
+Unshelve.
+  - apply scope_subst; eauto. specialize (H1 0 (Nat.lt_0_succ _)).
+    simpl in H1. replace Γ with ([] ++ Γ); auto. apply scope_ext_app. auto.
+  - intro. intros. apply (H1 (S i)). simpl. lia.
+  - apply scope_subst; eauto. specialize (H1 0 (Nat.lt_0_succ _)).
+    simpl in H1. replace Γ with ([] ++ Γ); auto. apply scope_ext_app. auto.
+    constructor. auto.
+  - intro. intros. apply (H1 (S i)). simpl. lia.
+Qed.
 
 (* Lemma VarFunId_eq_dec (v v' : VarFunId) : {v = v'} + {v <> v'}.
 Proof. decide equality. apply string_dec. repeat decide equality. Qed. *)
