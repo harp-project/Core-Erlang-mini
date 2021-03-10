@@ -913,8 +913,8 @@ Proof.
 Qed.
 
 Corollary scope_subst_list Γ : forall e,
-  (VAL Γ ⊢ e -> forall vals, length vals = length Γ -> subscoped [] vals -> VAL Γ ⊢ (subst_list Γ vals e)) /\
-  (EXP Γ ⊢ e -> forall vals, length vals = length Γ -> subscoped [] vals -> EXP Γ ⊢ (subst_list Γ vals e)).
+  (VAL Γ ⊢ e -> forall vals, length vals = length Γ -> subscoped [] vals -> VALCLOSED (subst_list Γ vals e)) /\
+  (EXP Γ ⊢ e -> forall vals, length vals = length Γ -> subscoped [] vals -> EXPCLOSED (subst_list Γ vals e)).
 Proof.
   induction Γ; split; intros.
   * unfold subst_list. simpl. auto.
@@ -924,13 +924,13 @@ Proof.
     replace (fold_left (fun (acc : Exp) '(v, val) => subst v val acc) (combine Γ x0) (subst a x e)) with (subst_list Γ x0 (subst a x e)). 2: reflexivity.
     specialize (IHΓ (subst a x e)). destruct IHΓ.
     inversion H0.
-    epose (H2 _ x0 (eq_sym H5) _). apply scope_ext. auto.
+    epose (H2 _ x0 (eq_sym H5) _). auto.
   * unfold subscoped in H1. apply eq_sym, element_exist in H0 as EE. destruct EE, H2.
     subst. unfold subst_list. simpl.
     replace (fold_left (fun (acc : Exp) '(v, val) => subst v val acc) (combine Γ x0) (subst a x e)) with (subst_list Γ x0 (subst a x e)). 2: reflexivity.
     specialize (IHΓ (subst a x e)). destruct IHΓ.
     inversion H0.
-    epose (H3 _ x0 (eq_sym H5) _). apply scope_ext. auto.
+    epose (H3 _ x0 (eq_sym H5) _). auto.
 Unshelve.
   - apply scope_subst; eauto. specialize (H1 0 (Nat.lt_0_succ _)).
     simpl in H1. replace Γ with ([] ++ Γ); auto. apply scope_ext_app. auto.
