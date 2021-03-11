@@ -3,6 +3,7 @@ src/ccs/Trans_Sys.v
 src/ExpEnv.v
 src/ExpSyntax.v
 src/SubstSemantics.v
+src/Scoping.v
 src/LogRel.v
 src/CIU.v
 src/ExpSemantics.v
