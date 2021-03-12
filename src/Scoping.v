@@ -294,33 +294,50 @@ Definition subst_list (l : list VarFunId) (es : list Exp) (e : Exp) : Exp :=
 Check scoped_ind.
 Check Exp_ind2.
 
-Theorem scope_duplicate :
-  forall e Γ v, In v Γ -> EXP (v :: Γ) ⊢ e -> EXP Γ ⊢ e.
+Theorem scope_duplicate e :
+  (forall Γ v, In v Γ -> EXP (v :: Γ) ⊢ e -> EXP Γ ⊢ e) /\
+  (forall Γ v, In v Γ -> VAL (v :: Γ) ⊢ e -> VAL Γ ⊢ e).
 Proof.
   einduction e using Exp_ind2 with 
-      (Q := fun l => list_forall (fun e => forall Γ v, In v Γ -> EXP (v :: Γ) ⊢ e -> EXP Γ ⊢ e) l); intros.
-  * constructor. constructor.
-  * inversion H0. subst. 2: inversion H1. constructor. inversion H2; subst; auto.
-  * inversion H0. subst. 2: inversion H1. constructor. inversion H2; subst; auto.
-  * constructor. constructor. inversion H0. inversion H1. subst.
-    rewrite <- app_comm_cons in H4. apply IHe0 in H4; auto. apply in_or_app. left. auto.
-  * constructor. constructor. inversion H0. inversion H1. subst.
-    rewrite <- app_comm_cons in H4. apply IHe0 in H4; auto. apply in_or_app. left. auto.
-  * inversion H0. 2: inversion H1. subst. rewrite indexed_to_forall in IHe1.
+      (Q := fun l => list_forall (fun e => 
+        (forall Γ v, In v Γ -> EXP (v :: Γ) ⊢ e -> EXP Γ ⊢ e) /\
+        (forall Γ v, In v Γ -> VAL (v :: Γ) ⊢ e -> VAL Γ ⊢ e)) l); intros.
+  * repeat constructor.
+  * split; intros.
+    - inversion H0. subst. 2: inversion H1. constructor. inversion H2; subst; auto.
+    - inversion H0.
+  * split; intros. 
+    - inversion H0. subst. 2: inversion H1. constructor. inversion H2; subst; auto.
+    - inversion H0.
+  * split; intros. 
+    - constructor. constructor. inversion H0. inversion H1. subst.
+      rewrite <- app_comm_cons in H4. apply IHe0 in H4; auto. apply in_or_app. left.
+      auto.
+    - constructor. inversion H0. subst.
+      rewrite <- app_comm_cons in H2. apply IHe0 in H2; auto. apply in_or_app. left.
+      auto.
+  * split; intros. 
+    - constructor. constructor. inversion H0. inversion H1. subst.
+      rewrite <- app_comm_cons in H4. apply IHe0 in H4; auto. apply in_or_app. left.
+      auto.
+    - constructor. inversion H0. subst.
+      rewrite <- app_comm_cons in H2. apply IHe0 in H2; auto. apply in_or_app. left.
+      auto.
+  * split; intros; inversion H0. 2: inversion H1. subst. rewrite indexed_to_forall in IHe1.
     constructor.
     - eapply IHe0; eauto.
     - intros. eapply IHe1; eauto.
-  * inversion H0. 2: inversion H1. subst. constructor.
+  * split; intros; inversion H0. 2: inversion H1. subst. constructor.
     - eapply IHe0_1. exact H. auto.
     - rewrite <- app_comm_cons in H5. eapply IHe0_2. 2: exact H5.
       apply in_or_app. left. auto.
-  * inversion H0. 2: inversion H1. subst. constructor.
+  * split; intros; inversion H0. 2: inversion H1. subst. constructor.
     - eapply IHe0_1. apply in_or_app. left. eauto. rewrite <- app_comm_cons in H3. auto.
     - eapply IHe0_2. apply in_or_app. left. eauto. rewrite <- app_comm_cons in H6. auto.
-  * inversion H0. 2: inversion H1. subst. constructor.
+  * split; intros; inversion H0. 2: inversion H1. subst. constructor.
     - eapply IHe0_1; eauto.
     - eapply IHe0_2; eauto.
-  * inversion H0. 2: inversion H1. subst. constructor.
+  * split; intros; inversion H0. 2: inversion H1. subst. constructor.
     - eapply IHe0_1; eauto.
     - eapply IHe0_2; eauto.
     - eapply IHe0_3; eauto.
@@ -525,6 +542,68 @@ Proof.
   - apply scope_funsub.
 Qed.
 
+Theorem scope_duplicate_rev e :
+  (forall Γ v, In v Γ -> EXP Γ ⊢ e -> EXP v::Γ ⊢ e) /\
+  (forall Γ v, In v Γ -> VAL Γ ⊢ e -> VAL v::Γ ⊢ e).
+Proof.
+  einduction e using Exp_ind2 with 
+      (Q := fun l => list_forall (fun e => 
+        (forall Γ v, In v Γ -> EXP Γ ⊢ e -> EXP (v::Γ) ⊢ e) /\
+        (forall Γ v, In v Γ -> VAL Γ ⊢ e -> VAL (v::Γ) ⊢ e)) l); intros.
+  * repeat constructor.
+  * split; intros.
+    - inversion H0. subst. 2: inversion H1. constructor. constructor 2. auto.
+    - inversion H0.
+  * split; intros. 
+    - inversion H0. subst. 2: inversion H1. constructor. constructor 2. auto.
+    - inversion H0.
+  * split; intros. 
+    - constructor. constructor. inversion H0. inversion H1. subst.
+      rewrite <- app_comm_cons. apply IHe0; auto. apply in_or_app. left.
+      auto.
+    - constructor. inversion H0. subst.
+      rewrite <- app_comm_cons. apply IHe0; auto. apply in_or_app. left.
+      auto.
+  * split; intros. 
+    - constructor. constructor. inversion H0. inversion H1. subst.
+      rewrite <- app_comm_cons . apply IHe0; auto. apply in_or_app. left.
+      auto.
+    - constructor. inversion H0. subst.
+      rewrite <- app_comm_cons. apply IHe0; auto. apply in_or_app. left.
+      auto.
+  * split; intros; inversion H0. 2: inversion H1. subst. rewrite indexed_to_forall in IHe1.
+    constructor.
+    - eapply IHe0; eauto.
+    - intros. eapply IHe1; eauto.
+  * split; intros; inversion H0. 2: inversion H1. subst. constructor.
+    - eapply IHe0_1. exact H. auto.
+    - rewrite <- app_comm_cons. eapply IHe0_2. 2: exact H5.
+      apply in_or_app. left. auto.
+  * split; intros; inversion H0. 2: inversion H1. subst. constructor.
+    - eapply IHe0_1. apply in_or_app. left. eauto. rewrite <- app_comm_cons in H3. auto.
+    - rewrite <- app_comm_cons. eapply IHe0_2. apply in_or_app. left. eauto. auto.
+  * split; intros; inversion H0. 2: inversion H1. subst. constructor.
+    - eapply IHe0_1; eauto.
+    - eapply IHe0_2; eauto.
+  * split; intros; inversion H0. 2: inversion H1. subst. constructor.
+    - eapply IHe0_1; eauto.
+    - eapply IHe0_2; eauto.
+    - eapply IHe0_3; eauto.
+  * constructor; eauto.
+  * constructor.
+Qed.
+
+Corollary scope_subst_in v : forall e,
+  (forall Γ, In v Γ -> 
+    VAL Γ ⊢ e -> forall val, VAL Γ ⊢ val -> VAL Γ ⊢ (subst v val e)) /\
+  (forall Γ, In v Γ ->
+    EXP Γ ⊢ e -> forall val, EXP Γ ⊢ val -> EXP Γ ⊢ (subst v val e)).
+Proof.
+  intros; split; intros.
+  * apply scope_subst; auto. eapply scope_duplicate_rev in H; eauto.
+  * apply scope_subst; auto. pose (scope_duplicate_rev e). destruct a. apply H2; eauto.
+Qed.
+
 Lemma element_exist {A : Type} : forall n (l : list A), S n = length l -> exists e l', l = e::l'.
 Proof.
   intros. destruct l.
@@ -601,10 +680,42 @@ Proof.
     specialize (H val).
 Admitted. *)
 
-Lemma alma : forall e vars, exists e' vals, length vars = length vals /\
-      subscoped [] vals
-   /\ subst_list vars vals e' = e.
-Admitted.
+Theorem sub_implies_scope_single : forall e Γ v,
+  ((forall val, VALCLOSED val -> EXP Γ ⊢ subst v val e) 
+ ->
+  EXP v::Γ ⊢ e) (* /\
+  ((forall val, VALCLOSED val -> VAL Γ ⊢ subst v val e) 
+ ->
+  VAL v::Γ ⊢ e) *).
+Proof.
+  einduction e using Exp_ind2; intros; try split; intros.
+  * repeat constructor.
+  * destruct (var_funid_eqb v0 (inl v)) eqn:P.
+    - apply var_funid_eqb_eq in P. subst. unfold subst in H. simpl in H.
+      rewrite eqb_refl in H. constructor. left. auto.
+    - apply var_funid_eqb_neq in P. unfold subst in H. simpl in H.
+      break_match_hyp. break_match_hyp. apply eqb_eq in Heqb. symmetry in Heqb. subst.
+      contradiction.
+      constructor. right. epose (H (ELit 0) _). inversion e0; auto. inversion H0.
+      constructor. right. epose (H (ELit 0) _). inversion e0; auto. inversion H0.
+  * destruct (var_funid_eqb v (inr f)) eqn:P.
+    - apply var_funid_eqb_eq in P. subst. unfold subst in H. simpl in H.
+      rewrite funid_eqb_refl in H. constructor. left. auto.
+    - apply var_funid_eqb_neq in P. unfold subst in H. simpl in H.
+      break_match_hyp.
+      constructor. right. epose (H (ELit 0) _). inversion e0; auto. inversion H0.
+      break_match_hyp. apply funid_eqb_eq in Heqb. symmetry in Heqb. subst.
+      contradiction.
+      constructor. right. epose (H (ELit 0) _). inversion e0; auto. inversion H0.
+  * constructor. constructor. rewrite <- app_comm_cons.
+    apply IHe0. intros. specialize (H val H0).
+    unfold subst in H. break_match_hyp.
+    - simpl in H. break_match_hyp.
+      + inversion H. subst. inversion H1. subst.
+        apply scope_subst_in; eauto. admit. admit.
+      + admit.
+Abort.
+  
 
 Corollary sub_implies_scope_exp : forall Γ e,
   (forall vals, length vals = length Γ -> subscoped [] vals
