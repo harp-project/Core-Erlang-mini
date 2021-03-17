@@ -94,8 +94,6 @@ Reserved Notation "'EXP' Γ ⊢ e"
 Reserved Notation "'VAL' Γ ⊢ v"
          (at level 69, no associativity).
 Inductive ExpScoped (l : list VarFunId) : Exp -> Prop :=
-| scoped_var v : In (inl v) l -> EXP l ⊢ EVar v
-| scoped_funid f : In (inr f) l -> EXP l ⊢ EFunId f
 | scoped_app exp vals : 
   EXP l ⊢ exp ->
   (forall i, i < length vals -> EXP l ⊢ nth i vals (ELit 0))
@@ -121,6 +119,8 @@ Inductive ExpScoped (l : list VarFunId) : Exp -> Prop :=
   VAL l ⊢ v -> EXP l ⊢ v
 with ValScoped (l : list VarFunId) : Exp -> Prop :=
 | scoped_lit lit : VAL l ⊢ ELit lit
+| scoped_var v : In (inl v) l -> VAL l ⊢ EVar v
+| scoped_funid f : In (inr f) l -> VAL l ⊢ EFunId f
 | scoped_fun vl e : EXP (l ++ (map inl vl)) ⊢ e -> VAL l ⊢ EFun vl e
 | scoped_recfun f vl e : EXP (l ++ [inr f] ++ (map inl vl)) ⊢ e -> VAL l ⊢ ERecFun f vl e
 where "'EXP' Γ ⊢ e" := (ExpScoped Γ e)
@@ -155,6 +155,8 @@ Theorem scoped_ignores_sub : forall Γ,
 Proof.
   apply scoped_ind.
   * intros. reflexivity.
+  * intros. simpl. break_match_goal; auto. apply eqb_eq in Heqb. subst. contradiction.
+  * intros. simpl. auto.
   * intros. simpl. break_match_goal; auto. rewrite H; auto.
     apply app_not_in; auto. intuition. apply not_in_list_sound in Heqb.
     eapply map_not_in in Heqb. exact (Heqb H1). intro. intros. inversion H2. auto.
@@ -162,8 +164,6 @@ Proof.
     repeat apply app_not_in; auto. intro. inversion H1; try congruence. contradiction.
     apply not_in_list_sound in Heqb.
     eapply map_not_in in Heqb. intro. exact (Heqb H1). intro. intros. inversion H1. auto.
-  * intros. simpl. break_match_goal; auto. apply eqb_eq in Heqb. subst. contradiction.
-  * intros. simpl. auto.
   * intros. simpl. rewrite H; auto. erewrite scoped_ignores_sub_helper; eauto.
   * intros. simpl. break_match_goal.
     - rewrite H; auto.
@@ -227,6 +227,8 @@ Theorem scoped_ignores_funsub : forall Γ,
 Proof.
   apply scoped_ind.
   * intros. reflexivity.
+  * intros. simpl. auto.
+  * intros. simpl. break_match_goal; auto. apply funid_eqb_eq in Heqb. subst. contradiction.
   * intros. simpl. rewrite H; auto.
     apply app_not_in; auto. intuition.
     apply inr_inl_map in H1. auto.
@@ -235,8 +237,6 @@ Proof.
     repeat apply app_not_in; auto.
     intro. inversion H1. inversion H2. apply funid_eqb_neq in Heqb. 1-2: contradiction.
     exact (inr_inl_map x vl).
-  * intros. simpl. auto.
-  * intros. simpl. break_match_goal; auto. apply funid_eqb_eq in Heqb. subst. contradiction.
   * intros. simpl. rewrite H; auto. erewrite scoped_ignores_funsub_helper; eauto.
   * intros. simpl. rewrite H, H0; auto. eapply app_not_in; auto.
       intro. inversion H2. 2: contradiction. inversion H3.
@@ -304,11 +304,13 @@ Proof.
         (forall Γ v, In v Γ -> VAL (v :: Γ) ⊢ e -> VAL Γ ⊢ e)) l); intros.
   * repeat constructor.
   * split; intros.
-    - inversion H0. subst. 2: inversion H1. constructor. inversion H2; subst; auto.
-    - inversion H0.
+    - inversion H0. subst. inversion H1. constructor. inversion H3; subst;
+      constructor; auto.
+    - inversion H0. inversion H2; subst; constructor; auto.
   * split; intros. 
-    - inversion H0. subst. 2: inversion H1. constructor. inversion H2; subst; auto.
-    - inversion H0.
+    - inversion H0. subst. inversion H1. inversion H3; constructor; subst;
+      constructor; auto.
+    - inversion H0. inversion H2; subst; constructor; auto.
   * split; intros. 
     - constructor. constructor. inversion H0. inversion H1. subst.
       rewrite <- app_comm_cons in H4. apply IHe0 in H4; auto. apply in_or_app. left.
@@ -352,7 +354,7 @@ Theorem perm_scoped : forall Γ,
   (forall e, EXP Γ ⊢ e -> forall Γ', Permutation Γ Γ' ->  EXP Γ' ⊢ e).
 Proof.
   apply scoped_ind; intros; constructor; intuition.
-  3-4: eapply Permutation_in; eauto.
+  1-2: eapply Permutation_in; eauto.
   all: apply H0 || apply H; apply Permutation_app; intuition.
 Qed.
 
@@ -392,15 +394,18 @@ Proof.
   (Q := fun l => list_forall (fun e => (forall Γ, VAL (inl v::Γ) ⊢ e -> forall val, VAL Γ ⊢ val -> VAL Γ ⊢ (varsubst v val e)) /\
   (forall Γ, EXP (inl v::Γ) ⊢ e -> forall val, EXP Γ ⊢ val -> EXP Γ ⊢ (varsubst v val e))) l); intros.
   * split; intros; simpl; constructor. constructor.
-  * split; intros. inversion H.
-    inversion H. 2: inversion H1.
-    subst. simpl. break_match_goal.
+  * split; intros;
+    subst; simpl; break_match_goal.
     - apply eqb_eq in Heqb. subst. simpl. auto.
-    - apply eqb_neq in Heqb. inversion H2. inversion H1. congruence.
+    - apply eqb_neq in Heqb. inversion H. inversion H2. congruence.
       constructor. auto.
+    - apply eqb_eq in Heqb. subst. simpl. auto.
+    - apply eqb_neq in Heqb. inversion H. inversion H1. inversion H4. congruence.
+      constructor. constructor. auto.
   * split; intros. inversion H.
-    inversion H. 2: inversion H1.
-    subst. simpl. inversion H2. inversion H1. constructor. auto.
+    - subst. simpl. inversion H2. inversion H1. constructor. auto.
+    - subst. simpl. inversion H. inversion H1. constructor. constructor.
+      inversion H4; auto. congruence.
   * split; intros; inversion H; subst; simpl; break_match_goal; constructor.
     3-4: constructor.
     - apply in_list_sound in Heqb. rewrite <- app_comm_cons in H2.
@@ -473,12 +478,15 @@ Proof.
   (forall Γ, EXP (inr v::Γ) ⊢ e -> forall val, EXP Γ ⊢ val -> EXP Γ ⊢ (funsubst v val e))) l); intros.
   * split; intros; simpl; constructor. constructor.
   * split; intros. inversion H.
-    inversion H. 2: inversion H1. simpl. subst. constructor.
-    inversion H2. inversion H1. auto.
-  * split; intros; simpl; break_match_goal; auto. inversion H. constructor.
-    inversion H. 2: inversion H1. subst. apply funid_eqb_neq in Heqb. inversion H2.
-    - inversion H1. subst. congruence.
-    - auto.
+    inversion H2. congruence. simpl. subst. constructor. auto.
+    inversion H. inversion H1. inversion H4. congruence.
+      simpl. constructor. constructor. auto.
+  * split; intros; simpl; break_match_goal; auto. 
+    - inversion H. constructor.
+      inversion H2. subst. apply funid_eqb_neq in Heqb. inversion H3. subst. congruence. auto.
+    - inversion H. inversion H1. subst. inversion H4. inversion H2. subst.
+      rewrite funid_eqb_refl in Heqb. congruence.
+      constructor. constructor. auto.
   * split; intros; inversion H; subst; simpl; constructor. 2: constructor.
     - apply IHe0. rewrite app_comm_cons. auto. apply scope_ext_app. constructor. auto.
     - inversion H1. subst. apply IHe0. rewrite app_comm_cons. auto.
@@ -552,11 +560,13 @@ Proof.
         (forall Γ v, In v Γ -> VAL Γ ⊢ e -> VAL (v::Γ) ⊢ e)) l); intros.
   * repeat constructor.
   * split; intros.
-    - inversion H0. subst. 2: inversion H1. constructor. constructor 2. auto.
-    - inversion H0.
+    - inversion H0. subst. constructor. constructor. constructor 2.
+      inversion H1. auto.
+    - inversion H0. constructor. constructor 2. subst. auto.
   * split; intros. 
-    - inversion H0. subst. 2: inversion H1. constructor. constructor 2. auto.
-    - inversion H0.
+    - inversion H0. subst. constructor. constructor. constructor 2.
+      inversion H1. auto.
+    - inversion H0. constructor. constructor 2. subst. auto.
   * split; intros. 
     - constructor. constructor. inversion H0. inversion H1. subst.
       rewrite <- app_comm_cons. apply IHe0; auto. apply in_or_app. left.
@@ -653,6 +663,54 @@ Proof.
   intros. pose (scope_subst_list Γ []). simpl in a. auto.
 Qed.
 
+
+Theorem subst_preserves_scope : forall e Γ v,
+  (EXP v::Γ ⊢ e <->
+    forall Γ' val,
+      VAL Γ' ⊢ val -> EXP Γ' ++ Γ ⊢ subst v val e) /\
+  (VAL v::Γ ⊢ e <->
+    forall Γ' val,
+      VAL Γ' ⊢ val -> VAL Γ' ++ Γ ⊢ subst v val e).
+Proof.
+  induction e; split; intros; split; intros.
+  * unfold subst. destruct v; simpl; constructor; constructor.
+  * constructor. constructor.
+  * unfold subst. destruct v; simpl; constructor.
+  * constructor.
+  * unfold subst. destruct v0; simpl.
+    - break_match_goal. constructor. apply scope_ext_app. auto.
+      inversion H; subst. 2: inversion H1. inversion H2.
+      inversion H1. subst. rewrite eqb_refl in Heqb. congruence.
+      pose (perm_scoped (Γ' ++ Γ)). destruct a. clear H3. eapply H4. constructor.
+      eapply in_app_iff. right. auto. apply Permutation_app. auto. auto.
+    - inversion H; subst. 2: inversion H1. inversion H2.
+      inversion H1. subst.
+      pose (perm_scoped (Γ' ++ Γ)). destruct a. clear H3. eapply H4. constructor.
+      eapply in_app_iff. right. auto. apply Permutation_app. auto. auto.
+  * constructor. epose (H [] (ELit 0) _). simpl in e. unfold subst in e.
+    break_match_hyp.
+    - simpl in e. remember e as e'. clear Heqe' e. break_match_hyp.
+      + apply eqb_eq in Heqb. constructor. subst. auto.
+      + apply eqb_neq in Heqb. constructor 2. inversion e'. auto. inversion H0.
+    - simpl in e. constructor 2. inversion e. auto. inversion H0.
+  * inversion H.
+  * 
+
+
+Corollary subst_list_preserves_scope : forall Γ,
+  (forall e, EXP Γ ⊢ e <->
+    forall Γ' vals,
+      subscoped Γ' vals -> EXP Γ' ⊢ subst_list Γ vals e) /\
+  (forall e, VAL Γ ⊢ e <->
+    forall Γ' vals,
+      subscoped Γ' vals -> VAL Γ' ⊢ subst_list Γ vals e).
+Proof.
+
+
+
+
+
+
 (* Lemma sub_implies_scope_exp_single e : forall Γ x,
   (forall val, VAL Γ ⊢ val ->
     EXP Γ ⊢ (subst x val e))
@@ -680,8 +738,8 @@ Proof.
     specialize (H val).
 Admitted. *)
 
-Theorem sub_implies_scope_single : forall e Γ v,
-  ((forall val, VALCLOSED val -> EXP Γ ⊢ subst v val e) 
+(* Theorem sub_implies_scope_single : forall e Γ v,
+  ((forall val, (* VALCLOSED val *) VAL Γ ⊢ val -> EXP Γ ⊢ subst v val e) 
  ->
   EXP v::Γ ⊢ e) (* /\
   ((forall val, VALCLOSED val -> VAL Γ ⊢ subst v val e) 
@@ -714,11 +772,11 @@ Proof.
       + inversion H. subst. inversion H1. subst.
         apply scope_subst_in; eauto. admit. admit.
       + admit.
-Abort.
+Abort. *)
   
 
 Corollary sub_implies_scope_exp : forall Γ e,
-  (forall vals, length vals = length Γ -> subscoped [] vals
+  (forall vals, length vals = length Γ -> subscoped Γ' vals
     -> EXPCLOSED (subst_list Γ vals e))
   ->
   EXP Γ ⊢ e.
