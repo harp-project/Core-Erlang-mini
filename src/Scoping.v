@@ -849,8 +849,44 @@ Proof.
   * epose (H [] (ELit 0) _). unfold subst in v0. break_match_hyp; inversion v0.
 
 (* LET *)
-  * admit.
-  * admit.
+  * inversion H. 2: inversion H1. subst. unfold subst. break_match_goal; simpl.
+    break_match_goal.
+    - apply eqb_eq in Heqb. subst. constructor.
+      apply (IHe1 _ (inl v1)); eauto.
+      rewrite <- app_comm_cons in H5. apply scope_duplicate in H5.
+      eapply scope_ext_app in H5.
+      eapply perm_scoped. exact H5. instantiate (1 := Γ').
+      repeat rewrite <- app_assoc. pose (Permutation_app_rot Γ' Γ [inl v1]). apply Permutation_sym in p. auto. apply in_app_iff. right. constructor. auto.
+    - constructor.
+      eapply (IHe1 _ (inl v1)); eauto.
+      rewrite <- app_assoc. eapply (IHe2 _ (inl v1)); eauto.
+    - constructor.
+      eapply (IHe1 _ (inr f)); eauto.
+      rewrite <- app_assoc. eapply (IHe2 _ (inr f)); eauto.
+  * destruct (var_funid_eqb v0 (inl v)) eqn:P.
+    - apply var_funid_eqb_eq in P. subst. constructor.
+      apply IHe1. intros. unfold subst. epose (H Γ' val H0).
+      unfold subst in e. simpl in e. rewrite eqb_refl in e. 
+      inversion e. 2: inversion H1. subst. auto.
+      epose (H [] (ELit 0) _). unfold subst in e. simpl in e.
+      rewrite eqb_refl in e. inversion e. 2: inversion H0. subst.
+      eapply scope_duplicate_rev in H4. rewrite <- app_comm_cons. eauto.
+      apply in_app_iff. right. intuition.
+    - unfold subst in H. apply var_funid_eqb_neq in P. break_match_hyp.
+      constructor.
+      + apply IHe1. intros. epose (H Γ' val H0). simpl in e.
+        remember e as e'. clear Heqe' e.
+        break_match_hyp. apply eqb_eq in Heqb. subst. contradiction.
+        inversion e'. auto. inversion H1.
+      + apply IHe2. intros. epose (H Γ' val H0). simpl in e.
+        remember e as e'. clear Heqe' e.
+        break_match_hyp. apply eqb_eq in Heqb. subst. contradiction.
+        inversion e'. 2: inversion H1. subst. rewrite app_assoc. exact H5.
+      + constructor.
+        apply IHe1. intros. epose (H Γ' val H0). simpl in e.
+        inversion e. auto. inversion H1.
+        apply IHe2. intros. epose (H Γ' val H0). simpl in e.
+        inversion e. subst. rewrite app_assoc. auto. inversion H1.
   * inversion H.
   * epose (H [] (ELit 0) _). unfold subst in v1. break_match_hyp.
     simpl in v1. remember v1 as v1'. clear Heqv1' v1.
