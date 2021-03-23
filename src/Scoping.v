@@ -673,7 +673,18 @@ Theorem subst_preserves_scope : forall e Γ v,
       VAL Γ' ⊢ val -> VAL Γ' ++ Γ ⊢ subst v val e).
 Proof.
 (* MAJOR TODO: this proof could be shortened significantly *)
-  induction e; split; intros; split; intros.
+  induction e using Exp_ind2
+  with (Q :=
+    fun l => list_forall (
+      fun e => forall Γ v, (EXP v::Γ ⊢ e <->
+    forall Γ' val,
+      VAL Γ' ⊢ val -> EXP Γ' ++ Γ ⊢ subst v val e) /\
+  (VAL v::Γ ⊢ e <->
+    forall Γ' val,
+      VAL Γ' ⊢ val -> VAL Γ' ++ Γ ⊢ subst v val e)
+    
+    ) l
+  ); try (split; intros; split; intros).
 
 (* LIT *)
   * unfold subst. destruct v; simpl; constructor; constructor.
@@ -709,10 +720,31 @@ Proof.
     - simpl in v1. constructor. constructor 2. inversion v1. inversion H0. auto.
 
 (* FUNID *)
-  * admit.
-  * admit.
-  * admit. (* all similar to variables *)
-  * admit.
+  * inversion H. unfold subst. break_match_goal; simpl. 2: break_match_goal; simpl.
+    - inversion H1. inversion H4. congruence. constructor. constructor.
+      apply in_app_iff. right. auto.
+    - apply funid_eqb_eq in Heqb. subst. apply scope_ext_app. constructor. auto.
+    - apply funid_eqb_neq in Heqb. subst. inversion H1. inversion H3. congruence.
+      constructor. constructor. apply in_app_iff. right. auto.
+  * constructor. epose (H [] (ELit 0) _). simpl in e. unfold subst in e.
+    break_match_hyp.
+    - simpl in e. constructor. constructor 2. inversion e. inversion H0. auto.
+    - simpl in e. remember e as e'. clear Heqe' e. break_match_hyp.
+      + apply funid_eqb_eq in Heqb. constructor. subst. constructor. auto.
+      + apply funid_eqb_neq in Heqb. constructor. constructor 2. inversion e'. inversion H0.
+        auto.
+  * inversion H. unfold subst. break_match_goal; simpl. 2: break_match_goal; simpl.
+    - inversion H2. congruence. constructor. apply in_app_iff. right. auto.
+    - apply funid_eqb_eq in Heqb. subst. apply scope_ext_app. auto.
+    - apply funid_eqb_neq in Heqb. subst. inversion H2. congruence.
+      constructor. apply in_app_iff. right. auto.
+  * epose (H [] (ELit 0) _ ). simpl in v0. unfold subst in v0.
+    break_match_hyp.
+    - simpl in v0. constructor. constructor 2. inversion v0. inversion H0. auto.
+    - simpl in v0. remember v0 as e'. clear Heqe' v0. break_match_hyp.
+      + apply funid_eqb_eq in Heqb. constructor. subst. constructor. auto.
+      + apply funid_eqb_neq in Heqb. constructor. constructor 2. inversion e'. inversion H0.
+        auto.
 
 (* FUN *)
   * unfold subst. inversion H. inversion H1. subst. break_match_goal.
@@ -843,8 +875,34 @@ Proof.
         rewrite app_assoc. auto.
 
 (* APP *)
-  * admit.
-  * admit.
+  * unfold subst. destruct v.
+    - simpl. inversion H. 2: inversion H1. constructor.
+      + apply (IHe _ (inl v)). auto. auto.
+      + rewrite indexed_to_forall in IHe0. intros.
+        replace (ELit 0) with (varsubst v val (ELit 0)) by reflexivity.
+        rewrite map_nth. eapply (IHe0 i _ _ (inl v)). apply H4.
+        rewrite map_length in H5. auto. auto.
+    - simpl. inversion H. 2: inversion H1. constructor.
+      + apply (IHe _ (inr f)). auto. auto.
+      + rewrite indexed_to_forall in IHe0. intros.
+        replace (ELit 0) with (funsubst f val (ELit 0)) by reflexivity.
+        rewrite map_nth. eapply (IHe0 i _ _ (inr f)). apply H4.
+        rewrite map_length in H5. auto. auto.
+  * destruct v.
+    - constructor.
+      + apply IHe. intros. epose (H _ val H0). unfold subst in e0. simpl in e0.
+        inversion e0. 2: inversion H1. subst. auto.
+      + rewrite indexed_to_forall in IHe0. intros. apply IHe0. auto. intros.
+        epose (H _ val H1). unfold subst in e0. simpl in e0.
+        inversion e0. 2: inversion H2. subst. unfold subst.
+        rewrite <- map_nth. simpl. apply H5. rewrite map_length. auto.
+    - constructor. (* duplicate *)
+      + apply IHe. intros. epose (H _ val H0). unfold subst in e0. simpl in e0.
+        inversion e0. 2: inversion H1. subst. auto.
+      + rewrite indexed_to_forall in IHe0. intros. apply IHe0. auto. intros.
+        epose (H _ val H1). unfold subst in e0. simpl in e0.
+        inversion e0. 2: inversion H2. subst. unfold subst.
+        rewrite <- map_nth. simpl. apply H5. rewrite map_length. auto.
   * inversion H.
   * epose (H [] (ELit 0) _). unfold subst in v0. break_match_hyp; inversion v0.
 
@@ -893,8 +951,72 @@ Proof.
     break_match_hyp; inversion v1'. inversion v1. 
 
 (* LETREC *)
-  * admit.
-  * admit.
+  * inversion H. subst. 2: inversion H1.
+    unfold subst. break_match_goal.
+    - simpl. break_match_goal.
+      + apply in_list_sound in Heqb. constructor.
+        ** rewrite <- app_assoc. rewrite <- app_comm_cons in H3.
+           apply scope_duplicate in H3. eapply scope_ext_app with (l := Γ') in H3.
+           eapply perm_scoped in H3. exact H3. apply Permutation_app_comm.
+           apply in_app_iff. right. apply in_app_iff. right. apply in_map. auto.
+        ** rewrite <- app_assoc. apply (IHe2 _ (inl v0)). auto. auto.
+      + constructor.
+        ** rewrite <- app_assoc. apply (IHe1 _ (inl v0)). auto. auto.
+        ** rewrite <- app_assoc. apply (IHe2 _ (inl v0)). auto. auto.
+    - simpl. break_match_goal.
+      + apply funid_eqb_eq in Heqb. subst. constructor.
+        ** rewrite <- app_assoc. rewrite <- app_comm_cons in H3.
+           apply scope_duplicate in H3. apply scope_ext_app with (l := Γ') in H3.
+           eapply perm_scoped in H3. exact H3. apply Permutation_app_comm.
+           apply in_app_iff. right. apply in_app_iff. left. constructor. auto.
+        ** rewrite <- app_assoc. rewrite <- app_comm_cons in H6.
+           apply scope_duplicate in H6. apply scope_ext_app with (l := Γ') in H6.
+           eapply perm_scoped in H6. exact H6. apply Permutation_app_comm.
+           apply in_app_iff. right. constructor. auto.
+     + constructor.
+       ** rewrite <- app_assoc. apply (IHe1 _ (inr f0)). auto. auto.
+       ** rewrite <- app_assoc. apply (IHe2 _ (inr f0)). auto. auto.
+  * destruct v.
+    (* v was variable *)
+    - destruct (in_list v vl) eqn:P.
+      + simpl in H. rewrite P in H. constructor.
+        ** rewrite <- app_comm_cons. apply scope_duplicate_rev.
+           apply in_app_iff. right. apply in_app_iff. right. apply in_map.
+           apply in_list_sound. auto.
+           specialize (H [] (ELit 0) (scoped_lit _ _)). inversion H. 2: inversion H0.
+           subst. simpl in H2. auto.
+        ** rewrite <- app_comm_cons. apply IHe2. intros.
+           specialize (H Γ' val H0). inversion H. 2: inversion H1. subst.
+           rewrite <- app_assoc in H6. auto.
+      + constructor.
+        ** rewrite <- app_comm_cons. apply IHe1. intros.
+           specialize (H Γ' val H0). unfold subst in H. simpl in H. rewrite P in H.
+           inversion H. 2: inversion H1. subst.
+           rewrite <- app_assoc in H3. auto.
+        ** rewrite <- app_comm_cons. apply IHe2. intros.
+           specialize (H Γ' val H0). unfold subst in H. simpl in H. rewrite P in H.
+           inversion H. 2: inversion H1. subst.
+           rewrite <- app_assoc in H6. auto.
+    (* v was funid *)
+    - destruct (funid_eqb f f0) eqn:P.
+      + specialize (H [] (ELit 0) (scoped_lit _ _)).
+        unfold subst in H. simpl in H. rewrite P in H. inversion H; subst.
+        2: inversion H0. constructor.
+        ** apply funid_eqb_eq in P. subst.
+           rewrite <- app_comm_cons. apply scope_duplicate_rev.
+           apply in_app_iff. right. apply in_app_iff. left. constructor. auto. auto.
+        ** apply funid_eqb_eq in P. subst.
+           rewrite <- app_comm_cons. apply scope_duplicate_rev.
+           apply in_app_iff. right. constructor. auto. auto.
+      + constructor. (* this is duplicate from before *)
+        ** rewrite <- app_comm_cons. apply IHe1. intros.
+           specialize (H Γ' val H0). unfold subst in H. simpl in H. rewrite P in H.
+           inversion H. 2: inversion H1. subst.
+           rewrite <- app_assoc in H3. auto.
+        ** rewrite <- app_comm_cons. apply IHe2. intros.
+           specialize (H Γ' val H0). unfold subst in H. simpl in H. rewrite P in H.
+           inversion H. 2: inversion H1. subst.
+           rewrite <- app_assoc in H6. auto.
   * inversion H.
   * epose (H [] (ELit 0) _). unfold subst in v0. break_match_hyp.
     simpl in v0. remember v0 as v1'. clear Heqv1' v0. break_match_hyp; inversion v1'. simpl in v0.
@@ -938,8 +1060,13 @@ Proof.
       all : unfold subst; inversion e; auto; inversion H1.
   * inversion H.
   * epose (H [] (ELit 0) _). unfold subst in v0. break_match_hyp; inversion v0.
+  * constructor.
+    - intros. apply IHe.
+    - apply IHe0.
+  * constructor.
 Unshelve. all: try constructor; auto.
-Admitted.
+          all: rewrite map_length in H5; auto.
+Qed.
 
 
 Theorem closed_subst_to_scope : forall e, (forall Γ a v,
@@ -1103,8 +1230,37 @@ Unshelve.
   all: apply H2; simpl in H3; lia.
 Qed.
 
+Corollary exp_subst_scope : forall Γ,
+  (forall e, EXP Γ ⊢ e ->
+    forall Γ' vals, length vals = length Γ ->
+      subscoped Γ' vals -> EXP Γ' ⊢ subst_list Γ vals e).
+Proof.
+  apply subst_list_preserves_scope.
+Qed.
 
+Corollary val_subst_scope : forall Γ,
+  (forall e, VAL Γ ⊢ e ->
+    forall Γ' vals, length vals = length Γ ->
+      subscoped Γ' vals -> VAL Γ' ⊢ subst_list Γ vals e).
+Proof.
+  apply subst_list_preserves_scope.
+Qed.
 
+Corollary exp_subst_scope_rev : forall Γ,
+  (forall e, 
+    (forall Γ' vals, length vals = length Γ ->
+      subscoped Γ' vals -> EXP Γ' ⊢ subst_list Γ vals e) -> EXP Γ ⊢ e).
+Proof.
+  apply subst_list_preserves_scope.
+Qed.
+
+Corollary val_subst_scope_rev : forall Γ,
+  (forall e, 
+    (forall Γ' vals, length vals = length Γ ->
+      subscoped Γ' vals -> VAL Γ' ⊢ subst_list Γ vals e) -> VAL Γ ⊢ e).
+Proof.
+  apply subst_list_preserves_scope.
+Qed.
 
 (* Lemma sub_implies_scope_exp_single e : forall Γ x,
   (forall val, VAL Γ ⊢ val ->
@@ -1169,7 +1325,7 @@ Proof.
       + admit.
 Abort. *)
   
-
+(*
 Corollary sub_implies_scope_exp : forall Γ e,
   (forall vals, length vals = length Γ -> subscoped Γ' vals
     -> EXPCLOSED (subst_list Γ vals e))
@@ -1186,7 +1342,7 @@ Proof.
   
   unfold subst_list in H. simpl in H. *)
 Admitted.
-
+*)
 
 
 
