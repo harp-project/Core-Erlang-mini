@@ -34,30 +34,6 @@ Proof.
   }
 Qed.
 
-Corollary app_not_in {T : Type} : forall (x:T) (l1 l2 : list T),
-  ~In x l1 -> ~In x l2 -> ~In x (l1 ++ l2).
-Proof.
-  intros.
-  intro. eapply in_app_or in H1. destruct H1; contradiction.
-Qed.
-
-Theorem in_list_sound : forall l e, in_list e l = true <-> In e l.
-Proof.
-  induction l; intros.
-  * split; intros; inversion H.
-  * split; intros.
-    - simpl in H. break_match_hyp.
-      + apply eqb_eq in Heqb. simpl. left. auto.
-      + apply eqb_neq in Heqb. simpl. right. apply IHl. auto.
-    - destruct (eqb e a) eqn:P.
-      + apply eqb_eq in P. subst. simpl. rewrite eqb_refl. auto.
-      + simpl. rewrite P. apply IHl. inversion H.
-        ** apply eqb_neq in P. congruence.
-        ** auto.
-Qed.
-
-Hint Resolve in_list_sound.
-
 Theorem not_in_list_sound : forall l e, in_list e l = false <-> ~In e l.
 Proof.
   induction l; intros.
@@ -65,11 +41,11 @@ Proof.
   * split; intros.
     - simpl in H. break_match_hyp.
       + inversion H.
-      + apply eqb_neq in Heqb. simpl. intro. inversion H0. symmetry in H1. contradiction.
+      + apply var_funid_eqb_neq in Heqb. simpl. intro. inversion H0. symmetry in H1. contradiction.
         eapply IHl; eauto.
     - simpl. break_match_goal.
-      apply eqb_eq in Heqb. subst. exfalso. apply H. intuition.
-      apply eqb_neq in Heqb. eapply IHl. apply not_in_cons in H. destruct H. auto.
+      apply var_funid_eqb_eq in Heqb. subst. exfalso. apply H. intuition.
+      apply var_funid_eqb_neq in Heqb. eapply IHl. apply not_in_cons in H. destruct H. auto.
 Qed.
 
 Hint Resolve not_in_list_sound.
@@ -134,165 +110,73 @@ Scheme ValScoped_ind2 := Induction for ValScoped Sort Prop
 Combined Scheme scoped_ind from ValScoped_ind2, ExpScoped_ind2.
 Check scoped_ind.
 
-Theorem scoped_ignores_sub_helper vals : forall x l v,
+Definition subst_preserves (Γ : list VarFunId) (ξ : Substitution) : Prop :=
+  forall v, In v Γ -> ξ v = idsubst v.
+
+Theorem subst_preserves_removed : forall Γ l ξ,
+  subst_preserves Γ ξ -> subst_preserves (Γ ++ l) (ξ -- l).
+Proof.
+  intros. intro. intros. apply in_app_iff in H0. destruct H0.
+  * unfold "--". break_match_goal. auto. apply H. auto.
+  * unfold "--". break_match_goal; auto. apply not_in_list_sound in Heqb.
+    contradiction. (* TODO: rewrite fails here, I do not know why *)
+Qed.
+
+Hint Resolve subst_preserves_removed.
+
+Theorem subst_preserves_empty ξ : subst_preserves [] ξ.
+Proof. intro. intros. inversion H. Qed.
+
+Hint Resolve subst_preserves_empty.
+
+Theorem scoped_ignores_sub_helper vals : forall l ξ,
   (forall i : nat,
      i < Datatypes.length vals ->
-     forall (x : ExpEnv.Var) (v : Exp),
-     ~ In (@inl Var FunctionIdentifier x) l -> varsubst x v (nth i vals (ELit 0)) = nth i vals (ELit 0)) ->
-  ~ In (inl x) l ->
-  (map (varsubst x v) vals) = vals.
+     forall ξ : Substitution,
+     subst_preserves l ξ -> subst ξ (nth i vals (ELit 0)) = nth i vals (ELit 0)) ->
+  subst_preserves l ξ ->
+  (map (subst ξ) vals) = vals.
 Proof.
   induction vals; intros.
   * reflexivity.
-  * simpl. epose (H 0 _ _ _ H0). simpl in e. rewrite e.
+  * simpl. epose (H 0 _ _ H0). simpl in e. rewrite e.
     erewrite IHvals; eauto. intros. eapply (H (S i)). simpl. lia. auto.
 Unshelve. simpl. lia.
 Qed.
 
 Theorem scoped_ignores_sub : forall Γ,
-  (forall e, VAL Γ ⊢ e -> forall x v, ~ In (inl x) Γ -> varsubst x v e = e) /\
-  (forall e, EXP Γ ⊢ e -> forall x v, ~ In (inl x) Γ -> varsubst x v e = e).
+  (forall e, VAL Γ ⊢ e -> forall ξ, subst_preserves Γ ξ -> subst ξ e = e) /\
+  (forall e, EXP Γ ⊢ e -> forall ξ, subst_preserves Γ ξ -> subst ξ e = e).
 Proof.
   apply scoped_ind.
   * intros. reflexivity.
-  * intros. simpl. break_match_goal; auto. apply eqb_eq in Heqb. subst. contradiction.
-  * intros. simpl. auto.
-  * intros. simpl. break_match_goal; auto. rewrite H; auto.
-    apply app_not_in; auto. intuition. apply not_in_list_sound in Heqb.
-    eapply map_not_in in Heqb. exact (Heqb H1). intro. intros. inversion H2. auto.
-  * intros. simpl. break_match_goal; auto. rewrite H; auto.
-    repeat apply app_not_in; auto. intro. inversion H1; try congruence. contradiction.
-    apply not_in_list_sound in Heqb.
-    eapply map_not_in in Heqb. intro. exact (Heqb H1). intro. intros. inversion H1. auto.
+  * intros. simpl. apply H in i. simpl in i. auto.
+  * intros. simpl. apply H in i. simpl in i. auto.
+  * intros. simpl. epose (H _ _). rewrite e1. reflexivity.
+    Unshelve. apply subst_preserves_removed. apply H0.
+  * intros. simpl. epose (H _ _). rewrite e1. reflexivity.
+    Unshelve. auto.
   * intros. simpl. rewrite H; auto. erewrite scoped_ignores_sub_helper; eauto.
-  * intros. simpl. break_match_goal.
-    - rewrite H; auto.
-    - rewrite H, H0; auto. eapply app_not_in; auto.
-      intro. inversion H2. 2: contradiction. apply eqb_neq in Heqb. inversion H3. congruence.
-  * intros. simpl. break_match_goal; auto.
-    - rewrite H0; auto. eapply app_not_in; auto.
-      intro. inversion H2; try contradiction; try congruence.
-    - rewrite H, H0. auto.
-      + eapply app_not_in; auto.
-      intro. inversion H2; try contradiction; try congruence.
-      + apply app_not_in; auto. Search In map. eapply app_not_in. intro.
-        inversion H2; try contradiction; try congruence.
-        apply not_in_list_sound in Heqb0.
-        eapply map_not_in in Heqb0. intro. exact (Heqb0 H2).
-        intro. intros. inversion H2. auto.
+  * intros. simpl. rewrite H; auto. rewrite H0; auto.
+  * intros. simpl. rewrite H, H0; auto.
   * intros. simpl. rewrite H, H0; auto.
   * intros. simpl. rewrite H, H0, H1; auto.
   * intros. eapply H; eauto.
 Qed.
 
 Corollary eclosed_ignores_sub :
-  forall e x v,
-  EXPCLOSED e -> varsubst x v e = e.
+  forall e ξ,
+  EXPCLOSED e -> subst ξ e = e.
 Proof.
-  intros. eapply scoped_ignores_sub with (Γ := []). auto. intuition.
+  intros. eapply scoped_ignores_sub with (Γ := []); auto.
 Qed.
 
 Corollary vclosed_ignores_sub :
-  forall e x v,
-  VALCLOSED e -> varsubst x v e = e.
+  forall e ξ,
+  VALCLOSED e -> subst ξ e = e.
 Proof.
-  intros. pose (scoped_ignores_sub []). destruct a. apply H0. auto. intuition.
+  intros. pose (scoped_ignores_sub []). destruct a. apply H0; auto.
 Qed.
-
-Theorem scoped_ignores_funsub_helper vals : forall x l v,
-  (forall i : nat,
-     i < Datatypes.length vals ->
-     forall (x : FunctionIdentifier) (v : Exp),
-     ~ In (@inr Var FunctionIdentifier x) l -> funsubst x v (nth i vals (ELit 0)) = nth i vals (ELit 0)) ->
-  ~ In (inr x) l ->
-  (map (funsubst x v) vals) = vals.
-Proof.
-  induction vals; intros.
-  * reflexivity.
-  * simpl. epose (H 0 _ _ _ H0). simpl in e. rewrite e.
-    erewrite IHvals; eauto. intros. eapply (H (S i)). simpl. lia. auto.
-Unshelve. simpl. lia.
-Qed.
-
-Lemma inr_inl_map x l:
-  In (@inr Var FunctionIdentifier x) (map inl l) -> False.
-Proof.
-  induction l; intros; inversion H.
-  inversion H0. apply IHl. auto.
-Qed.
-
-Theorem scoped_ignores_funsub : forall Γ,
-  (forall e, VAL Γ ⊢ e -> forall x v, ~ In (inr x) Γ -> funsubst x v e = e) /\
-  (forall e, EXP Γ ⊢ e -> forall x v, ~ In (inr x) Γ -> funsubst x v e = e).
-Proof.
-  apply scoped_ind.
-  * intros. reflexivity.
-  * intros. simpl. auto.
-  * intros. simpl. break_match_goal; auto. apply funid_eqb_eq in Heqb. subst. contradiction.
-  * intros. simpl. rewrite H; auto.
-    apply app_not_in; auto. intuition.
-    apply inr_inl_map in H1. auto.
-  * intros. simpl. break_match_goal; auto.
-    rewrite H; auto.
-    repeat apply app_not_in; auto.
-    intro. inversion H1. inversion H2. apply funid_eqb_neq in Heqb. 1-2: contradiction.
-    exact (inr_inl_map x vl).
-  * intros. simpl. rewrite H; auto. erewrite scoped_ignores_funsub_helper; eauto.
-  * intros. simpl. rewrite H, H0; auto. eapply app_not_in; auto.
-      intro. inversion H2. 2: contradiction. inversion H3.
-  * intros. simpl. break_match_goal; auto.
-    - rewrite H, H0. auto.
-      + eapply app_not_in; auto.
-        intro. inversion H2. 2: contradiction. inversion H3. subst.
-        pose (funid_eqb_refl x). rewrite e2 in Heqb0. inversion Heqb0.
-      + apply app_not_in; auto. eapply app_not_in.
-        intro. inversion H2; inversion H3. subst. apply funid_eqb_neq in Heqb0. congruence.
-        exact (inr_inl_map x vl).
-  * intros. simpl. rewrite H, H0; auto.
-  * intros. simpl. rewrite H, H0, H1; auto.
-  * intros. eapply H; eauto.
-Qed.
-
-Corollary eclosed_ignores_funsub :
-  forall e x v,
-  EXPCLOSED e -> funsubst x v e = e.
-Proof.
-  intros. eapply scoped_ignores_funsub with (Γ := []). auto. intuition.
-Qed.
-
-Corollary vclosed_ignores_funsub :
-  forall e x v,
-  VALCLOSED e -> funsubst x v e = e.
-Proof.
-  intros. pose (scoped_ignores_funsub []). destruct a. apply H0. auto. intuition.
-Qed.
-
-
-
-(** Closing substitution *)
-Definition subst (v' : VarFunId) (what wher : Exp) : Exp :=
-  match v' with
-  | inl v => varsubst v what wher
-  | inr f => funsubst f what wher
-  end.
-
-Lemma subst_ignores_var : forall v v' val, inl v <> v' -> subst v' val (EVar v) = EVar v.
-Proof.
-  intros. unfold subst. simpl. destruct v'; auto.
-  break_match_goal; auto. apply eqb_eq in Heqb. subst. congruence.
-Qed.
-
-Lemma subst_ignores_funid : forall v v' val, inr v <> v' -> subst v' val (EFunId v) = EFunId v.
-Proof.
-  intros. unfold subst. simpl. destruct v'; auto.
-  break_match_goal; auto. apply funid_eqb_eq in Heqb. subst. congruence.
-Qed.
-
-Definition subst_list (l : list VarFunId) (es : list Exp) (e : Exp) : Exp :=
-  fold_left (fun acc '(v, val) => subst v val acc) (combine l es) e.
-
-Check scoped_ind.
-Check Exp_ind2.
 
 Theorem scope_duplicate e :
   (forall Γ v, In v Γ -> EXP (v :: Γ) ⊢ e -> EXP Γ ⊢ e) /\

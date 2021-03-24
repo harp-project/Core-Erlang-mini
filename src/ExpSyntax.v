@@ -85,43 +85,189 @@ Definition sum (n : Z) := ELetRec F1 [XVar] (EIf (EVar XVar) (EVar XVar) (
 Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar XVar) []).
 Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar XVar) (EVar YVar))) [ELit n; ELit m].
 
-Fixpoint in_list (v : Var) (l : list Var) : bool :=
+Ltac break_match_hyp :=
+match goal with
+| [ H : context [ match ?X with _=>_ end ] |- _] =>
+     match type of X with
+     | sumbool _ _=>destruct X
+     | _=>destruct X eqn:? 
+     end 
+end.
+
+Ltac break_match_goal :=
+match goal with
+| [ |- context [ match ?X with _=>_ end ] ] => 
+    match type of X with
+    | sumbool _ _ => destruct X
+    | _ => destruct X eqn:?
+    end
+end.
+
+Corollary app_not_in {T : Type} : forall (x:T) (l1 l2 : list T),
+  ~In x l1 -> ~In x l2 -> ~In x (l1 ++ l2).
+Proof.
+  intros.
+  intro. eapply in_app_or in H1. destruct H1; contradiction.
+Qed.
+
+Definition Substitution := VarFunId -> Exp.
+Definition idsubst :=
+fun x => 
+  match x with
+  | inl x => EVar x
+  | inr f => EFunId f
+  end.
+
+(* The equality of function signatures *)
+Definition funid_eqb (v1 v2 : FunctionIdentifier) : bool :=
+match v1, v2 with
+| (fid1, num1), (fid2, num2) => String.eqb fid1 fid2 && Nat.eqb num1 num2
+end.
+
+(* Extended equality between functions and vars *)
+Definition var_funid_eqb (v1 v2 : Var + FunctionIdentifier) : bool :=
+match v1, v2 with
+| inl s1, inl s2 => String.eqb s1 s2
+| inr f1, inr f2 => funid_eqb f1 f2
+| _, _ => false
+end.
+
+Proposition funid_eqb_eq (f f' : FunctionIdentifier):
+  funid_eqb f f' = true <-> f = f'.
+Proof.
+  intuition.
+  * destruct f, f'. simpl in H. apply Bool.andb_true_iff in H. destruct H.
+    apply eqb_eq in H. apply Nat.eqb_eq in H0. subst. reflexivity.
+  * subst. destruct f'. simpl. rewrite eqb_refl, Nat.eqb_refl. auto.
+Qed.
+
+Proposition funid_eqb_neq (f f0 : FunctionIdentifier):
+  funid_eqb f f0 = false <-> f <> f0.
+Proof.
+  intuition.
+  * destruct f, f0. simpl in H. apply Bool.andb_false_iff in H. inversion H.
+      - apply eqb_neq in H1. unfold not in *. apply H1. inversion H0. reflexivity.
+      - apply Nat.eqb_neq in H1. unfold not in *. apply H1. inversion H0. reflexivity.
+  * simpl. destruct f, f0. simpl. apply Bool.andb_false_iff.
+      unfold not in H. case_eq ((s =? s0)%string); intros.
+      - right. apply eqb_eq in H0. apply Nat.eqb_neq. unfold not. intro. apply H. subst. reflexivity.
+      - left. reflexivity.
+Qed.
+
+Proposition var_funid_eqb_eq (v0 v : Var + FunctionIdentifier):
+  var_funid_eqb v0 v = true <-> v0 = v.
+Proof.
+  intros. split; intros.
+  { destruct v0, v.
+    * inversion H. apply eqb_eq in H1. subst. reflexivity.
+    * inversion H.
+    * inversion H.
+    * apply funid_eqb_eq in H. subst. auto.
+  }
+  { destruct v, v0.
+    * inversion H. subst. simpl. apply eqb_refl.
+    * inversion H.
+    * inversion H.
+    * simpl. apply funid_eqb_eq. inversion H. auto.
+  }
+Qed.
+
+Proposition var_funid_eqb_neq (v0 v : Var + FunctionIdentifier):
+  var_funid_eqb v0 v = false <-> v0 <> v.
+Proof.
+  split; intros.
+  { destruct v0, v.
+    * simpl in *. apply eqb_neq in H. unfold not in *. intros. apply H. inversion H0. reflexivity.
+    * unfold not. intro. inversion H0.
+    * unfold not. intro. inversion H0.
+    * apply funid_eqb_neq in H. intro. congruence.
+  }
+  { destruct v0, v.
+    * simpl in *. apply eqb_neq. unfold not in *. intro. apply H. subst. reflexivity.
+    * simpl. reflexivity.
+    * simpl. reflexivity.
+    * apply funid_eqb_neq. intro. congruence.
+  }
+Qed.
+
+Proposition funid_eqb_refl (f : FunctionIdentifier) :
+  funid_eqb f f = true.
+Proof.
+  destruct f. simpl. simpl. rewrite eqb_refl, Nat.eqb_refl. simpl. reflexivity.
+Qed.
+
+Proposition var_funid_eqb_refl (var : Var + FunctionIdentifier) :
+  var_funid_eqb var var = true.
+Proof.
+  destruct var.
+  * simpl. apply eqb_refl.
+  * destruct f. simpl. rewrite eqb_refl, Nat.eqb_refl. simpl. reflexivity.
+Qed.
+
+
+Fixpoint in_list (v : VarFunId) (l : list VarFunId) : bool :=
 match l with
 | [] => false
-| x::xs => if eqb v x then true else in_list v xs
+| x::xs => if var_funid_eqb v x then true else in_list v xs
 end.
 
-Fixpoint varsubst (v' : Var) (what wher : Exp) : Exp :=
-match wher with
- | ELit l => wher
- | EVar v => if eqb v v' then what else EVar v
- | EFunId f => wher
- | EFun vl e => wher
- | ERecFun f vl e => wher
- | EApp exp l => EApp (varsubst v' what exp) (map (varsubst v' what) l)
- | ELet v e1 e2 => if eqb v v' then ELet v (varsubst v' what e1) e2
-                               else ELet v (varsubst v' what e1) (varsubst v' what e2)
- | ELetRec f vl b e => if in_list v' vl then ELetRec f vl b (varsubst v' what e) 
-                                        else ELetRec f vl (varsubst v' what b) (varsubst v' what e)
- | EPlus e1 e2 => EPlus (varsubst v' what e1) (varsubst v' what e2)
- | EIf e1 e2 e3 => EIf (varsubst v' what e1) (varsubst v' what e2) (varsubst v' what e3) 
+Theorem in_list_sound : forall l e, in_list e l = true <-> In e l.
+Proof.
+  induction l; intros.
+  * split; intros; inversion H.
+  * split; intros.
+    - simpl in H. break_match_hyp.
+      + apply var_funid_eqb_eq in Heqb. simpl. left. auto.
+      + apply var_funid_eqb_neq in Heqb. simpl. right. apply IHl. auto.
+    - destruct (var_funid_eqb e a) eqn:P.
+      + apply var_funid_eqb_eq in P. subst. simpl. rewrite var_funid_eqb_refl. auto.
+      + simpl. rewrite P. apply IHl. inversion H.
+        ** apply var_funid_eqb_neq in P. congruence.
+        ** auto.
+Qed.
+
+
+Definition restrict_subst (ξ : Substitution) (vl : list VarFunId) : Substitution :=
+  fun (x : VarFunId) =>
+    if in_list x vl
+    then idsubst x
+    else ξ x
+.
+
+Notation "ξ -- vl" := (restrict_subst ξ vl) (at level 80).
+
+Fixpoint subst (ξ : Substitution) (base : Exp) : Exp :=
+match base with
+ | ELit l => base
+ | EVar v => ξ (inl v)
+ | EFunId f => ξ (inr f)
+ | EFun vl e => EFun vl (subst (ξ -- map inl vl) e)
+ | ERecFun f vl e => ERecFun f vl (subst (ξ -- inr f:: map inl vl) e)
+ | EApp exp l => EApp (subst ξ exp) (map (subst ξ) l)
+ | ELet v e1 e2 => ELet v (subst ξ e1) (subst (ξ -- [inl v]) e2)
+ | ELetRec f vl b e => ELetRec f vl (subst (ξ -- inr f::map inl vl) b)
+                                    (subst (ξ -- [inr f]) e)
+ | EPlus e1 e2 => EPlus (subst ξ e1) (subst ξ e2)
+ | EIf e1 e2 e3 => EIf (subst ξ e1) (subst ξ e2) (subst ξ e3)
 end.
 
-Definition varsubst_list (l : list Var) (es : list Exp) (e : Exp) : Exp :=
-  fold_right (fun '(v, val) acc => varsubst v val acc) e (combine l es).
+Definition extend_subst (ξ : Substitution) (x : VarFunId) (e : Exp) : Substitution :=
+  fun y =>
+    if var_funid_eqb x y
+    then e
+    else ξ y.
 
-Fixpoint funsubst (f' : FunctionIdentifier) (what wher : Exp) : Exp :=
-match wher with
- | ELit l => wher
- | EVar v => EVar v
- | EFunId f => if andb (eqb (fst f) (fst f')) (Nat.eqb (snd f) (snd f')) then what else wher
- | EFun vl e => wher
- | ERecFun f vl e => wher
- | EApp exp l => EApp (funsubst f' what exp) (map (funsubst f' what) l)
- | ELet v e1 e2 => ELet v (funsubst f' what e1) (funsubst f' what e2)
- | ELetRec f vl b e => if andb (eqb (fst f) (fst f')) (Nat.eqb (snd f) (snd f'))
-                       then ELetRec f vl b e
-                       else ELetRec f vl (funsubst f' what b) (funsubst f' what e)
- | EPlus e1 e2 => EPlus (funsubst f' what e1) (funsubst f' what e2)
- | EIf e1 e2 e3 => EIf (funsubst f' what e1) (funsubst f' what e2) (funsubst f' what e3)
-end.
+Notation "ξ [[ x ::= e ]]" := (extend_subst ξ x e) (at level 80).
+
+Definition extend_subst_list (ξ : Substitution) (l : list (VarFunId * Exp)) : Substitution :=
+  fold_left (fun ξ' '(x, e) => extend_subst ξ' x e) l ξ.
+
+Notation "ξ [[ ::= l ]]" := (extend_subst_list ξ l) (at level 80).
+
+(* Tests: *)
+Goal subst (idsubst [[ inl XVar ::= ELit 0 ]]) (inc 1) = inc 1. Proof. reflexivity. Qed.
+Goal subst (idsubst [[ inl YVar ::= ELit 0 ]]) (inc 1) = inc 1. Proof. reflexivity. Qed.
+Goal subst (idsubst [[ inl XVar ::= ELit 0 ]]) 
+           (EApp (EVar XVar) [EVar XVar; ELet XVar (EVar XVar) (EVar XVar)]) 
+  = (EApp (ELit 0) [ELit 0; ELet XVar (ELit 0) (EVar XVar)]) . Proof. reflexivity. Qed.
+
