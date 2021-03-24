@@ -1324,25 +1324,56 @@ Proof.
         apply scope_subst_in; eauto. admit. admit.
       + admit.
 Abort. *)
-  
+
 (*
-Corollary sub_implies_scope_exp : forall Γ e,
-  (forall vals, length vals = length Γ -> subscoped Γ' vals
+Definition magic_γ (Γ Γ' : Env) (n : nat) :=
+    if lt_dec n Γ
+    then if lt_dec n Γ'
+         then Var n
+         else Const 0
+    else Var Γ'.
+Meaning:
+  if var is both in Γ and Γ', then it is not modified
+  if var is in Γ, but not in Γ', then it is modified to a literal
+  if var is not in Γ, then it is replaced by a fresh variable
+*)
+
+Theorem sub_implies_scope :
+  forall Γ e Γ',
+  ((forall vals, length vals = length Γ -> 
+     subscoped Γ' vals -> EXP Γ' ⊢ subst_list Γ vals e)
+ -> EXP Γ ⊢ e) /\
+  ((forall vals, length vals = length Γ -> 
+     subscoped Γ' vals -> VAL Γ' ⊢ subst_list Γ vals e)
+ -> VAL Γ ⊢ e).
+Proof.
+  induction Γ; intros; split; intros.
+  * epose (H [] (eq_refl _) _). admit.
+  * admit.
+  * 
+Admitted.
+
+Goal EXP [] ⊢ EVar "X"%string.
+Proof.
+  eapply sub_implies_scope. intros.
+  unfold subst_list. simpl. constructor. constructor.
+  instantiate (1 := [inl "X"%string]). intuition.
+Qed.
+
+Goal ~ EXP [] ⊢ EVar "X"%string.
+Proof.
+  intro. inversion H. inversion H0. inversion H3.
+Qed.
+
+(* Corollary sub_implies_scope_exp : forall Γ e,
+  (forall vals, length vals = length Γ -> subscoped [] vals
     -> EXPCLOSED (subst_list Γ vals e))
   ->
   EXP Γ ⊢ e.
 Proof.
-  intros. pose (alma e Γ). destruct e0, H0, H0, H1. subst. eapply scope_subst_list; auto. specialize (H x0 (eq_sym H0) H1).
-  (* induction Γ; intros.
-  * unfold subst_list in H. simpl in H. apply (H []); auto.
-    intro. intros. inversion H0.
-  * pose (alma e a). destruct e0, H0, H0.
-    epose (IHΓ (subst a x0 x) _). 
-  
-  
-  unfold subst_list in H. simpl in H. *)
-Admitted.
-*)
+  intros.
+  apply exp_subst_scope_rev. intros. simpl.
+Admitted. *)
 
 
 
