@@ -70,6 +70,9 @@ Section correct_exp_ind.
 
 End correct_exp_ind.
 
+Fixpoint Exp_eq_dec (e e' : Exp) : {e = e'} + {e <> e'}.
+Proof. repeat decide equality. Qed.
+
 Definition XVar : Var := "X"%string.
 Definition YVar : Var := "Y"%string.
 Definition ZVar : Var := "Z"%string.
@@ -131,6 +134,12 @@ match v1, v2 with
 | inr f1, inr f2 => funid_eqb f1 f2
 | _, _ => false
 end.
+
+Theorem funid_eq_dec : forall (a b : FunctionIdentifier), {a = b} + {a <> b}.
+Proof. decide equality. apply Nat.eq_dec. apply string_dec. Qed.
+
+Theorem var_funid_eq_dec : forall (a b : VarFunId), {a = b} + {a <> b}.
+Proof. decide equality. apply string_dec. apply funid_eq_dec. Qed.
 
 Proposition funid_eqb_eq (f f' : FunctionIdentifier):
   funid_eqb f f' = true <-> f = f'.

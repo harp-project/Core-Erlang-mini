@@ -89,8 +89,6 @@ Definition Erel (n : nat) (e1 e2 : Exp) : Prop :=
   Basically this says, ξ and η are equivalent pointwise for Γ
 *)
 
-Require Import FunctionalExtensionality Coq.Logic.PropExtensionality.
-
 Lemma Vrel_rec_pointwise {n : nat} :
   forall (f g : forall m : nat, (m < n)%nat -> Exp -> Exp -> Prop),
     (forall (m : nat) (p : (m < n)%nat), f m p = g m p) ->
