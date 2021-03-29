@@ -243,7 +243,7 @@ Definition restrict_subst (ξ : Substitution) (vl : list VarFunId) : Substitutio
     else ξ x
 .
 
-Notation "ξ -- vl" := (restrict_subst ξ vl) (at level 80).
+Notation "ξ -- vl" := (restrict_subst ξ vl) (at level 70).
 
 Fixpoint subst (ξ : Substitution) (base : Exp) : Exp :=
 match base with
