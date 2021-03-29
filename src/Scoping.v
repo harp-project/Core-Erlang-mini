@@ -922,6 +922,84 @@ Proof.
   * constructor.
 Qed.
 
+
+
+
+
+
+(** Subst implies scope *)
+
+(* Definition partial_max (s1 s2 : Var) : string :=
+  if String.length s1 <? String.length s2 then s2 else s1
+.
+
+(** Just append an 's' to the front *)
+Definition string_succ (s : Var) : string := "s"%string ++ s.
+
+(** Maximum element of a list, with the custom max *)
+Definition list_max (l : list VarFunId) :=
+  fold_right (fun x acc => match x with
+                           | inl x' => partial_max x' acc
+                           | _      => acc
+                           end) EmptyString l.
+
+Definition new_fresh (l : list VarFunId) : Var :=
+  string_succ (list_max l).
+
+Theorem succ_neq_s : forall s, s <> string_succ s.
+Proof.
+  intro. intro. unfold string_succ in H. simpl in H. 
+  induction s; inversion H. subst. contradiction.
+Qed.
+
+Theorem max_not_in :
+  forall l s, partial_max (list_max l) s = s -> ~In (inl s) l.
+Proof.
+  induction l; intros.
+  * intro. inversion H0.
+  * intro. destruct (var_funid_eqb (inl s) a) eqn:P.
+    - apply var_funid_eqb_eq in P. subst.
+      simpl in H. unfold partial_max in H. break_match_hyp.
+      + break_match_hyp.
+        ** subst. apply Nat.ltb_lt in Heqb. apply Nat.ltb_lt in Heqb0. lia.
+        ** apply Nat.ltb_lt in Heqb. lia.
+      + break_match_hyp. congruence. admit.
+    - eapply IHl.
+Admitted.
+
+Theorem fresh_is_fresh :
+  forall l, ~In (inl (new_fresh l)) l.
+Proof.
+  intros. unfold new_fresh.
+  
+  intros. induction l; auto.
+  * simpl. intro.
+Admitted.*)
+
+Definition magic_ξ (Γ Γ' : list VarFunId) (fresh : VarFunId)
+                   (p1 : ~In fresh Γ) (p2 : ~In fresh Γ')
+   : Substitution :=
+  fun x =>
+    if in_list x Γ then
+      if in_list x Γ'
+      then idsubst x
+      else ELit 0
+    else idsubst fresh.
+
+Lemma magic_ξ_scope :
+  forall Γ Γ' fresh p1 p2, subscoped Γ Γ' (magic_ξ Γ Γ' fresh p1 p2).
+Proof.
+  intros. intro. intros. unfold magic_ξ. repeat break_match_goal.
+  * apply in_list_sound in Heqb. apply in_list_sound in Heqb0.
+    destruct v; constructor; auto.
+  * constructor.
+  * apply not_in_list_sound in Heqb. congruence.
+Qed.
+
+Lemma magic_ξ_implies_scope : forall e Γ Γ' fresh p1 p2,
+
+.
+
 Theorem sub_implies_scope :
   forall Γ e Γ',
   ((forall vals, length vals = length Γ -> 
