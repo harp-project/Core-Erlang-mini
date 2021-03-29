@@ -843,7 +843,7 @@ Proof.
 Qed.
 
 
-Theorem subst_preserves_scope : forall e Γ,
+Theorem subst_preserves_scope_rev : forall e Γ,
   (EXP Γ ⊢ e ->
     forall Γ' ξ,
       subscoped Γ Γ' ξ -> EXP Γ' ⊢ subst ξ e) /\
