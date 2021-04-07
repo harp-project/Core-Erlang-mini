@@ -929,7 +929,7 @@ Qed.
 
 (** Subst implies scope *)
 
-(* Definition partial_max (s1 s2 : Var) : string :=
+Definition partial_max (s1 s2 : Var) : string :=
   if String.length s1 <? String.length s2 then s2 else s1
 .
 
@@ -974,20 +974,19 @@ Proof.
   
   intros. induction l; auto.
   * simpl. intro.
-Admitted.*)
+Admitted.
 
-Definition magic_ξ (Γ Γ' : list VarFunId) (fresh : VarFunId)
-                   (p1 : ~In fresh Γ) (p2 : ~In fresh Γ')
+Definition magic_ξ (Γ Γ' : list VarFunId)
    : Substitution :=
   fun x =>
     if in_list x Γ then
       if in_list x Γ'
       then idsubst x
       else ELit 0
-    else idsubst fresh.
+    else EVar (new_fresh (Γ ++ Γ')).
 
 Lemma magic_ξ_scope :
-  forall Γ Γ' fresh p1 p2, subscoped Γ Γ' (magic_ξ Γ Γ' fresh p1 p2).
+  forall Γ Γ', subscoped Γ Γ' (magic_ξ Γ Γ').
 Proof.
   intros. intro. intros. unfold magic_ξ. repeat break_match_goal.
   * apply in_list_sound in Heqb. apply in_list_sound in Heqb0.
@@ -996,9 +995,81 @@ Proof.
   * apply not_in_list_sound in Heqb. congruence.
 Qed.
 
-Lemma magic_ξ_implies_scope : forall e Γ Γ' fresh p1 p2,
+Theorem app_in_not :
+  forall {T : Type} (l1 l2 : list T) x, ~In x (l1 ++ l2) -> ~In x l1 /\ ~In x l2.
+Proof.
+  intros. firstorder; intro; assert (In x (l1 ++ l2)). 
+  1, 3 : apply in_or_app; auto. all: congruence.
+Qed.
 
-.
+Lemma magic_ξ_app_scope :
+  forall Γ Γ' l,
+  magic_ξ Γ Γ' -- l = magic_ξ (Γ ++ l) (Γ' ++ l).
+Proof.
+  unfold "--", magic_ξ. intros.
+  extensionality x. repeat break_match_goal; auto.
+  * apply in_list_sound in Heqb. apply not_in_list_sound in Heqb1.
+    apply app_in_not in Heqb1. intuition.
+  * apply in_list_sound in Heqb. apply not_in_list_sound in Heqb0.
+    apply app_in_not in Heqb0. intuition.
+  * apply not_in_list_sound in Heqb3. apply in_list_sound in Heqb1.
+    apply app_in_not in Heqb3. intuition.
+  * apply in_list_sound in Heqb0. apply not_in_list_sound in Heqb2.
+    apply app_in_not in Heqb2. intuition.
+  * apply in_list_sound in Heqb3. apply not_in_list_sound in Heqb.
+    apply not_in_list_sound in Heqb1.
+    apply in_app_iff in Heqb3. intuition.
+  * apply not_in_list_sound in Heqb2. apply app_in_not in Heqb2.
+    apply in_list_sound in Heqb0. intuition.
+  * apply not_in_list_sound in Heqb. apply not_in_list_sound in Heqb0.
+    apply in_list_sound in Heqb1. apply in_app_iff in Heqb1. intuition.
+  * apply not_in_list_sound in Heqb. apply not_in_list_sound in Heqb0.
+    apply in_list_sound in Heqb1. apply in_app_iff in Heqb1. intuition.
+  * admit.
+Abort.
+
+Lemma magic_ξ_app_scope :
+  forall e Γ Γ' fresh p1 p2 l,
+  EXP Γ' ++ l ⊢ subst (magic_ξ Γ Γ' fresh p1 p2 -- l) e ->
+  exists fresh p1 p2, EXP Γ' ⊢ subst (magic_ξ (Γ ++ l) Γ' fresh p1 p2) e.
+Proof.
+  induction e; intros.
+  * exists (inl (new_fresh (Γ' ++ Γ ++ l0))).
+    pose (fresh_is_fresh (Γ' ++ Γ ++ l0)). apply app_in_not in n. destruct n.
+    exists H1, H0. simpl. constructor. constructor.
+  * 
+Admitted.
+
+Lemma magic_ξ_implies_scope : forall e Γ Γ' fresh p1 p2,
+  (EXP Γ' ⊢ subst (magic_ξ Γ Γ' fresh p1 p2) e -> EXP Γ ⊢ e) /\
+  (VAL Γ' ⊢ subst (magic_ξ Γ Γ' fresh p1 p2) e -> VAL Γ ⊢ e).
+Proof.
+  induction e using Exp_ind2 with
+  (Q := fun l => list_forall (fun e => forall Γ Γ' fresh p1 p2,
+    (EXP Γ' ⊢ subst (magic_ξ Γ Γ' fresh p1 p2) e -> EXP Γ ⊢ e) /\
+    (VAL Γ' ⊢ subst (magic_ξ Γ Γ' fresh p1 p2) e -> VAL Γ ⊢ e)
+  ) l); intros; try split; intros.
+  * constructor. constructor.
+  * constructor.
+  * constructor. constructor. simpl in H. unfold magic_ξ in H. repeat break_match_hyp.
+    - apply in_list_sound in Heqb. auto.
+    - apply in_list_sound in Heqb. auto.
+    - unfold idsubst in H. destruct fresh; inversion H; inversion H0; contradiction.
+  * constructor. simpl in H. unfold magic_ξ in H. repeat break_match_hyp.
+    - apply in_list_sound in Heqb. auto.
+    - apply in_list_sound in Heqb. auto.
+    - unfold idsubst in H. destruct fresh; inversion H; inversion H0; contradiction.
+  * constructor. constructor. simpl in H. unfold magic_ξ in H. repeat break_match_hyp.
+    - apply in_list_sound in Heqb. auto.
+    - apply in_list_sound in Heqb. auto.
+    - unfold idsubst in H. destruct fresh; inversion H; inversion H0; contradiction.
+  * constructor. simpl in H. unfold magic_ξ in H. repeat break_match_hyp.
+    - apply in_list_sound in Heqb. auto.
+    - apply in_list_sound in Heqb. auto.
+    - unfold idsubst in H. destruct fresh; inversion H; inversion H0; contradiction.
+  * constructor. constructor. simpl in H. inversion H. inversion H0. subst.
+    apply magic_ξ_app_scope in H3. destruct H3, H1, H1. eapply (IHe _ Γ'). exact H1.
+Qed.
 
 Theorem sub_implies_scope :
   forall Γ e Γ',
