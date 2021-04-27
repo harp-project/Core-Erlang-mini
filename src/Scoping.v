@@ -1145,8 +1145,8 @@ match goal with
 | [ H : ~In _ (_ ++ _) |- _ ] => apply app_in_not in H
 end.
 
-Search In flat_map.
 
+(** Actually, this was not needed in the end, however it is useful to have it *)
 Lemma magic_ξ_name_irrelevant :
   forall e, 
   (forall Γ Γ' name, ~In name Γ -> ~In name Γ' -> ~In name (names e) ->
@@ -1268,13 +1268,15 @@ Proof.
   * constructor.
 Qed.
 
+Opaque app.
+
 Lemma magic_ξ_implies_scope : forall e Γ Γ' name 
   (p1 : ~In name Γ) (p2 : ~In name Γ') (p3 : ~In name (names e)),
   (EXP Γ' ⊢ subst (magic_ξ Γ Γ' name) e -> EXP Γ ⊢ e) /\
   (VAL Γ' ⊢ subst (magic_ξ Γ Γ' name) e -> VAL Γ ⊢ e).
 Proof.
   induction e using Exp_ind2 with
-  (Q := fun l => list_forall (fun e => forall Γ Γ' name
+  (Q := fun l => Forall (fun e => forall Γ Γ' name
   (p1 : ~In name Γ) (p2 : ~In name Γ') (p3 : ~In name (names e)),
     (EXP Γ' ⊢ subst (magic_ξ Γ Γ' name) e -> EXP Γ ⊢ e) /\
     (VAL Γ' ⊢ subst (magic_ξ Γ Γ' name) e -> VAL Γ ⊢ e)
@@ -1297,73 +1299,67 @@ Proof.
     - apply in_list_sound in Heqb. auto.
     - apply in_list_sound in Heqb. auto.
     - destruct name; inversion H; inversion H0; contradiction.
-  * constructor. constructor. eapply magic_ξ_name_irrelevant in H; auto.
+  * constructor. constructor.
     simpl in H. inversion H. inversion H0. subst.
     erewrite magic_ξ_app_eq in H3. eapply (IHe _ (Γ' ++ map inl vl)). 4: exact H3. all: eauto.
     all: try apply app_not_in; auto. all: apply app_in_not in p3; destruct p3; auto.
-  * constructor. eapply magic_ξ_name_irrelevant in H; auto.
-    simpl in H. inversion H. subst.
+  * constructor. simpl in H. inversion H. subst.
     erewrite magic_ξ_app_eq in H1. eapply (IHe _ (Γ' ++ map inl vl)). 4: exact H1. all: eauto.
     all: try apply app_not_in; auto. all: apply app_in_not in p3; destruct p3; auto.
-  * constructor. constructor. eapply magic_ξ_name_irrelevant in H; auto.
+  * constructor. constructor.
     simpl in H. inversion H. inversion H0. subst.
     erewrite magic_ξ_app_eq in H3. eapply (IHe _ (Γ' ++ inr f :: map inl vl)). 4: exact H3. all: eauto.
     all: try apply app_not_in; auto. all: apply app_in_not in p3; destruct p3; auto.
-  * constructor. eapply magic_ξ_name_irrelevant in H; auto.
-    simpl in H. inversion H. subst.
+  * constructor. simpl in H. inversion H. subst.
     erewrite magic_ξ_app_eq in H1. eapply (IHe _ (Γ' ++ inr f :: map inl vl)). 4: exact H1. all: eauto.
     all: try apply app_not_in; auto. all: apply app_in_not in p3; destruct p3; auto.
-  * admit.
+  * inversion H. 2: inversion H0. subst. simpl in p3. app_in_not_tac. destruct p3.
+    apply notin_flat_map_Forall in H1. rewrite indexed_to_forall in IHe0, H1. constructor.
+    - eapply IHe. 4: exact H2. all: auto.
+    - intros. rewrite map_length in *. specialize (H3 i H4).
+      replace (ELit 0) with (subst (magic_ξ Γ Γ' name) (ELit 0)) in H3 by reflexivity.
+      rewrite map_nth in H3. eapply IHe0. 5: exact H3. all: auto.
   * inversion H.
-  * admit.
+  * inversion H. 2: inversion H0. subst. simpl names in p3. app_in_not_tac. destruct p3.
+    app_in_not_tac. destruct H1. constructor.
+    - eapply IHe1. 4: exact H2. all: auto.
+    - erewrite magic_ξ_app_eq in H4. eapply IHe2. 4: exact H4. all: try apply app_not_in; auto.
   * inversion H.
-  * admit.
+  * inversion H. 2: inversion H0. subst. simpl names in p3. app_in_not_tac. destruct p3.
+    app_in_not_tac. destruct H1. constructor.
+    - erewrite magic_ξ_app_eq in H2. eapply IHe1. 4: exact H2. all: try apply app_not_in; auto.
+    - erewrite magic_ξ_app_eq in H5.
+      replace (inr f :: map inl vl) with ([inr f] ++ map inl vl) in H0 by reflexivity. app_in_not_tac.
+      destruct H0. eapply IHe2. 4: exact H5. all: try apply app_not_in; auto.
   * inversion H.
-  * admit.
+  * inversion H. 2: inversion H0. subst. simpl in p3. app_in_not_tac. destruct p3.
+    constructor.
+    - eapply IHe1. 4: exact H2. all: auto.
+    - eapply IHe2. 4: exact H3. all: auto.
   * inversion H.
-  * admit.
+  * inversion H. 2: inversion H0. subst. simpl in p3. app_in_not_tac. destruct p3.
+    app_in_not_tac. destruct H1.
+    constructor.
+    - eapply IHe1. 4: exact H3. all: auto.
+    - eapply IHe2. 4: exact H4. all: auto.
+    - eapply IHe3. 4: exact H5. all: auto.
   * inversion H.
   * constructor. apply IHe. apply IHe0.
   * constructor.
-Admitted.
-
-
-Theorem sub_implies_scope :
-  forall Γ e Γ',
-  ((forall vals, length vals = length Γ -> 
-     subscoped Γ' vals -> EXP Γ' ⊢ subst_list Γ vals e)
- -> EXP Γ ⊢ e) /\
-  ((forall vals, length vals = length Γ -> 
-     subscoped Γ' vals -> VAL Γ' ⊢ subst_list Γ vals e)
- -> VAL Γ ⊢ e).
-Proof.
-  induction Γ; intros; split; intros.
-  * epose (H [] (eq_refl _) _). admit.
-  * admit.
-  * 
-Admitted.
-
-Goal EXP [] ⊢ EVar "X"%string.
-Proof.
-  eapply sub_implies_scope. intros.
-  unfold subst_list. simpl. constructor. constructor.
-  instantiate (1 := [inl "X"%string]). intuition.
 Qed.
 
-Goal ~ EXP [] ⊢ EVar "X"%string.
-Proof.
-  intro. inversion H. inversion H0. inversion H3.
-Qed.
+Transparent app.
 
-(* Corollary sub_implies_scope_exp : forall Γ e,
-  (forall vals, length vals = length Γ -> subscoped [] vals
-    -> EXPCLOSED (subst_list Γ vals e))
-  ->
-  EXP Γ ⊢ e.
+Theorem sub_implies_scope_exp :
+  forall e Γ Γ',
+  (forall ξ, subscoped Γ Γ' ξ -> EXP Γ' ⊢ subst ξ e) -> EXP Γ ⊢ e.
 Proof.
-  intros.
-  apply exp_subst_scope_rev. intros. simpl.
-Admitted. *)
+  intros. pose (fresh_is_fresh (Γ ++ Γ' ++ (names e))).
+  app_in_not_tac. destruct n. app_in_not_tac. destruct H1.
+  eapply magic_ξ_implies_scope with (name := inl (new_fresh (Γ ++ Γ' ++ (names e)))).
+  4: apply H; apply magic_ξ_scope.
+  all: auto.
+Qed.
 
 
 
