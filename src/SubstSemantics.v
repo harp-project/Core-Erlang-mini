@@ -17,12 +17,6 @@ Inductive ResultType {T : Set} : Set :=
 | Res (v : T)
 .
 
-Inductive list_forall {A : Type} (P : A -> Prop) : list A -> Prop :=
-| forall_nil : list_forall P []
-| forall_cons x xs : P x -> list_forall P xs -> list_forall P (x::xs).
-
-
-
 Fixpoint eval_list (f : Exp -> @ResultType Exp) (l : list Exp) : @ResultType (list Exp) :=
 match l with
 | [] => Res []
@@ -99,7 +93,7 @@ Goal eval 100 (sum 10) = Res (ELit 55). Proof. simpl. auto. Qed.
 Goal eval 100 (simplefun2 10 10) = Res (ELit 20). Proof. simpl. auto. Qed.
 
 Theorem indexed_to_forall {A : Type} (l : list A) : forall P def,
-  list_forall P l
+  Forall P l
 <->
   (forall i, i < length l -> P (nth i l def)).
 Proof.
