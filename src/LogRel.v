@@ -61,8 +61,9 @@ Definition Vrel_rec (n : nat)
        length vals1 = length vl1 -> length vals2 = length vl2 -> (* With DB indices, this could be removed *)
        list_biforall (Vrel m Hmn) vals1 vals2 
      ->
-       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) (varsubst_list vl1 vals1 b1)
-                                                                     (varsubst_list vl2 vals2 b2)
+       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
+                                                   (subst (idsubst[[::= combine (map inl vl1) vals1 ]]) b1)
+                                                   (subst (idsubst[[::= combine (map inl vl2) vals2 ]]) b2)
     end
   | ERecFun f1 vl1 b1, ERecFun f2 vl2 b2 =>
     match list_eq_dec string_dec vl1 vl2 with
@@ -72,8 +73,9 @@ Definition Vrel_rec (n : nat)
        length vals1 = length vl1 -> length vals2 = length vl2 ->
        list_biforall (Vrel m Hmn) vals1 vals2 
      ->
-       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) (varsubst_list vl1 vals1 (funsubst f1 (ERecFun f1 vl1 b1) b1)) 
-                                                                     (varsubst_list vl2 vals2 (funsubst f2 (ERecFun f2 vl2 b2) b2))
+       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
+                 (subst (idsubst[[::= combine ((inr f1) :: map inl vl1) ((ERecFun f1 vl1 b1) :: vals1)]]) b1)
+                 (subst (idsubst[[::= combine ((inr f2) :: map inl vl2) ((ERecFun f2 vl2 b2) :: vals2)]]) b2)
     end
   | _, _ => False
   end
@@ -302,9 +304,9 @@ Notation "'SUBSCOPE' Γ ⊢ ξ :: Γ'" := (subscoped Γ Γ' ξ) (at level 69, ξ
 *)
 
 (* Def: closed values are related *)
-Definition Grel (n : nat) (vals1 vals2 : list Exp) : Prop :=
-  subscoped [] vals1 /\ subscoped [] vals2 /\ length vals1 = length vals2 /\
-  list_biforall (Vrel n) vals1 vals2.
+Definition Grel (n : nat) (Γ : list VarFunId) (ξ₁ ξ₂ : Substitution) : Prop :=
+  subscoped Γ [] ξ₁ /\ subscoped Γ [] ξ₂ /\
+  forall x, In x Γ -> Vrel n (ξ₁ x) (ξ₂ x).
 
 
 (** Closing substitutions  *)
@@ -350,26 +352,26 @@ Unshelve. auto.
 Qed.
 
 Lemma Grel_downclosed :
-  forall {n m : nat} {Hmn : m <= n} {vals1 vals2 : list Exp},
-    Grel n vals1 vals2 ->
-    Grel m vals1 vals2.
+  forall {n m : nat} {Hmn : m <= n} {Γ : list VarFunId} {ξ₁ ξ₂ : Substitution},
+    Grel n Γ ξ₁ ξ₂ ->
+    Grel m Γ ξ₁ ξ₂ .
 Proof.
-  unfold Grel; intros; intuition. eapply Grel_downclosed_helper; eauto.
+  unfold Grel; intros; intuition (eauto using Vrel_downclosed).
 Qed.
 
 Definition Vrel_open (Γ : list VarFunId) (e1 e2 : Exp) :=
-  forall n vals1 vals2,
-  length vals1 = length Γ -> length vals2 = length Γ -> Grel n vals1 vals2
+  forall n ξ₁ ξ₂,
+  Grel n Γ ξ₁ ξ₂
 ->
-  Vrel n (subst_list Γ vals1 e1) (subst_list Γ vals2 e2).
+  Vrel n (subst ξ₁ e1) (subst ξ₂ e2).
 
 Definition Erel_open (Γ : list VarFunId) (e1 e2 : Exp) :=
-  forall n vals1 vals2,
-  length vals1 = length Γ -> length vals2 = length Γ -> Grel n vals1 vals2
+  forall n ξ₁ ξ₂,
+  Grel n Γ ξ₁ ξ₂
 ->
-  Erel n (subst_list Γ vals1 e1) (subst_list Γ vals2 e2).
+  Erel n (subst ξ₁ e1) (subst ξ₂ e2).
 
-Lemma subscoped_to_vrel vals :
+(* Lemma subscoped_to_vrel vals :
   subscoped [] vals ->
   list_biforall (Vrel 0) vals vals.
 Proof.
@@ -384,19 +386,21 @@ Proof.
     + break_match_goal. 2: congruence.
       intros. inversion Hmn.
   - apply IHvals. intro. intros. apply (H (S i)). simpl. lia.
-Qed.
+Qed. *)
 
 Lemma Erel_open_closed : forall {Γ e1 e2},
     Erel_open Γ e1 e2 ->
-    forall vals, subscoped [] vals -> length vals = length Γ ->
-              EXPCLOSED (subst_list Γ vals e1) /\ EXPCLOSED (subst_list Γ vals e2).
+    forall ξ, subscoped Γ [] ξ ->
+              EXPCLOSED (subst ξ e1) /\ EXPCLOSED (subst ξ e2).
 Proof.
   intros.
   apply @Erel_closed with (n:=0).
   apply H; auto.
   unfold Grel.
   intuition idtac.
-  apply subscoped_to_vrel. auto.
+  rewrite Vrel_Fix_eq. unfold Vrel_rec at 1.
+  pose (P := H0 x H1). destruct P; intuition; try constructor; auto.
+  1-2: break_match_goal; intros; try congruence; inversion Hmn.
 Qed.
 
 Lemma Erel_open_scope : forall {Γ e1 e2},
@@ -406,6 +410,18 @@ Proof.
   intros.
   pose proof (Erel_open_closed H).
   split;
-  eapply (sub_implies_scope _ _ []); intros; apply H0; auto.
+  eapply (sub_implies_scope_exp); intros; apply H0; auto.
+Qed.
+
+Lemma Vrel_possibilities : forall {n v1 v2},
+  Vrel n v1 v2 ->
+  (exists n, v1 = ELit n /\ v2 = ELit n) \/
+  (exists vl1 vl2 b1 b2, v1 = EFun vl1 b1 /\ v2 = EFun vl2 b2) \/
+  (exists f1 f2 vl1 vl2 b1 b2, v1 = ERecFun f1 vl1 b1 /\ v2 = ERecFun f2 vl2 b2).
+Proof.
+  intros; destruct v1, v2; destruct H as [? [? ?] ]; subst; try contradiction.
+  * left. eexists; split; reflexivity.
+  * right. left. repeat eexists.
+  * right. right. repeat eexists.
 Qed.
 
