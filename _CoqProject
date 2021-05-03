@@ -5,7 +5,9 @@ src/ExpSyntax.v
 src/SubstSemantics.v
 src/Scoping.v
 src/LogRel.v
+src/Compatibility.v
 src/CIU.v
+src/CTX.v
 src/ExpSemantics.v
 src/ExpBSSubst.v
 src/ExpEquiv.v

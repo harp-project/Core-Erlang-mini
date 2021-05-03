@@ -425,3 +425,4 @@ Proof.
   * right. right. repeat eexists.
 Qed.
 
+Definition equivalent_values (v1 v2 : Exp) := exists n, Vrel n v1 v2.
