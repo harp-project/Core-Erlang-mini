@@ -14,12 +14,12 @@ Definition IsReflexive (R : list VarFunId -> Exp -> Exp -> Prop) :=
 
 Definition CompatibleFun (R : list VarFunId -> Exp -> Exp -> Prop) :=
   forall Γ vl e1 e2,
-    R (map inl vl ++ Γ) e1 e2 ->
+    R (Γ ++ map inl vl) e1 e2 ->
     R Γ (EFun vl e1) (EFun vl e2).
 
 Definition CompatibleRecFun (R : list VarFunId -> Exp -> Exp -> Prop) :=
   forall Γ f vl e1 e2,
-    R ((inr f :: map inl vl) ++ Γ) e1 e2 ->
+    R (Γ ++ (inr f :: map inl vl)) e1 e2 ->
     R Γ (ERecFun f vl e1) (ERecFun f vl e2).
 
 Definition CompatibleApp (R : list VarFunId -> Exp -> Exp -> Prop) :=
@@ -31,15 +31,15 @@ Definition CompatibleApp (R : list VarFunId -> Exp -> Exp -> Prop) :=
 
 Definition CompatibleLet (R : list VarFunId -> Exp -> Exp -> Prop) :=
   forall Γ e1 e1' x e2 e2',
-  EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP (inl x :: Γ) ⊢ e2 -> EXP (inl x :: Γ) ⊢ e2' ->
-  R Γ e1 e1' -> R (inl x :: Γ) e2 e2' ->
+  EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP (Γ ++ [inl x]) ⊢ e2 -> EXP (Γ ++ [inl x]) ⊢ e2' ->
+  R Γ e1 e1' -> R (Γ ++ [inl x]) e2 e2' ->
   R Γ (ELet x e1 e2) (ELet x e1' e2').
 
 Definition CompatibleLetRec (R : list VarFunId -> Exp -> Exp -> Prop) :=
   forall Γ f vl b1 b1' e2 e2',
-  EXP (inr f :: map inl vl) ++ Γ ⊢ b1 -> EXP (inr f :: map inl vl) ++ Γ ⊢ b1' -> 
-  EXP (inr f :: Γ) ⊢ e2 -> EXP (inr f :: Γ) ⊢ e2' ->
-  R ((inr f :: map inl vl) ++ Γ) b1 b1' -> R (inr f :: Γ) e2 e2' ->
+  EXP Γ ++ (inr f :: map inl vl) ⊢ b1 -> EXP Γ ++ (inr f :: map inl vl) ⊢ b1' -> 
+  EXP Γ ++ [inr f] ⊢ e2 -> EXP Γ ++ [inr f] ⊢ e2' ->
+  R (Γ ++ (inr f :: map inl vl)) b1 b1' -> R (Γ ++ [inr f]) e2 e2' ->
   R Γ (ELetRec f vl b1 e2) (ELetRec f vl b1' e2').
 
 Definition CompatiblePlus (R : list VarFunId -> Exp -> Exp -> Prop) :=
@@ -66,23 +66,23 @@ Definition IsCtxRel (R : list VarFunId -> Exp -> Exp -> Prop) :=
   forall R', IsPreCtxRel R' ->
     forall Γ e1 e2, R' Γ e1 e2 -> R Γ e1 e2.
 
-Inductive CTX :=
+Inductive Ctx :=
 | CHole
-| CFun      (vl : list Var) (e : CTX)
-| CRecFun   (f : FunctionIdentifier) (vl : list Var) (e : CTX)
-| CAppFun   (exp : CTX) (l : list Exp)
-| CAppParam (exp : Exp) (l1 : list Exp) (c : CTX) (l2 : list Exp)  (* one of the middle ones is a ctx *)
-| CLet1     (v : Var) (e1 : CTX) (e2 : Exp)
-| CLet2     (v : Var) (e1 : Exp) (e2 : CTX)
-| CLetRec1  (f : FunctionIdentifier) (vl : list Var) (b : CTX) (e : Exp)
-| CLetRec2  (f : FunctionIdentifier) (vl : list Var) (b : Exp) (e : CTX)
-| CPlus1     (e1 : CTX) (e2 : Exp)
-| CPlus2     (e1 : Exp) (e2 : CTX)
-| CIf1      (e1 : CTX) (e2 e3 : Exp)
-| CIf2      (e1 : Exp) (e2 : CTX) (e3 : Exp)
-| CIf3      (e1 e2 : Exp) (e3 : CTX).
+| CFun      (vl : list Var) (e : Ctx)
+| CRecFun   (f : FunctionIdentifier) (vl : list Var) (e : Ctx)
+| CAppFun   (exp : Ctx) (l : list Exp)
+| CAppParam (exp : Exp) (l1 : list Exp) (c : Ctx) (l2 : list Exp)  (* one of the middle ones is a ctx *)
+| CLet1     (v : Var) (e1 : Ctx) (e2 : Exp)
+| CLet2     (v : Var) (e1 : Exp) (e2 : Ctx)
+| CLetRec1  (f : FunctionIdentifier) (vl : list Var) (b : Ctx) (e : Exp)
+| CLetRec2  (f : FunctionIdentifier) (vl : list Var) (b : Exp) (e : Ctx)
+| CPlus1     (e1 : Ctx) (e2 : Exp)
+| CPlus2     (e1 : Exp) (e2 : Ctx)
+| CIf1      (e1 : Ctx) (e2 e3 : Exp)
+| CIf2      (e1 : Exp) (e2 : Ctx) (e3 : Exp)
+| CIf3      (e1 e2 : Exp) (e3 : Ctx).
 
-Fixpoint plug (C : CTX) (p : Exp) :=
+Fixpoint plug (C : Ctx) (p : Exp) :=
 match C with
 | CHole => p
 | CFun vl e => EFun vl (plug e p)
@@ -100,7 +100,7 @@ match C with
 | CIf3 e1 e2 e3 => EIf e1 e2 (plug e3 p)
 end.
 
-Fixpoint plugc (Where : CTX) (p : CTX) :=
+Fixpoint plugc (Where : Ctx) (p : Ctx) :=
 match Where with
 | CHole => p
 | CFun vl e => CFun vl (plugc e p)
@@ -133,7 +133,7 @@ Qed.
 Reserved Notation "'EECTX' Γh ⊢ C ;; Γ" (at level 60).
 Reserved Notation "'VECTX' Γh ⊢ C ;; Γ" (at level 60).
 
-Inductive EECtxScope (Γh : list VarFunId) : list VarFunId -> CTX -> Prop :=
+Inductive EECtxScope (Γh : list VarFunId) : list VarFunId -> Ctx -> Prop :=
 | CEScope_hole : (EECTX Γh ⊢ CHole ;; Γh)
 | CEScope_App_f : forall Γ C exps,
     EECTX Γh ⊢ C ;; Γ -> 
@@ -184,7 +184,7 @@ Inductive EECtxScope (Γh : list VarFunId) : list VarFunId -> CTX -> Prop :=
     EXP Γ ⊢ e2 ->
     EECTX Γh ⊢ CIf3 e1 e2 C ;; Γ
 | CEScope_val : forall C Γ, VECTX Γh ⊢ C ;; Γ -> EECTX Γh ⊢ C ;; Γ
-with VECtxScope (Γh : list VarFunId) : list VarFunId -> CTX -> Prop :=
+with VECtxScope (Γh : list VarFunId) : list VarFunId -> Ctx -> Prop :=
 | CEScope_Fun : forall Γ vl C,
     EECTX Γh ⊢ C ;; (Γ ++ map inl vl) ->
     VECTX Γh ⊢ CFun vl C ;; Γ
@@ -205,6 +205,16 @@ Lemma nth_possibilities {T : Type}:
   forall (l1 l2 : list T) (def : T) i, i < length (l1 ++ l2) ->
     (nth i (l1 ++ l2) def = nth i l1 def) /\ i < length l1 \/
     nth i (l1 ++ l2) def = nth (i - length l1) l2 def /\ (i - length l1) < length l2.
+Proof.
+  intros. destruct (i <? length l1) eqn:P.
+  * apply Nat.ltb_lt in P. left. split; [ apply app_nth1 | ]; auto.
+  * apply Nat.ltb_nlt in P. right. split; [ apply app_nth2 | rewrite app_length in H ]; lia.
+Qed.
+
+Lemma nth_possibilities_alt {T : Type}:
+  forall (l1 l2 : list T) (def : T) i, i < length (l1 ++ l2) ->
+    (nth i (l1 ++ l2) def = nth i l1 def) /\ i < length l1 \/
+    nth i (l1 ++ l2) def = nth (i - length l1) l2 def /\ (i - length l1) < length l2 /\ i >= length l1.
 Proof.
   intros. destruct (i <? length l1) eqn:P.
   * apply Nat.ltb_lt in P. left. split; [ apply app_nth1 | ]; auto.
@@ -259,4 +269,135 @@ Proof.
   * constructor. eapply IHCouter; eauto. inversion H. inversion H2. subst. auto.
 Qed.
 
+Definition CTX (Γ : list VarFunId) (e1 e2 : Exp) :=
+  (EXP Γ ⊢ e1 /\ EXP Γ ⊢ e2) /\
+  (forall (C : Ctx),
+      EECTX Γ ⊢ C ;; [] -> forall v1 v2, equivalent_values v1 v2 ->
+      (exists clock, eval clock (plug C e1) = Res v1) <-> (exists clock, eval clock (plug C e2) = Res v2)).
 
+Lemma IsReflexiveList : forall R' l Γ',
+  IsReflexive R' -> Forall (fun v : Exp => EXP Γ' ⊢ v) l ->
+  Forall (fun '(e0, e3) => R' Γ' e0 e3) (combine l l).
+Proof.
+  induction l; intros; constructor.
+  * apply H. inversion H0. auto.
+  * inversion H0. apply IHl; auto.
+Qed.
+
+Lemma CTX_bigger : forall R' : list VarFunId -> Exp -> Exp -> Prop,
+    IsPreCtxRel R' -> forall (Γ : list VarFunId) (e1 e2 : Exp), R' Γ e1 e2 -> CTX Γ e1 e2.
+Proof.
+  intros R' HR.
+  destruct HR as [Rscope [Radequate [Rrefl [Rtrans [RFun [RRecFun [RApp [RLet [RLetRec [RPlus  RIf ] ] ] ] ] ] ] ] ] ].
+  unfold CTX.
+  intros.
+  destruct (Rscope _ _ _ H) as [Hscope_e1 Hscope_e2].
+  intuition idtac;
+    try solve [apply Rscope in H; intuition idtac];
+    apply Radequate.
+  assert (forall Γ', EECTX Γ ⊢ C ;; Γ' -> 
+                     R' Γ' (plug C e1) (plug C e2)).
+  { clear H0.
+    induction C;
+      intros;
+      inversion H0;
+      subst;
+      cbn;
+      try solve_inversion;
+      auto.
+    - apply RFun.
+      apply IHC.
+      inversion H1; auto.
+    - apply RRecFun.
+      apply IHC.
+      inversion H1; auto.
+    - apply RApp; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. subst. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. subst. auto. inversion H1.
+      + apply IsReflexiveList; auto.
+    - apply RApp; auto.
+      + rewrite indexed_to_forall. intros.
+        epose (nth_possibilities _ _ _ _ H1). destruct o.
+        * destruct H2. rewrite H2 in *. rewrite indexed_to_forall in H7. apply H7. auto.
+        * destruct H2. rewrite H2 in *. rewrite indexed_to_forall in H8.
+          remember (i - length l1) as i'. destruct i'.
+          -- simpl. eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+             simpl in H0. inversion H0. subst. 2: inversion H4.
+             Search length nth cons app. epose (H11 (length l1) _). rewrite nth_middle in e. auto.
+             Unshelve. 1-2: exact (ELit 0). rewrite app_length. lia.
+          -- simpl. apply H8. simpl in H3. lia.
+      + rewrite indexed_to_forall. intros.
+        epose (nth_possibilities _ _ _ _ H1). destruct o.
+        * destruct H2. rewrite H2 in *. rewrite indexed_to_forall in H7. apply H7. auto.
+        * destruct H2. rewrite H2 in *. rewrite indexed_to_forall in H8.
+          remember (i - length l1) as i'. destruct i'.
+          -- simpl. eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+             simpl in H0. inversion H0. subst. 2: inversion H4.
+             epose (H11 (length l1) _). rewrite nth_middle in e. auto.
+             Unshelve. 1-2: exact (ELit 0). rewrite app_length. lia.
+          -- simpl. apply H8. simpl in H3. lia.
+      + rewrite indexed_to_forall. intros.
+        rewrite combine_nth. 2: repeat rewrite app_length; simpl; lia.
+        rewrite combine_length in H1.
+        assert ((length (l1 ++ plug C e1 :: l2)) = length (l1 ++ plug C e2 :: l2)).
+        { repeat rewrite app_length. simpl. lia. }
+        rewrite H2 in H1. rewrite Nat.min_id in H1.
+        epose (nth_possibilities_alt _ _ _ _ H1). destruct o.
+        ** destruct H3. rewrite H3. rewrite app_nth1; auto.
+           apply Rrefl. rewrite Forall_nth in H7. apply H7; auto.
+        ** destruct H3. destruct H4. rewrite H3. rewrite app_nth2; auto.
+           remember (i - length l1) as i'. destruct i'.
+           -- simpl. apply IHC. auto.
+           -- simpl. apply Rrefl. rewrite Forall_nth in H8. apply H8. rewrite Heqi' in *. simpl in H4. lia.
+    - apply RLet; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+    - apply RLet; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+    - apply RLetRec; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+    - apply RLetRec; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+    - apply RPlus; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+    - apply RPlus; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+    - apply RIf; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+    - apply RIf; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+    - apply RIf; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+  }
+  apply H1.
+  auto.
+Unshelve. exact (ELit 0).
+Qed.
