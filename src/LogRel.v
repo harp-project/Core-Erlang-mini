@@ -426,3 +426,10 @@ Proof.
 Qed.
 
 Definition equivalent_values (v1 v2 : Exp) := exists n, Vrel n v1 v2.
+
+Theorem Vrel_Fundamental_closed :
+  forall (v : Exp),
+    VALCLOSED v ->
+    forall n, Vrel n v v.
+Proof.
+Admitted.

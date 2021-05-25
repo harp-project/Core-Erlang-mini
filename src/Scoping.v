@@ -1361,6 +1361,104 @@ Proof.
   all: auto.
 Qed.
 
+Lemma eval_list_length : forall l clock vl, eval_list (eval clock) l = Res vl -> length l = length vl.
+Proof.
+  induction l; intros.
+  * simpl in H. inversion H. auto.
+  * simpl in H. repeat break_match_hyp; try congruence. inversion H. simpl. erewrite IHl; eauto.
+Qed.
+
+Lemma eval_scoped_list l : forall v1 Γ clock,
+  (forall e v : Exp, eval clock e = Res v -> forall Γ : list VarFunId, EXP Γ ⊢ e -> VAL Γ ⊢ v) ->
+  (eval_list (eval clock) l = Res v1) ->
+  (forall i : nat, i < Datatypes.length l -> EXP Γ ⊢ nth i l (ELit 0))
+->
+  forall i : nat, i < length l -> VAL Γ ⊢ nth i v1 (ELit 0)
+  .
+Proof.
+  induction l; intros.
+  inversion H2. simpl in H0. repeat break_match_hyp; try congruence. inversion H0. subst.
+  destruct i.
+  * simpl. eapply H in Heqr; eauto. apply (H1 0). auto.
+  * simpl in H2. apply Lt.lt_S_n in H2. simpl. eapply IHl; eauto. intros. apply (H1 (S i0)). simpl. lia.
+Qed.
+
+Theorem extension_subscoped :
+  forall l ξ Γ Γ', subscoped Γ Γ' ξ -> forall vals, length vals = length l -> Forall (fun v => VAL Γ' ⊢ v) vals -> subscoped (Γ ++ l) Γ' (ξ[[::= combine l vals]]).
+Proof.
+  induction l; intros.
+  * cbn. rewrite app_nil_r. auto.
+  * apply eq_sym, element_exist in H0 as H0'. destruct H0', H2. subst.
+    cbn. replace ((fold_left (fun (ξ' : Substitution) '(x1, e) => ξ' [[x1 ::= e]]) (combine l x0) (ξ [[a ::= x]]))) with ((ξ[[ a ::= x ]]) [[ ::= combine l x0]]) by reflexivity. simpl in H0. inversion H0. inversion H1. subst.
+    epose (IHl (ξ[[a ::= x]]) (Γ ++ [a]) Γ' _ x0 (eq_sym H3) H6). rewrite <- app_assoc in s. simpl in s. auto.
+Unshelve.
+  unfold subscoped. intros. unfold extend_subst. break_match_goal.
+  - auto.
+  - apply H. apply in_app_iff in H2. destruct H2; auto. inversion H2; apply var_funid_eqb_neq in Heqb. congruence. inversion H4.
+Qed.
+
+Theorem eval_scoped_exp : forall clock e v,
+  eval clock e = Res v -> forall Γ, EXP Γ ⊢ e -> VAL Γ ⊢ v.
+Proof.
+  induction clock; intros. inversion H.
+  destruct e; inversion H; clear H; subst.
+  * constructor.
+  * inversion H0. auto.
+  * inversion H0. auto.
+  * repeat break_match_hyp; try congruence; subst.
+    - inversion H0. 2: inversion H. subst. eapply IHclock in H3. 2: eauto.
+      pose (eval_scoped_list _ _ _ _ IHclock Heqr0 H4).
+      inversion H3. subst. pose (subst_preserves_scope_rev e0 (Γ ++ map inl vl)). destruct a. clear H5.
+      specialize (H H1 Γ (idsubst [[ ::= combine (map inl vl) v1]])).
+      assert (subscoped (Γ ++ map inl vl) Γ (idsubst [[ ::= combine (map inl vl) v1]])). {
+        Search subscoped. apply extension_subscoped; auto. apply idsubst_scoped. rewrite map_length.
+        apply Nat.eqb_eq in Heqb. auto. rewrite Forall_nth. intros. apply Nat.eqb_eq in Heqb. 
+        apply eval_list_length in Heqr0 as H'. rewrite H' in v0.
+        specialize (v0 i H5). Search nth. erewrite nth_indep; eauto.
+      }
+      specialize (H H5). eapply IHclock; eauto.
+    - inversion H0. 2: inversion H. subst. eapply IHclock in H3. 2: eauto.
+      pose (eval_scoped_list _ _ _ _ IHclock Heqr0 H4).
+      inversion H3. subst. pose (subst_preserves_scope_rev e0 (Γ ++ inr f :: map inl vl)). destruct a. clear H5.
+      specialize (H H1 Γ (idsubst [[ ::= combine (inr f :: (map inl vl)) (ERecFun f vl e0 :: v1)]])).
+      assert (subscoped (Γ ++ inr f :: map inl vl) Γ (idsubst [[ ::= combine (inr f :: (map inl vl)) (ERecFun f vl e0 :: v1)]])). {
+        Search subscoped. apply extension_subscoped; auto. apply idsubst_scoped. simpl. rewrite map_length.
+        apply Nat.eqb_eq in Heqb. auto. rewrite Forall_nth. intros. apply Nat.eqb_eq in Heqb. 
+        apply eval_list_length in Heqr0 as H'. rewrite H' in v0. destruct i.
+        + simpl. auto.
+        + simpl in H5. apply Lt.lt_S_n in H5. specialize (v0 i H5). Search nth. erewrite nth_indep; eauto. simpl. lia.
+      }
+      specialize (H H5). eapply IHclock; eauto.
+  * break_match_hyp; try congruence.
+    inversion H0. 2: inversion H. subst.
+    pose (IHclock _ _ Heqr _ H3). pose (subst_preserves_scope_rev e2 (Γ ++ [inl v0])). destruct a.
+    clear H1. specialize (H H5 Γ (idsubst[[inl v0 ::= v1]])).
+    assert (subscoped (Γ ++ [inl v0]) Γ (idsubst [[inl v0 ::= v1]])).
+    { unfold subscoped. intros. unfold idsubst, extend_subst. break_match_goal.
+      - auto.
+      - destruct v3; constructor; apply in_app_iff in H1; destruct H1; auto.
+        all: apply var_funid_eqb_neq in Heqb; inversion H1; try congruence; inversion H4. }
+    specialize (H H1). eapply IHclock in H2; eauto.
+  * inversion H0. 2: inversion H. subst.
+    pose (subst_preserves_scope_rev e2 (Γ ++ [inr f])). destruct a. clear H1.
+    specialize (H H6 Γ (idsubst [[inr f ::= ERecFun f vl e1]])).
+    assert (subscoped (Γ ++ [inr f]) Γ (idsubst [[inr f ::= ERecFun f vl e1]])). {
+      unfold subscoped. intros. unfold idsubst, extend_subst. break_match_goal.
+      - constructor. auto.
+      - destruct v0; constructor; apply in_app_iff in H1; destruct H1; auto.
+        all: apply var_funid_eqb_neq in Heqb; inversion H1; try congruence; inversion H4.
+    }
+    specialize (H H1). eapply IHclock in H2; eauto.
+  * inversion H0. 2: inversion H. subst. repeat break_match_hyp; try congruence.
+    inversion H2. constructor.
+  * inversion H0. 2: inversion H. subst. break_match_hyp; try congruence. destruct v0. destruct l.
+    all: eapply IHclock in H2; eauto.
+Qed.
+
+
+
+
+
 
 
 
