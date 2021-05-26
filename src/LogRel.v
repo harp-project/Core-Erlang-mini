@@ -433,3 +433,9 @@ Theorem Vrel_Fundamental_closed :
     forall n, Vrel n v v.
 Proof.
 Admitted.
+
+Theorem Vrel_closed_trans :
+  forall (v1 v2 v3 : Exp),
+    forall n, Vrel n v1 v2 -> Vrel n v2 v3 -> Vrel n v1 v3.
+Proof.
+Admitted.

@@ -455,15 +455,35 @@ Proof.
   auto. Grab Existential Variables. exact (ELit 0).
 Qed.
 
-Lemma CTX_refl Γ e : EXP Γ ⊢ e -> CTX Γ e e.
+Theorem CTX_refl Γ e : EXP Γ ⊢ e -> CTX Γ e e.
 Proof.
   unfold CTX. intros. split; auto.
   intros. intuition. destruct H1. exists v1. split. eexists. eauto.
   exists 0. eapply Vrel_Fundamental_closed.
-  
+  eapply plug_preserves_scope_exp in H0; eauto.
+  apply eval_scoped_exp with (Γ := []) in H1; eauto.
 Qed.
 
-Lemma CTX_IsPreCtxRel : IsPreCtxRel CTX.
+Lemma equivalent_values_trans v1 v2 v3 :
+  equivalent_values v1 v2 -> equivalent_values v2 v3 -> equivalent_values v1 v3.
+Proof.
+  intros. destruct H, H0.
+  exists (Nat.min x x0).
+  apply @Vrel_downclosed with (m := (Nat.min x x0)) in H.
+  apply @Vrel_downclosed with (m := (Nat.min x x0)) in H0. 2-3: lia.
+  eapply Vrel_closed_trans; eauto.
+Qed.
+
+Theorem CTX_trans Γ e1 e2 e3 : CTX Γ e1 e2 -> CTX Γ e2 e3 -> CTX Γ e1 e3.
+Proof.
+  unfold CTX. intros. destruct H, H0, H, H0; split; auto.
+  intros.
+  specialize (H1 C H5 _ H6). destruct H1, H1.
+  specialize (H2 C H5 _ H1). destruct H2, H2.
+  exists x0. split; auto. eapply equivalent_values_trans; eauto.
+Qed.
+
+Theorem CTX_IsPreCtxRel : IsPreCtxRel CTX.
 Proof.
   unfold IsPreCtxRel.
   intuition idtac;
@@ -476,315 +496,55 @@ Proof.
     intuition idtac.
     + eapply (H2 CHole); eauto.
       constructor.
-    + eapply (H2 CHole); eauto.
-      constructor.
-  * unfold IsReflexive.
-    intros.
-    unfold CTX.
-    
-  - unfold Transitive.
+  * intro. intros. apply CTX_refl; auto.
+  * intro. intros. eapply CTX_trans; eauto.
+  * unfold CompatibleFun.
     intros.
     unfold CTX in *.
-    intuition idtac.
-    eapply Rbar_le_trans; firstorder.
-  - unfold CompatibleFun.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    specialize (H1 (plugc C (Ctx_Fun Ctx_hole)) A).
-    repeat rewrite <- plug_assoc in H1.
-    cbn in H1.
-    apply H1.
+    intuition auto. 1-2: constructor; constructor; auto.
+    epose (H1 (plugc C (CFun vl CHole)) _ _).
+    repeat rewrite <- plug_assoc in e.
+    cbn in e.
+    apply e. auto. Unshelve.
     eapply plugc_preserves_scope_exp; eauto.
     repeat constructor.
-  - unfold CompatibleApp.
+  * unfold CompatibleRecFun.
     intros.
     unfold CTX in *.
-    intuition auto.
-    assert (EECTX Γ ⊢ plugc C (Ctx_Seq_x Ctx_hole (App (Var 0) (rename (+1) v1))) ∷ 0).
-    { eapply plugc_preserves_scope_exp; eauto.
-      constructor.
-      constructor.
-      constructor.
-      constructor.
-      auto.
-      apply -> ren_preserves_scope_val; eauto.
-      unfold RenScoped.
-      intros; asimpl; auto.
-    }
-    specialize (H6 _ A H10).
-    repeat rewrite <- plug_assoc in H6.
-    cbn in H6.
-    assert (forall f1 v1,
-               VAL Γ ⊢ f1 ->
-               VAL Γ ⊢ v1 ->
-               (μeval_star (plug C (App f1 v1)) Knil A =
-                μeval_star (plug C (Seq f1 (App (Var 0) (rename (+1) v1)))) Knil A))
-      as HApp_Seq_f.
-    { intros.
-      erewrite use_Seq_instead; eauto 2.
-      asimpl.
-      reflexivity.
-      constructor; auto.
-      apply -> ren_preserves_scope_val; eauto.
-      unfold RenScoped.
-      intros; cbn; auto.
-    }
-    assert (forall f1 v1,
-               VAL Γ ⊢ f1 ->
-               VAL Γ ⊢ v1 ->
-               (μeval_star (plug C (App f1 v1)) Knil A =
-                μeval_star (plug C (Seq v1 (App (rename (+1) f1) (Var 0)))) Knil A))
-      as HApp_Seq_v.
-    { intros.
-      erewrite use_Seq_instead; eauto 2.
-      asimpl.
-      reflexivity.
-      constructor; auto.
-      apply -> ren_preserves_scope_val; eauto.
-      unfold RenScoped.
-      intros; cbn; auto.
-    }
-    rewrite HApp_Seq_f; auto.
-    eapply Rbar_le_trans.
-    apply H6.
-    assert (EECTX Γ ⊢ plugc C (Ctx_Seq_x Ctx_hole (App (rename (+1) f2) (Var 0))) ∷ 0).
-    { eapply plugc_preserves_scope_exp; eauto.
-      constructor.
-      constructor.
-      constructor.
-      - apply -> ren_preserves_scope_val; eauto.
-        unfold RenScoped.
-        intros; asimpl; auto.
-      - constructor.
-        auto.
-    }
-    specialize (H7 _ A H11).
-    repeat rewrite <- plug_assoc in H7.
-    rewrite HApp_Seq_v; auto.
-    eapply Rbar_le_trans; revgoals.
-    cbn in H7.
-    apply H7.
-    rewrite <- HApp_Seq_v; auto.
-    rewrite <- HApp_Seq_f; auto.
-  - unfold CompatibleOp1.
+    intuition auto. 1-2: constructor; constructor; auto.
+    epose (H1 (plugc C (CRecFun f vl CHole)) _ _).
+    repeat rewrite <- plug_assoc in e.
+    cbn in e.
+    apply e. auto. Unshelve.
+    eapply plugc_preserves_scope_exp; eauto.
+    repeat constructor.
+  * admit.
+  * admit.
+  * admit.
+  * unfold CompatiblePlus.
     intros.
     unfold CTX in *.
-    intuition auto.
-    assert (EECTX Γ ⊢ plugc C (Ctx_Seq_x Ctx_hole (Op1 o (Var 0))) ∷ 0).
-    { eapply plugc_preserves_scope_exp; eauto.
-      constructor.
-      constructor.
-      constructor.
-      constructor.
-      auto.
-    }
-    specialize (H3 _ A H5).
-    repeat rewrite <- plug_assoc in H3.
-    cbn in H3.
-    assert (forall v1,
-               VAL Γ ⊢ v1 ->
-               (μeval_star (plug C (Op1 o v1)) Knil A =
-                μeval_star (plug C (Seq v1 (Op1 o (Var 0)))) Knil A))
-      as HApp_Op1.
-    { intros.
-      erewrite use_Seq_instead; eauto 2.
-      constructor.
-      auto.
-    }
-    rewrite HApp_Op1; auto.
-    eapply Rbar_le_trans.
-    apply H3.
-    rewrite HApp_Op1; auto.
-  - unfold CompatibleOp2.
+    intuition auto. 1-2: constructor; auto.
+    epose (H6 (plugc C (CPlus1 CHole e2)) _ _). repeat rewrite <- plug_assoc in e. cbn in e.
+    specialize (e H10). destruct e. destruct H11.
+    epose (H7 (plugc C (CPlus2 e1' CHole)) _ _).
+    repeat rewrite <- plug_assoc in e. cbn in e. specialize (e H11).
+    destruct e. destruct H13. exists x0; intuition. eapply equivalent_values_trans; eauto.
+  * unfold CompatibleIf.
     intros.
     unfold CTX in *.
-    intuition auto.
-    assert (EECTX Γ ⊢ plugc C (Ctx_Seq_x Ctx_hole (Op2 o (Var 0) (rename (+1) v1'))) ∷ 0).
-    { eapply plugc_preserves_scope_exp;
-        eauto;
-        repeat (constructor; auto 1).
-      apply -> ren_preserves_scope_val;
-        eauto.
-      unfold RenScoped.
-      cbn.
-      auto.
-    }
-    specialize (H6 _ A H10).
-    repeat rewrite <- plug_assoc in H6.
-    cbn in H6.
-    assert (forall v1,
-               VAL Γ ⊢ v1 ->
-               (μeval_star (plug C (Op2 o v1 v1')) Knil A =
-                μeval_star (plug C (Seq v1 (Op2 o (Var 0) (rename (+1) v1')))) Knil A))
-      as HApp_Op2_1.
-    { intros.
-      erewrite use_Seq_instead; eauto 2.
-      asimpl.
-      auto.
-      constructor.
-      - auto.
-      - apply -> ren_preserves_scope_val; eauto.
-        unfold RenScoped.
-        cbn.
-        auto.
-    }
-    assert (forall v1',
-               VAL Γ ⊢ v1' ->
-               (μeval_star (plug C (Op2 o v2 v1')) Knil A =
-                μeval_star (plug C (Seq v1' (Op2 o (rename (+1) v2) (Var 0)))) Knil A))
-      as HApp_Op2_2.
-    { intros.
-      erewrite use_Seq_instead; eauto 2.
-      asimpl.
-      auto.
-      constructor.
-      - apply -> ren_preserves_scope_val; eauto.
-        unfold RenScoped.
-        cbn.
-        auto.
-      - auto.
-    }
-    rewrite HApp_Op2_1; auto.
-    eapply Rbar_le_trans.
-    apply H6.
-    assert (EECTX Γ ⊢ plugc C (Ctx_Seq_x Ctx_hole (Op2 o (rename (+1) v2) (Var 0))) ∷ 0).
-    { eapply plugc_preserves_scope_exp; eauto.
-      constructor.
-      constructor.
-      constructor.
-      - apply -> ren_preserves_scope_val; eauto.
-        unfold RenScoped.
-        intros; asimpl; auto.
-      - constructor.
-        auto.
-    }
-    specialize (H7 _ A H11).
-    repeat rewrite <- plug_assoc in H7.
-    rewrite HApp_Op2_2; auto.
-    eapply Rbar_le_trans; revgoals.
-    cbn in H7.
-    apply H7.
-    rewrite <- HApp_Op2_2; auto.
-    rewrite <- HApp_Op2_1; auto.
-  - unfold CompatibleCond.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    assert (EECTX Γ ⊢ plugc C (Ctx_Cond_t v1 Ctx_hole ef1) ∷ 0) as HCtx_t.
-    { eapply plugc_preserves_scope_exp; eauto.
-      constructor; auto.
-      constructor.
-    }
-    assert (EECTX Γ ⊢ plugc C (Ctx_Cond_f v1 et2 Ctx_hole) ∷ 0) as HCtx_f.
-    { eapply plugc_preserves_scope_exp; eauto.
-      constructor; auto.
-      constructor.
-    }
-    specialize (H10 _ A HCtx_t).
-    repeat rewrite <- plug_assoc in H10.
-    cbn in H10.
-    eapply Rbar_le_trans.
-    apply H10.
-    specialize (H11 _ A HCtx_f).
-    repeat rewrite <- plug_assoc in H11.
-    cbn in H11.
-    eapply Rbar_le_trans.
-    apply H11.
-    assert (EECTX Γ ⊢ plugc C (Ctx_Seq_x Ctx_hole (Cond (Var 0) (rename (+1) et2) (rename (+1) ef2))) ∷ 0) as HCtx_p.
-    { eapply plugc_preserves_scope_exp;
-        eauto.
-      constructor.
-      constructor.
-      constructor.
-      + constructor.
-        auto.
-      + apply -> ren_preserves_scope_exp;
-          eauto.
-        unfold RenScoped.
-        cbn.
-        auto 1.
-      + apply -> ren_preserves_scope_exp;
-          eauto.
-        unfold RenScoped.
-        cbn.
-        auto 1.
-    }
-    specialize (H9 _ A HCtx_p).
-    repeat rewrite <- plug_assoc in H9.
-    cbn in H9.
-    assert (forall vp,
-               VAL Γ ⊢ vp ->
-               (μeval_star (plug C (Cond vp et2 ef2)) Knil A =
-                μeval_star (plug C (Seq vp (Cond (Var 0) (rename (+1) et2) (rename (+1) ef2)))) Knil A))
-      as HSeq_Cond_p.
-    { intros.
-      erewrite use_Seq_instead; eauto 2.
-      asimpl.
-      auto.
-      constructor.
-      - auto.
-      - apply -> ren_preserves_scope_exp; eauto.
-        unfold RenScoped.
-        cbn.
-        auto 1.
-      - apply -> ren_preserves_scope_exp; eauto.
-        unfold RenScoped.
-        cbn.
-        auto 1.
-    }
-    rewrite HSeq_Cond_p; auto.
-    eapply Rbar_le_trans.
-    apply H9.
-    rewrite <- HSeq_Cond_p; auto.
-  - unfold CompatibleSeq.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    assert (EECTX Γ ⊢ (plugc C (Ctx_Seq_x Ctx_hole b1)) ∷ 0).
-    { eapply plugc_preserves_scope_exp; eauto.
-      constructor.
-      constructor.
-      auto.
-    }
-    specialize (H2 _ A H6).
-    repeat rewrite <- plug_assoc in H2.
-    cbn in H2.
-    eapply Rbar_le_trans.
-    eapply H2.
-    assert (EECTX S Γ ⊢ (plugc C (Ctx_Seq_b x2 Ctx_hole)) ∷ 0).
-    { eapply plugc_preserves_scope_exp; eauto.
-      constructor.
-      auto.
-      constructor.
-    }
-    specialize (H3 _ A H7).
-    repeat rewrite <- plug_assoc in H3.
-    cbn in H3.
-    apply H3.
-  - unfold CompatibleFactor.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    assert (EECTX Γ ⊢ (plugc C (Ctx_Seq_x Ctx_hole (Factor (Var 0)))) ∷ 0).
-    { eapply plugc_preserves_scope_exp; eauto.
-      constructor.
-      constructor.
-      auto.
-    }
-    specialize (H3 _ A H5).
-    repeat rewrite <- plug_assoc in H3.
-    cbn in H3.
-    assert (forall v1,
-               VAL Γ ⊢ v1 ->
-               (μeval_star (plug C (Factor v1)) Knil A =
-                μeval_star (plug C (Seq v1 (Factor (Var 0)))) Knil A))
-      as HFactor_Seq.
-    { intros.
-      erewrite use_Seq_instead; eauto 2.
-      auto.
-    }
-    rewrite HFactor_Seq; auto.
-    rewrite HFactor_Seq; auto.
+    intuition auto. 1-2: constructor; auto.
+    epose (H9 (plugc C (CIf1 CHole e2 e3)) _ _).
+    repeat rewrite <- plug_assoc in e. cbn in e.
+    specialize (e H15). destruct e. destruct H16.
+    epose (H10 (plugc C (CIf2 e1' CHole e3)) _ _).
+    repeat rewrite <- plug_assoc in e. cbn in e. specialize (e H16).
+    destruct e. destruct H18.
+    epose (H11 (plugc C (CIf3 e1' e2' CHole)) _ _).
+    repeat rewrite <- plug_assoc in e. cbn in e. specialize (e H18).
+    destruct e. destruct H20.
+    exists x1; intuition. eapply equivalent_values_trans, equivalent_values_trans; eauto.
+Unshelve.
+  all: eapply plugc_preserves_scope_exp; eauto; constructor; auto; constructor.
 Qed.
 

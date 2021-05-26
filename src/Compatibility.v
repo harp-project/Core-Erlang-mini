@@ -194,10 +194,10 @@ Abort.
 Lemma subst_composition_scoped :
   forall ξ η Γ Γ', subscoped Γ Γ' ξ -> subscoped Γ Γ' η -> subscoped Γ Γ' (substcomp ξ η).
 Proof.
-  intros. intro. intros. unfold substcomp. break_match_goal;
-  [ apply H | apply H0 ]; auto.
+(*   intros. intro. intros. unfold substcomp. break_match_goal;
+  [ apply H | apply H0 ]; auto. *)
   
-Qed.
+Abort.
 
 Lemma subst_list_in_val : forall l x vals ξ, length l = length vals ->
   In x l -> exists v, In v vals /\ (ξ[[ ::= combine l vals]]) x = v.
@@ -219,11 +219,11 @@ Lemma subscoped_ext_app :
   Forall (fun v => VAL Γ' ⊢ v ) vals ->
   subscoped (Γ ++ l) Γ' (substcomp (idsubst[[::= combine l vals]]) (ξ -- l)).
 Proof.
-  intros. intro. intros. unfold "--", substcomp. break_match_goal.
+  intros. intro. intros. unfold "--", substcomp. (* break_match_goal.
   * break_match_hyp.
     - apply in_list_sound in Heqb. Check subst_list_in.
       epose (subst_list_in_val _ _ _ _ H0 Heqb). destruct e. destruct H3.
-      rewrite H4. rewrite indexed_to_forall in H1. (* Just technical, but doable *)
+      rewrite H4. rewrite indexed_to_forall in H1. (* Just technical, but doable *) *)
 Admitted.
 
 Lemma biforall_vrel_helper : forall m vals1 vals2, length vals1 = length vals2 ->
@@ -252,12 +252,132 @@ Proof.
   - constructor. eapply subst_preserves_scope_rev; eauto. eapply Erel_open_scope in H. apply H.
   - break_match_goal; try congruence. intros. unfold Erel_open in H.
     Search subst.
-    rewrite subst_composition; eauto.
+(*     rewrite subst_composition; eauto.
     unfold Erel in H.
     eapply H. unfold Grel. split. 2: split.
     1-2: apply subscoped_ext_app; auto.
     1, 3: rewrite map_length; auto.
     1-2: apply biforall_vrel_helper in H6.
     1-4: try lia; destruct H6; auto.
-    intros. unfold substcomp. (* Technical, but doable *)
+    intros. unfold substcomp. (* Technical, but doable *)*)
 Admitted.
+
+Lemma Vrel_RecFun_compat :
+  forall Γ f vl b1 b2,
+  Erel_open (Γ ++ inr f::map inl vl) b1 b2 ->
+  Vrel_open Γ (ERecFun f vl b1) (ERecFun f vl b2).
+Proof.
+
+Admitted.
+
+Lemma Erel_Val_compatible_closed :
+  forall {n v v'},
+    Vrel n v v' ->
+    Erel n v v'.
+Proof.
+  intros.
+  unfold Erel, exp_rel.
+  pose proof (Vrel_possibilities H).
+  intuition eauto.
+  apply Vrel_closed in H; destruct H.
+  1-2: try destruct H1, H0; subst; repeat try constructor.
+  destruct H1, H1; subst. destruct m; inversion H0. subst.
+  eexists. split. exists 1. reflexivity. eapply Vrel_downclosed. eauto.
+  1-2: try destruct H0, H0, H0, H0, H0; subst; repeat try constructor.
+Qed.
+
+Hint Resolve Erel_Val_compatible_closed.
+
+(*
+Lemma Expr_cons :
+  forall n (e1 e2 : Expr),
+    (forall m (Hmn : m <= n) v1 v2,
+        Vrel m v1 v2 -> Erel m e1.[v1/] e2.[v2/]) ->
+    forall m (Hmn : m <= n) e1' e2',
+      Erel m e1' e2' ->
+      Erel m (Seq e1' e1) (Seq e2' e2).
+Proof.
+  intros.
+  destruct (Erel_closed H0) as [IsClosed_e1 IsClosed_e2].
+  unfold Erel, Erel'.
+  split; [|split];
+    try solve [specialize (H 0 ltac:(auto) _ _ (Vrel_Const_compatible_closed 0 0));
+               constructor; eauto using sub_implies_scope_exp_1].
+  intros.
+  run_μeval_for 1.
+  run_μeval_star_for 1.
+  eapply H0; eauto 6.
+Qed.
+
+Hint Resolve Expr_cons.
+
+Lemma Erel_Val_compatible :
+  forall {Γ v v'},
+    Vrel_open Γ v v' ->
+    Erel_open Γ v v'.
+Proof.
+  intros.
+  unfold Erel_open, Vrel_open in *.
+  auto.
+Qed.
+
+Hint Resolve Erel_Val_compatible.
+
+Lemma Erel_Var_compatible :
+  forall Γ x,
+    x < Γ ->
+    Erel_open Γ (Var x) (Var x).
+Proof.
+  auto.
+Qed.
+
+Hint Resolve Erel_Var_compatible.
+
+Lemma Erel_Const_compatibile :
+  forall Γ r,
+    Erel_open Γ (Const r) (Const r).
+Proof.
+  auto.
+Qed.
+
+Hint Resolve Erel_Var_compatible.
+
+(* Lemma 5: compatible under Fun *)
+Lemma Erel_Fun_compatible :
+  forall Γ e e',
+    Erel_open (S Γ) e e' ->
+    Erel_open Γ (Fun e) (Fun e').
+Proof.
+  auto.
+Qed.
+
+Hint Resolve Erel_Fun_compatible.
+
+Lemma Erel_Seq_compatible :
+  forall Γ (e1 e2 e1' e2': Expr),
+    Erel_open (S Γ) e1 e2 ->
+    Erel_open Γ e1' e2' ->
+    Erel_open Γ (Seq e1' e1) (Seq e2' e2).
+Proof.
+  intros.
+  unfold Erel_open.
+  intros.
+  cbn.
+  eapply Expr_cons; auto.
+  intros.
+  asimpl.
+  eauto.
+Qed.
+
+Hint Resolve Erel_Seq_compatible.
+
+Lemma Vrel_open_Erel_open :
+  forall Γ v v',
+    Vrel_open Γ v v' -> Erel_open Γ v v'.
+Proof.
+  eauto.
+Qed.
+
+Hint Resolve Vrel_open_Erel_open.
+*)
+
