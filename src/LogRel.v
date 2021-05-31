@@ -413,6 +413,24 @@ Proof.
   eapply (sub_implies_scope_exp); intros; apply H0; auto.
 Qed.
 
+Lemma Erel_open_scope_l : forall {Γ e1 e2},
+    Erel_open Γ e1 e2 ->
+    EXP Γ ⊢ e1.
+Proof.
+  intros. eapply Erel_open_scope in H. destruct H. auto.
+Qed.
+
+Hint Resolve Erel_open_scope_l.
+
+Lemma Erel_open_scope_r : forall {Γ e1 e2},
+    Erel_open Γ e1 e2 ->
+    EXP Γ ⊢ e2.
+Proof.
+  intros. eapply Erel_open_scope in H. destruct H. auto.
+Qed.
+
+Hint Resolve Erel_open_scope_r.
+
 Lemma Vrel_possibilities : forall {n v1 v2},
   Vrel n v1 v2 ->
   (exists n, v1 = ELit n /\ v2 = ELit n) \/
@@ -425,7 +443,7 @@ Proof.
   * right. right. repeat eexists.
 Qed.
 
-Definition equivalent_values (v1 v2 : Exp) := exists n, Vrel n v1 v2.
+Definition equivalent_values (v1 v2 : Exp) := Vrel_open [] v1 v2.
 
 Theorem Vrel_Fundamental_closed :
   forall (v : Exp),
@@ -434,8 +452,62 @@ Theorem Vrel_Fundamental_closed :
 Proof.
 Admitted.
 
-Theorem Vrel_closed_trans :
-  forall (v1 v2 v3 : Exp),
-    forall n, Vrel n v1 v2 -> Vrel n v2 v3 -> Vrel n v1 v3.
+Theorem exp_rel_trans :
+  forall n vrel e1 e2 e3,
+    exp_rel n vrel e1 e2 -> exp_rel n vrel e2 e3 -> exp_rel n vrel e1 e3.
 Proof.
+  intros. unfold exp_rel in *. destruct H, H0, H1, H2. intuition.
+  specialize (H3 _ Hmn _ H5). destruct H3, H3, H3.
+Abort.
+
+Theorem Vrel_closed_trans :
+  forall n (v1 v2 v3 : Exp),
+    Vrel n v1 v2 -> Vrel n v2 v3 -> Vrel n v1 v3.
+Proof.
+  induction n.
+  {
+  intros.
+  rewrite Vrel_Fix_eq in H. rewrite Vrel_Fix_eq in H0. rewrite Vrel_Fix_eq.
+  destruct v1.
+  2-3, 6-10: inversion H; inversion H2; contradiction.
+  all: destruct v2.
+  all: try inversion H; try inversion H2; try contradiction.
+  all: destruct v3.
+  all: try inversion H0; try inversion H6; try contradiction.
+  all: subst.
+  * unfold Vrel_rec. split. 2: split. all: constructor.
+  * clear H2 H6. break_match_hyp. break_match_hyp. 2-3: contradiction.
+    subst. unfold Vrel_rec. intuition. break_match_goal. 2: contradiction. intros. inversion Hmn.
+  * clear H2 H6. break_match_hyp. break_match_hyp. 2-3: contradiction.
+    subst. unfold Vrel_rec. intuition. break_match_goal. 2: contradiction. intros. inversion Hmn.
+  }
+  {
+  intros.
+  rewrite Vrel_Fix_eq in H. rewrite Vrel_Fix_eq in H0. rewrite Vrel_Fix_eq.
+  destruct v1.
+  2-3, 6-10: inversion H; inversion H2; contradiction.
+  all: destruct v2.
+  all: try inversion H; try inversion H2; try contradiction.
+  all: destruct v3.
+  all: try inversion H0; try inversion H6; try contradiction.
+  all: subst.
+  * unfold Vrel_rec. split. 2: split. all: constructor.
+  * clear H2 H6. break_match_hyp. break_match_hyp. 2-3: contradiction.
+    subst. unfold Vrel_rec. intuition. break_match_goal. 2: contradiction. intros.
+    specialize (H8 m Hmn vals1 vals2 H2 H6 H9).
+    specialize (H4 m Hmn vals1 vals2 H2 H6 H9). admit.
+  * admit.
+  }
 Admitted.
+
+(* Theorem Erel_open_trans :
+  forall Γ, Transitive (Erel_open Γ).
+Proof.
+  repeat intro. unfold Erel_open in H, H0.
+
+Theorem Vrel_open_trans :
+  forall Γ, Transitive (Vrel_open Γ).
+Proof.
+  repeat intro. unfold Vrel_open in *.
+
+Theorem Erel_open_trans : *)
