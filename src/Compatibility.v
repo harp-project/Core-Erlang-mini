@@ -49,31 +49,6 @@ Proof.
   intros. unfold composition. reflexivity.
 Qed.
 
-Lemma subst_list_not_in :
-  forall l x, ~In x l ->
-  forall ξ vs, length l = length vs -> (ξ[[::= combine l vs]]) x = ξ x.
-Proof.
-  induction l; intros.
-  * simpl. auto.
-  * apply element_exist in H0 as H0'. destruct H0', H1. subst. inversion H0. simpl.
-    apply not_in_cons in H. destruct H.
-    replace (ξ x) with (ξ [[a ::= x0]] x). apply IHl; auto.
-    apply not_eq_sym, var_funid_eqb_neq in H. unfold extend_subst. rewrite H. auto. 
-Qed.
-
-Lemma subst_list_in :
-  forall l x, In x l ->
-  forall ξ φ vs, length l = length vs -> (ξ[[ ::= combine l vs]]) x = (φ[[::= combine l vs]]) x.
-Proof.
-  induction l; intros.
-  * inversion H.
-  * apply element_exist in H0 as H0'. destruct H0', H1. subst. inversion H0. simpl.
-    unfold extend_subst. destruct (in_dec var_funid_eq_dec x l).
-    - apply IHl; auto.
-    - inversion H. 2: contradiction. subst. repeat rewrite subst_list_not_in; auto.
-      rewrite var_funid_eqb_refl. auto.
-Qed.
-
 (* Lemma subst_composition :
   forall e ξ l vals Γ, length l = length vals -> subscoped Γ [] ξ ->
   EXP Γ ++ l ⊢ e ->
@@ -374,6 +349,49 @@ Proof.
 Qed.
 
 Hint Resolve Erel_Val_compatible.
+
+Ltac unfold_hyps :=
+match goal with
+| [ H: exists _, _ |- _] => destruct H
+| [ H: _ /\ _ |- _] => destruct H
+end.
+
+Lemma Erel_Plus_compatible_closed : forall n e1 e2 e1' e2',
+    Erel n e1 e1' -> Erel n e2 e2' ->
+    Erel n (EPlus e1 e2) (EPlus e1' e2').
+Proof.
+  intros.
+  destruct (Erel_closed H). destruct (Erel_closed H0).
+  unfold Erel, exp_rel.
+  split. 2: split. 1-2: constructor; auto.
+  intros. destruct m. inversion H5.
+  simpl in H5. break_match_hyp; try congruence. destruct v; break_match_hyp. all: try congruence.
+  destruct v; try congruence. inversion H5. subst.
+  apply H in Heqr. apply H0 in Heqr0. 2-3: lia. destruct Heqr, Heqr0, H6, H7, H6, H7.
+  apply Vrel_possibilities in H8. apply Vrel_possibilities in H9. intuition; repeat unfold_hyps; try congruence.
+  subst. exists (ELit (l + l0)). split. exists (S (x1 + x2)). simpl.
+  eapply bigger_clock in H6. eapply bigger_clock in H7. rewrite H6, H7. inversion H8. inversion H9. auto. 1-2: lia.
+  repeat constructor.
+Qed.
+
+
+Lemma Erel_If_compatible_closed : forall n e1 e2 e1' e2' e3 e3',
+    Erel n e1 e1' -> Erel n e2 e2' -> Erel n e3 e3' ->
+    Erel n (EIf e1 e2 e3) (EIf e1' e2' e3').
+Proof.
+  intros.
+  destruct (Erel_closed H). destruct (Erel_closed H0). destruct (Erel_closed H1).
+  unfold Erel, exp_rel.
+  split. 2: split. 1-2: constructor; auto.
+  intros. destruct m. inversion H8.
+  simpl in H8. break_match_hyp; try congruence. destruct v. destruct l.
+  * apply H in Heqr. apply H0 in H8. 2-3: lia. destruct Heqr, H8, H9, H8, H9, H8.
+    apply Vrel_possibilities in H10. intuition; repeat unfold_hyps; try congruence. subst.
+    inversion H10. subst. exists x0. split. exists (S (x1 + x2)). simpl.
+    eapply bigger_clock in H8. eapply bigger_clock in H9. rewrite H8, H9. auto. 1-2: lia.
+    admit.
+  * (* these are all provable *)
+Qed.
 
 (*
 Lemma Expr_cons :

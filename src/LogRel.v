@@ -32,6 +32,14 @@ Definition exp_rel (n : nat)
      eval m e1 = Res v1) -> (exists clock, eval clock e2 = Res v2)
 . *)
 
+Definition frame_rel (n : nat)
+                     (Vrel : forall m, m <= n -> Expr -> Expr -> Prop)
+                     (K1 K2 : FrameStack) : Prop :=
+  KCLOSED K1 /\ KCLOSED K2 /\
+  forall m (Hmn : m <= n) v1 v2,
+    Vrel m Hmn v1 v2 ->
+    ⟨K1, v1⟩ -[m]-> ⟨[], v1'⟩ -> ⟨K2, v2⟩ -->* v2' /\ Vrel m Hmn v1' v2').
+
 Definition exp_rel (n : nat)
                    (Vrel : forall m, m <= n -> Exp -> Exp -> Prop)
                    (e1 e2 : Exp)

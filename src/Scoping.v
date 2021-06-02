@@ -500,13 +500,6 @@ Proof.
   * apply scope_subst; auto. pose (scope_duplicate_rev e). destruct a. apply H2; eauto.
 Qed. *)
 
-Lemma element_exist {A : Type} : forall n (l : list A), S n = length l -> exists e l', l = e::l'.
-Proof.
-  intros. destruct l.
-  * inversion H.
-  * apply ex_intro with a. apply ex_intro with l. reflexivity.
-Qed.
-
 Definition subscoped (l l' : list VarFunId) (ξ : Substitution) : Prop :=
   forall v, In v l -> VAL l' ⊢ ξ v.
 
@@ -552,17 +545,6 @@ match n with
 | 0 => []
 | S n' => e :: create_list e n'
 end.
-
-Theorem subst_in :
-  forall ξ e v, ξ[[ v ::= e ]] v = e.
-Proof. intros. unfold extend_subst. rewrite var_funid_eqb_refl. auto. Qed.
-
-Theorem subst_not_in :
-  forall ξ e v v', v' <> v -> ξ[[ v' ::= e ]] v = ξ v.
-Proof.
-  intros. unfold extend_subst. apply var_funid_eqb_neq in H.
-  rewrite H. auto.
-Qed.
 
 (* Corollary subst_in_list :
   forall l ξ v e, In (v, e) l -> ξ[[ ::= l]] v = e.
@@ -1455,10 +1437,83 @@ Proof.
     all: eapply IHclock in H2; eauto.
 Qed.
 
+(*
+Inductive Frame : Set :=
+| FApp1 (l : list Exp) (* apply □(e₁, e₂, ..., eₙ) *)
+| FApp2 (v : Exp) (p : is_value v) (l1 l2 : list Exp) (p2 : forall e, In e l2 -> is_value e) (** Can be problematic *)
+| FLet (v : Var) (e2 : Exp) (* let v = □ in e2 *)
+| FPlus1 (e2 : Exp) (* □ + e2 *)
+| FPlus2 (v : Exp) (p : is_value v) (* v + □ *)
+| FIf (e2 e3 : Exp) (* if □ then e2 else e3 *).
+*)
+(**
+  FrameStacks are closed, when all of their frames are closed.
+*)
+Inductive FCLOSED : FrameStack -> Prop :=
+| fclosed_nil : FCLOSED []
+| fclosed_app1 l xs:
+  Forall (fun e => EXPCLOSED e) l ->
+  FCLOSED xs
+->
+  FCLOSED (FApp1 l::xs)
+| fclosed_app2 v p l1 l2 p2 xs:
+  VALCLOSED v -> Forall (fun e => EXPCLOSED e) l1 -> Forall (fun e => VALCLOSED e) l2 ->
+  FCLOSED xs
+->
+  FCLOSED (FApp2 v p l1 l2 p2::xs)
+| fclosed_let v e2 xs :
+  EXP [inl v] ⊢ e2 ->
+  FCLOSED xs
+->
+  FCLOSED (FLet v e2 :: xs)
+| fclosed_plus1 e2 xs:
+  EXPCLOSED e2 ->
+  FCLOSED xs
+->
+  FCLOSED (FPlus1 e2 :: xs)
+| fclosed_plus2 v1 p xs:
+  VALCLOSED v1 ->
+  FCLOSED xs
+->
+  FCLOSED (FPlus2 v1 p :: xs)
+| fclosed_if e2 e3 xs:
+  EXPCLOSED e2 -> EXPCLOSED e3 ->
+  FCLOSED xs
+->
+  FCLOSED (FIf e2 e3 :: xs).
 
+Theorem Forall_implies_subscoped vl : forall vals Γ ξ,
+  Forall (fun v => VAL Γ ⊢ v) vals -> length vl = length vals
+->
+  subscoped vl Γ (ξ[[::= combine vl vals]]).
+Proof.
+  induction vl; intros.
+  * apply eq_sym, length_zero_iff_nil in H0. subst. intro. intros. contradiction.
+  * apply element_exist in H0 as H0'. destruct H0', H1. subst.
+    intro. intros. cbn.
+    inversion H0. inversion H. subst. pose (IHvl _ _ (ξ[[a ::= x]]) H6 H3).
+    replace (fold_left (fun (ξ' : Substitution) '(x1, e) => ξ' [[x1 ::= e]]) (combine vl x0) (ξ [[a ::= x]])) with ((ξ [[a ::= x]])[[::= combine vl x0]]) by reflexivity. destruct (in_dec var_funid_eq_dec v vl).
+    + apply s. auto.
+    + erewrite subst_list_not_in; auto.  inversion H1. 2: contradiction. subst. inversion H. subst.
+      unfold extend_subst. rewrite var_funid_eqb_refl. apply H7.
+Qed.
 
-
-
-
+Theorem step_closedness : forall F e F' e',
+   ⟨ F, e ⟩ --> ⟨ F', e' ⟩ -> FCLOSED F -> EXPCLOSED e
+->
+  FCLOSED F' /\ EXPCLOSED e'.
+Proof.
+  intros F e F' e' IH. induction IH; intros.
+  * inversion H0. subst. inversion H4. subst. split; auto.
+    constructor; auto. destruct v; inversion H; inversion H1; auto.
+  * inversion H. inversion H0. subst. split; auto. inversion H5. exact H2.
+  * inversion H. inversion H0. subst. split; auto. inversion H5. subst. cbn in H2.
+    eapply subst_preserves_scope_rev; eauto. intro. intros. inversion H1. 2: contradiction.
+    subst. unfold idsubst, extend_subst. rewrite var_funid_eqb_refl. auto.
+  * inversion H0. subst. inversion H8. subst. split; auto. constructor; auto.
+    apply Forall_app. split; auto. constructor; auto. destruct v'; inversion H'; inversion H1; auto.
+  * inversion H3. subst. split; auto. inversion H9. eapply subst_preserves_scope_rev; eauto.
+    intro. intros. Search extend_subst_list. Search extend_subst.
+Qed.
 
 

@@ -1,4 +1,4 @@
-Require Import LogRel.
+ Require Import LogRel.
 
 Import ListNotations.
 

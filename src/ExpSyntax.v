@@ -150,6 +150,8 @@ Proof.
   * subst. destruct f'. simpl. rewrite eqb_refl, Nat.eqb_refl. auto.
 Qed.
 
+Hint Resolve funid_eqb_eq.
+
 Proposition funid_eqb_neq (f f0 : FunctionIdentifier):
   funid_eqb f f0 = false <-> f <> f0.
 Proof.
@@ -162,6 +164,8 @@ Proof.
       - right. apply eqb_eq in H0. apply Nat.eqb_neq. unfold not. intro. apply H. subst. reflexivity.
       - left. reflexivity.
 Qed.
+
+Hint Resolve funid_eqb_neq.
 
 Proposition var_funid_eqb_eq (v0 v : Var + FunctionIdentifier):
   var_funid_eqb v0 v = true <-> v0 = v.
@@ -181,6 +185,8 @@ Proof.
   }
 Qed.
 
+Hint Resolve var_funid_eqb_eq.
+
 Proposition var_funid_eqb_neq (v0 v : Var + FunctionIdentifier):
   var_funid_eqb v0 v = false <-> v0 <> v.
 Proof.
@@ -199,11 +205,15 @@ Proof.
   }
 Qed.
 
+Hint Resolve var_funid_eqb_neq.
+
 Proposition funid_eqb_refl (f : FunctionIdentifier) :
   funid_eqb f f = true.
 Proof.
   destruct f. simpl. simpl. rewrite eqb_refl, Nat.eqb_refl. simpl. reflexivity.
 Qed.
+
+Hint Resolve funid_eqb_refl.
 
 Proposition var_funid_eqb_refl (var : Var + FunctionIdentifier) :
   var_funid_eqb var var = true.
@@ -213,6 +223,7 @@ Proof.
   * destruct f. simpl. rewrite eqb_refl, Nat.eqb_refl. simpl. reflexivity.
 Qed.
 
+Hint Resolve var_funid_eqb_refl.
 
 Fixpoint in_list (v : VarFunId) (l : list VarFunId) : bool :=
 match l with
@@ -234,6 +245,8 @@ Proof.
         ** apply var_funid_eqb_neq in P. congruence.
         ** auto.
 Qed.
+
+Hint Resolve in_list_sound.
 
 
 Definition restrict_subst (ξ : Substitution) (vl : list VarFunId) : Substitution :=
@@ -280,3 +293,61 @@ Goal subst (idsubst [[ inl XVar ::= ELit 0 ]])
            (EApp (EVar XVar) [EVar XVar; ELet XVar (EVar XVar) (EVar XVar)]) 
   = (EApp (ELit 0) [ELit 0; ELet XVar (ELit 0) (EVar XVar)]) . Proof. reflexivity. Qed.
 
+Lemma element_exist {A : Type} : forall n (l : list A), S n = length l -> exists e l', l = e::l'.
+Proof.
+  intros. destruct l.
+  * inversion H.
+  * apply ex_intro with a. apply ex_intro with l. reflexivity.
+Qed.
+
+Lemma subst_list_not_in :
+  forall l x, ~In x l ->
+  forall ξ vs, length l = length vs -> (ξ[[::= combine l vs]]) x = ξ x.
+Proof.
+  induction l; intros.
+  * simpl. auto.
+  * apply element_exist in H0 as H0'. destruct H0', H1. subst. inversion H0. simpl.
+    apply not_in_cons in H. destruct H.
+    replace (ξ x) with (ξ [[a ::= x0]] x). apply IHl; auto.
+    apply not_eq_sym, var_funid_eqb_neq in H. unfold extend_subst. rewrite H. auto. 
+Qed.
+
+Theorem subst_in :
+  forall ξ e v, ξ[[ v ::= e ]] v = e.
+Proof. intros. unfold extend_subst. rewrite var_funid_eqb_refl. auto. Qed.
+
+Theorem subst_not_in :
+  forall ξ e v v', v' <> v -> ξ[[ v' ::= e ]] v = ξ v.
+Proof.
+  intros. unfold extend_subst. apply var_funid_eqb_neq in H.
+  rewrite H. auto.
+Qed.
+
+Lemma subst_list_nth :
+  forall l vs, length l = length vs ->
+  forall ξ x, In x l -> In (ξ[[::= combine l vs]] x) vs.
+Proof.
+  induction l; intros. inversion H0.
+  apply element_exist in H as H'. destruct H', H1. subst. inversion H.
+  Opaque In. cbn.
+  replace (fold_left (fun (ξ' : Substitution) '(x2, e) => ξ' [[x2 ::= e]]) (combine l x1) (ξ [[a ::= x0]])) with
+          (ξ[[a ::= x0]][[::=combine l x1]]) by reflexivity.
+  destruct (In_dec var_funid_eq_dec x l).
+  * specialize (IHl x1 H2). destruct (var_funid_eq_dec x a); subst.
+    - Transparent In. cbn. right. apply IHl. auto.
+    - Transparent In. cbn. right. apply IHl. auto.
+  * rewrite subst_list_not_in; auto. inversion H0. 2: contradiction. subst. rewrite subst_in. intuition.
+Qed.
+
+Lemma subst_list_exchange :
+  forall l x, In x l ->
+  forall ξ φ vs, length l = length vs -> (ξ[[ ::= combine l vs]]) x = (φ[[::= combine l vs]]) x.
+Proof.
+  induction l; intros.
+  * inversion H.
+  * apply element_exist in H0 as H0'. destruct H0', H1. subst. inversion H0. simpl.
+    unfold extend_subst. destruct (in_dec var_funid_eq_dec x l).
+    - apply IHl; auto.
+    - inversion H. 2: contradiction. subst. repeat rewrite subst_list_not_in; auto.
+      rewrite var_funid_eqb_refl. auto.
+Qed.
