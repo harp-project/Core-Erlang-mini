@@ -1,4 +1,4 @@
-Require Export SubstSemantics.
+Require Export ExpSyntax.
 Export Relations.Relations.
 Export Classes.RelationClasses.
 Require Export FunctionalExtensionality.
@@ -10,6 +10,11 @@ match e with
 | ELit _ | EFun _ _ | ERecFun _ _ _ => true
 | _ => false
 end.
+
+Inductive is_value : Exp -> Prop :=
+| ELit_val : forall l, is_value (ELit l)
+| EFun_val : forall vl e, is_value (EFun vl e)
+| ERecFun_val : forall f vl e, is_value (ERecFun f vl e).
 
 Theorem is_value_equiv :
   forall v, is_value v <-> is_value_b v = true.
@@ -35,22 +40,6 @@ Proof.
   }
 Qed.
 
-Theorem not_in_list_sound : forall l e, in_list e l = false <-> ~In e l.
-Proof.
-  induction l; intros.
-  * split; intros. intro. inversion H0. reflexivity.
-  * split; intros.
-    - simpl in H. break_match_hyp.
-      + inversion H.
-      + apply var_funid_eqb_neq in Heqb. simpl. intro. inversion H0. symmetry in H1. contradiction.
-        eapply IHl; eauto.
-    - simpl. break_match_goal.
-      apply var_funid_eqb_eq in Heqb. subst. exfalso. apply H. intuition.
-      apply var_funid_eqb_neq in Heqb. eapply IHl. apply not_in_cons in H. destruct H. auto.
-Qed.
-
-Hint Resolve not_in_list_sound.
-
 Definition Injective {A B} (f : A->B) :=
  forall x y, f x = f y -> x = y.
 
@@ -70,62 +59,70 @@ Reserved Notation "'EXP' Γ ⊢ e"
 
 Reserved Notation "'VAL' Γ ⊢ v"
          (at level 69, no associativity).
-Inductive ExpScoped (l : list VarFunId) : Exp -> Prop :=
-| scoped_app exp vals : 
-  EXP l ⊢ exp ->
-  (forall i, i < length vals -> EXP l ⊢ nth i vals (ELit 0))
+Inductive ExpScoped (Γ : nat) : Exp -> Prop :=
+| scoped_app exp exps : 
+  EXP Γ ⊢ exp ->
+  (forall i, i < length exps -> EXP Γ ⊢ nth i exps (ELit 0))
 ->
-  EXP l ⊢ EApp exp vals
+  EXP Γ ⊢ EApp exp exps
 | scoped_let v e1 e2 :
-  EXP l ⊢ e1 -> EXP (l ++ [inl v]) ⊢ e2 
+  EXP Γ ⊢ e1 -> EXP (S Γ) ⊢ e2 
 ->
-  EXP l ⊢ ELet v e1 e2
+  EXP Γ ⊢ ELet v e1 e2
 | scoped_letrec f vl b e :
-  EXP (l ++ inr f :: map inl vl) ⊢ b -> EXP (l ++ [inr f]) ⊢ e
+  EXP (S (length vl) + Γ) ⊢ b -> EXP (S Γ) ⊢ e
 ->
-  EXP l ⊢ ELetRec f vl b e
+  EXP Γ ⊢ ELetRec f vl b e
 | scoped_plus e1 e2 :
-  EXP l ⊢ e1 -> EXP l ⊢ e2
+  EXP Γ ⊢ e1 -> EXP Γ ⊢ e2
 ->
-  EXP l ⊢ EPlus e1 e2
+  EXP Γ ⊢ EPlus e1 e2
 | scoped_if e1 e2 e3 :
-  EXP l ⊢ e1 -> EXP l ⊢ e2 -> EXP l ⊢ e3
+  EXP Γ ⊢ e1 -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e3
 ->
-  EXP l ⊢ EIf e1 e2 e3
+  EXP Γ ⊢ EIf e1 e2 e3
 | scoped_val v :
-  VAL l ⊢ v -> EXP l ⊢ v
-with ValScoped (l : list VarFunId) : Exp -> Prop :=
-| scoped_lit lit : VAL l ⊢ ELit lit
-| scoped_var v : In (inl v) l -> VAL l ⊢ EVar v
-| scoped_funid f : In (inr f) l -> VAL l ⊢ EFunId f
-| scoped_fun vl e : EXP (l ++ (map inl vl)) ⊢ e -> VAL l ⊢ EFun vl e
-| scoped_recfun f vl e : EXP (l ++ inr f :: map inl vl) ⊢ e -> VAL l ⊢ ERecFun f vl e
+  VAL Γ ⊢ v -> EXP Γ ⊢ v
+with ValScoped (Γ : nat) : Exp -> Prop :=
+| scoped_lit lit : VAL Γ ⊢ ELit lit
+| scoped_var n v : n < Γ -> VAL Γ ⊢ EVar n v
+| scoped_funid n f : n < Γ -> VAL Γ ⊢ EFunId n f
+| scoped_fun vl e : EXP (length vl + Γ) ⊢ e -> VAL Γ ⊢ EFun vl e
+| scoped_recfun f vl e : EXP (S (length vl) + Γ) ⊢ e -> VAL Γ ⊢ ERecFun f vl e
 where "'EXP' Γ ⊢ e" := (ExpScoped Γ e)
 and "'VAL' Γ ⊢ e" := (ValScoped Γ e).
 
-Notation "'EXPCLOSED' e" := (EXP [] ⊢ e) (at level 5).
-Notation "'VALCLOSED' v" := (VAL [] ⊢ v) (at level 5).
+Notation "'EXPCLOSED' e" := (EXP 0 ⊢ e) (at level 5).
+Notation "'VALCLOSED' v" := (VAL 0 ⊢ v) (at level 5).
 
 Scheme ValScoped_ind2 := Induction for ValScoped Sort Prop
   with ExpScoped_ind2 := Induction for ExpScoped Sort Prop.
 Combined Scheme scoped_ind from ValScoped_ind2, ExpScoped_ind2.
 Check scoped_ind.
 
-Definition subst_preserves (Γ : list VarFunId) (ξ : Substitution) : Prop :=
-  forall v, In v Γ -> ξ v = idsubst v.
+Definition subst_preserves (Γ : nat) (ξ : Substitution) : Prop :=
+  forall v, v < Γ -> ξ v = None.
 
-Theorem subst_preserves_removed : forall Γ l ξ,
-  subst_preserves Γ ξ -> subst_preserves (Γ ++ l) (ξ -- l).
+Theorem subst_preserves_up : forall Γ ξ,
+  subst_preserves Γ ξ -> subst_preserves (S Γ) (up_subst ξ).
 Proof.
-  intros. intro. intros. apply in_app_iff in H0. destruct H0.
-  * unfold "--". break_match_goal. auto. apply H. auto.
-  * unfold "--". break_match_goal; auto. apply not_in_list_sound in Heqb.
-    contradiction. (* TODO: rewrite fails here, I do not know why *)
+  intros. unfold subst_preserves in *. intros. unfold up_subst. destruct v; auto.
+  apply Lt.lt_S_n in H0. apply H in H0. rewrite H0. auto.
 Qed.
 
-Hint Resolve subst_preserves_removed.
+Hint Resolve subst_preserves_up.
 
-Theorem subst_preserves_empty ξ : subst_preserves [] ξ.
+Corollary subst_preserves_upn : forall n Γ ξ,
+  subst_preserves Γ ξ -> subst_preserves (n + Γ) (upn n ξ).
+Proof.
+  induction n; intros.
+  * simpl. auto.
+  * simpl. apply subst_preserves_up, IHn. auto.
+Qed.
+
+Hint Resolve subst_preserves_upn.
+
+Theorem subst_preserves_empty ξ : subst_preserves 0 ξ.
 Proof. intro. intros. inversion H. Qed.
 
 Hint Resolve subst_preserves_empty.
@@ -151,15 +148,16 @@ Theorem scoped_ignores_sub : forall Γ,
 Proof.
   apply scoped_ind.
   * intros. reflexivity.
-  * intros. simpl. apply H in i. simpl in i. auto.
-  * intros. simpl. apply H in i. simpl in i. auto.
+  * intros. specialize (H n l). simpl. rewrite H. auto.
+  * intros. specialize (H n l). simpl. rewrite H. auto.
   * intros. simpl. epose (H _ _). rewrite e1. reflexivity.
-    Unshelve. apply subst_preserves_removed. apply H0.
+    Unshelve. apply subst_preserves_upn. auto.
   * intros. simpl. epose (H _ _). rewrite e1. reflexivity.
-    Unshelve. auto.
+    Unshelve. apply subst_preserves_up, subst_preserves_upn. auto.
   * intros. simpl. rewrite H; auto. erewrite scoped_ignores_sub_helper; eauto.
   * intros. simpl. rewrite H; auto. rewrite H0; auto.
   * intros. simpl. rewrite H, H0; auto.
+    apply subst_preserves_up, subst_preserves_upn. auto.
   * intros. simpl. rewrite H, H0; auto.
   * intros. simpl. rewrite H, H0, H1; auto.
   * intros. eapply H; eauto.
@@ -169,27 +167,27 @@ Corollary eclosed_ignores_sub :
   forall e ξ,
   EXPCLOSED e -> subst ξ e = e.
 Proof.
-  intros. eapply scoped_ignores_sub with (Γ := []); auto.
+  intros. eapply scoped_ignores_sub with (Γ := 0); auto.
 Qed.
 
 Corollary vclosed_ignores_sub :
   forall e ξ,
   VALCLOSED e -> subst ξ e = e.
 Proof.
-  intros. pose (scoped_ignores_sub []). destruct a. apply H0; auto.
+  intros. pose (scoped_ignores_sub 0). destruct a. apply H0; auto.
 Qed.
 
-Theorem scope_duplicate e :
-  (forall Γ v, In v Γ -> EXP (v :: Γ) ⊢ e -> EXP Γ ⊢ e) /\
-  (forall Γ v, In v Γ -> VAL (v :: Γ) ⊢ e -> VAL Γ ⊢ e).
+(* Theorem scope_duplicate e :
+  (forall Γ v, v < Γ -> EXP (S Γ) ⊢ e -> EXP Γ ⊢ e) /\
+  (forall Γ v, v < Γ -> VAL (S Γ) ⊢ e -> VAL Γ ⊢ e).
 Proof.
   einduction e using Exp_ind2 with 
       (Q := fun l => Forall (fun e => 
-        (forall Γ v, In v Γ -> EXP (v :: Γ) ⊢ e -> EXP Γ ⊢ e) /\
-        (forall Γ v, In v Γ -> VAL (v :: Γ) ⊢ e -> VAL Γ ⊢ e)) l); intros.
+        (forall Γ v, v < Γ -> EXP (S Γ) ⊢ e -> EXP Γ ⊢ e) /\
+        (forall Γ v, v < Γ -> VAL (S Γ) ⊢ e -> VAL Γ ⊢ e)) l); intros.
   * repeat constructor.
   * split; intros.
-    - inversion H0. subst. inversion H1. constructor. inversion H3; subst;
+    - inversion H0. subst. inversion H1. constructor. subst. inversion H3; subst;
       constructor; auto.
     - inversion H0. inversion H2; subst; constructor; auto.
   * split; intros. 
@@ -241,14 +239,14 @@ Proof.
   apply scoped_ind; intros; constructor; intuition.
   1-2: eapply Permutation_in; eauto.
   all: apply H0 || apply H; apply Permutation_app; intuition.
-Qed.
+Qed. *)
 
 Theorem scope_ext : forall Γ,
-  (forall e, VAL Γ ⊢ e -> forall v, VAL v::Γ ⊢ e) /\
-  forall e, EXP Γ ⊢ e -> forall v, EXP v::Γ ⊢ e.
+  (forall e, VAL Γ ⊢ e ->  VAL (S Γ) ⊢ e) /\
+  forall e, EXP Γ ⊢ e -> EXP (S Γ) ⊢ e.
 Proof.
-  apply scoped_ind; intros; constructor; try constructor 2; auto;
-    try apply H; try apply H0; try apply H1.
+  apply scoped_ind; intros; constructor; try constructor 2; auto.
+  all: rewrite Nat.add_succ_r; auto.
 Qed.
 
 Theorem app_cons_swap {T : Type} : forall (l l' : list T) (a : T),

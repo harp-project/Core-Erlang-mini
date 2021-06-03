@@ -7,11 +7,6 @@ Require Export FSets.FMapFacts. *)
 
 Import ListNotations.
 
-Inductive is_value : Exp -> Prop :=
-| ELit_val : forall l, is_value (ELit l)
-| EFun_val : forall vl e, is_value (EFun vl e)
-| ERecFun_val : forall f vl e, is_value (ERecFun f vl e).
-
 Inductive ResultType {T : Set} : Set :=
 | Timeout
 | Fail

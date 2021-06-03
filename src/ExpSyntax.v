@@ -15,8 +15,8 @@ Definition FunctionIdentifier : Set := string * nat.
 
 Inductive Exp : Set :=
 | ELit    (l : Z)
-| EVar    (v : Var)
-| EFunId  (f : FunctionIdentifier)
+| EVar    (n : nat) (v : Var)
+| EFunId  (n : nat) (f : FunctionIdentifier)
 | EFun    (vl : list Var) (e : Exp)
 | ERecFun (f : FunctionIdentifier) (vl : list Var) (e : Exp) (** This is not a valid expression, letrec reduces to this *)
 | EApp    (exp : Exp)     (l : list Exp)
@@ -33,8 +33,8 @@ Section correct_exp_ind.
 
   Hypotheses
    (H0 : forall (l : Z), P (ELit l))
-   (H1 : forall (v : Var), P (EVar v))
-   (H2 : forall (f : FunctionIdentifier), P (EFunId f))
+   (H1 : forall (n : nat) (v : Var), P (EVar n v))
+   (H2 : forall (n : nat) (f : FunctionIdentifier), P (EFunId n f))
    (H3 : forall (vl : list Var) (e : Exp), P e -> P (EFun vl e))
    (H4 : forall (f : FunctionIdentifier) (vl : list Var) (e : Exp), P e -> P (ERecFun f vl e))
    (H5 : forall (e : Exp), P e -> forall (el : list Exp), Q el 
@@ -53,8 +53,8 @@ Section correct_exp_ind.
   Fixpoint Exp_ind2 (e : Exp) : P e :=
   match e as x return P x with
   | ELit l => H0 l
-  | EVar s => H1 s
-  | EFunId f => H2 f
+  | EVar n s => H1 n s
+  | EFunId n f => H2 n f
   | EFun vl e => H3 vl e (Exp_ind2 e)
   | ERecFun f vl e => H4 f vl e (Exp_ind2 e)
   | EApp e el => H5 e (Exp_ind2 e) el ((fix l_ind (l':list Exp) : Q l' :=
@@ -80,13 +80,13 @@ Definition ZVar : Var := "Z"%string.
 Definition F0 : FunctionIdentifier := ("f"%string, 0).
 Definition F1 : FunctionIdentifier := ("f"%string, 1).
 
-Definition inc (n : Z) := ELet XVar (ELit n) (EPlus (EVar XVar) (ELit 1)).
-Definition sum (n : Z) := ELetRec F1 [XVar] (EIf (EVar XVar) (EVar XVar) (
-                                            (EPlus (EVar XVar)
-                                            (EApp (EFunId F1) [EPlus (EVar XVar) (ELit (-1))]))))
-                        (EApp (EFunId F1) [ELit n]).
-Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar XVar) []).
-Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar XVar) (EVar YVar))) [ELit n; ELit m].
+Definition inc (n : Z) := ELet XVar (ELit n) (EPlus (EVar 0 XVar) (ELit 1)).
+Definition sum (n : Z) := ELetRec F1 [XVar] (EIf (EVar 1 XVar) (EVar 1 XVar) (
+                                            (EPlus (EVar 1 XVar)
+                                            (EApp (EFunId 0 F1) [EPlus (EVar 1 XVar) (ELit (-1))]))))
+                        (EApp (EFunId 0 F1) [ELit n]).
+Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar 0 XVar) []).
+Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar 0 XVar) (EVar 1 YVar))) [ELit n; ELit m].
 
 Ltac break_match_hyp :=
 match goal with
@@ -112,14 +112,6 @@ Proof.
   intros.
   intro. eapply in_app_or in H1. destruct H1; contradiction.
 Qed.
-
-Definition Substitution := VarFunId -> Exp.
-Definition idsubst :=
-fun x => 
-  match x with
-  | inl x => EVar x
-  | inr f => EFunId f
-  end.
 
 (* The equality of function signatures *)
 Definition funid_eqb (v1 v2 : FunctionIdentifier) : bool :=
@@ -246,34 +238,101 @@ Proof.
         ** auto.
 Qed.
 
+Theorem not_in_list_sound : forall l e, in_list e l = false <-> ~In e l.
+Proof.
+  induction l; intros.
+  * split; intros. intro. inversion H0. reflexivity.
+  * split; intros.
+    - simpl in H. break_match_hyp.
+      + inversion H.
+      + apply var_funid_eqb_neq in Heqb. simpl. intro. inversion H0. symmetry in H1. contradiction.
+        eapply IHl; eauto.
+    - simpl. break_match_goal.
+      apply var_funid_eqb_eq in Heqb. subst. exfalso. apply H. intuition.
+      apply var_funid_eqb_neq in Heqb. eapply IHl. apply not_in_cons in H. destruct H. auto.
+Qed.
+
 Hint Resolve in_list_sound.
+Hint Resolve not_in_list_sound.
 
+Definition Renaming : Type := nat -> nat.
 
-Definition restrict_subst (ξ : Substitution) (vl : list VarFunId) : Substitution :=
+Definition upren (ρ : Renaming) : Renaming :=
+  fun n =>
+    match n with
+    | 0 => 0
+    | S n' => S (ρ n')
+    end.
+
+Fixpoint iterate {A : Type} (f : A -> A) n a :=
+  match n with
+    | 0 => a
+    | S n' => f(iterate f n' a)
+  end.
+
+Notation uprenn := (iterate upren).
+
+Fixpoint rename (ρ : Renaming) (e : Exp) : Exp :=
+match e with
+ | ELit l => e
+ | EVar n v => EVar (ρ n) v
+ | EFunId n f => EFunId (ρ n) f
+ | EFun vl e => EFun vl (rename (uprenn (length vl) ρ) e)
+ | ERecFun f vl e => ERecFun f vl (rename (uprenn (1 + length vl) ρ) e)
+ | EApp exp l => EApp (rename ρ exp) (map (rename ρ) l)
+ | ELet v e1 e2 => ELet v (rename ρ e1) (rename (upren ρ) e2)
+ | ELetRec f vl b e => ELetRec f vl (rename (uprenn (1 + length vl) ρ) b) 
+                                    (rename (upren ρ) e)
+ | EPlus e1 e2 => EPlus (rename ρ e1) (rename ρ e2)
+ | EIf e1 e2 e3 => EIf (rename ρ e1) (rename ρ e2) (rename ρ e3)
+end.
+
+Definition Substitution := nat -> option Exp (* + nat *).
+Definition idsubst : Substitution := fun x => None.
+
+Definition up_subst (ξ : Substitution) : Substitution :=
+  fun x =>
+    match x with
+    | 0 => None
+    | S x' => match (ξ x') with
+              | Some exp => Some (rename (fun n => n + 1) exp)
+              | None     => None
+              end
+    end.
+
+Notation upn := (iterate up_subst).
+
+(* Definition restrict_subst (ξ : Substitution) (n : nat) : Substitution :=
   fun (x : VarFunId) =>
     if in_list x vl
     then idsubst x
     else ξ x
 .
 
-Notation "ξ -- vl" := (restrict_subst ξ vl) (at level 70).
+Notation "ξ -- vl" := (restrict_subst ξ vl) (at level 70). *)
 
 Fixpoint subst (ξ : Substitution) (base : Exp) : Exp :=
 match base with
  | ELit l => base
- | EVar v => ξ (inl v)
- | EFunId f => ξ (inr f)
- | EFun vl e => EFun vl (subst (ξ -- map inl vl) e)
- | ERecFun f vl e => ERecFun f vl (subst (ξ -- inr f:: map inl vl) e)
+ | EVar n v => match ξ n with
+               | Some exp => exp
+               | None => EVar n v
+               end
+ | EFunId n f => match ξ n with
+                 | Some exp => exp
+                 | None     => EFunId n f
+                 end
+ | EFun vl e => EFun vl (subst (upn (length vl) ξ) e)
+ | ERecFun f vl e => ERecFun f vl (subst (upn (1 + length vl) ξ) e)
  | EApp exp l => EApp (subst ξ exp) (map (subst ξ) l)
- | ELet v e1 e2 => ELet v (subst ξ e1) (subst (ξ -- [inl v]) e2)
- | ELetRec f vl b e => ELetRec f vl (subst (ξ -- inr f::map inl vl) b)
-                                    (subst (ξ -- [inr f]) e)
+ | ELet v e1 e2 => ELet v (subst ξ e1) (subst (up_subst ξ) e2)
+ | ELetRec f vl b e => ELetRec f vl (subst (upn (1 + length vl) ξ) b)
+                                    (subst (up_subst ξ) e)
  | EPlus e1 e2 => EPlus (subst ξ e1) (subst ξ e2)
  | EIf e1 e2 e3 => EIf (subst ξ e1) (subst ξ e2) (subst ξ e3)
 end.
 
-Definition extend_subst (ξ : Substitution) (x : VarFunId) (e : Exp) : Substitution :=
+(* Definition extend_subst (ξ : Substitution) (x : VarFunId) (e : Exp) : Substitution :=
   fun y =>
     if var_funid_eqb x y
     then e
@@ -284,14 +343,30 @@ Notation "ξ [[ x ::= e ]]" := (extend_subst ξ x e) (at level 80).
 Definition extend_subst_list (ξ : Substitution) (l : list (VarFunId * Exp)) : Substitution :=
   fold_left (fun ξ' '(x, e) => extend_subst ξ' x e) l ξ.
 
-Notation "ξ [[ ::= l ]]" := (extend_subst_list ξ l) (at level 80).
+Notation "ξ [[ ::= l ]]" := (extend_subst_list ξ l) (at level 80). *)
+
+Definition scons {X : Type} (s : X) (σ : nat -> X) (x : nat) : X :=
+  match x with 
+  | S y => σ y
+  | _ => s
+  end.
+Notation "s .: σ" := (scons s σ) (at level 55, σ at level 56, right associativity).
+Notation "s .[ σ ]" := (subst σ s)
+  (at level 2, σ at level 200, left associativity,
+   format "s .[ σ ]" ).
+Notation "s .[ t /]" := (subst (Some t .: idsubst) s)
+  (at level 2, t at level 200, left associativity,
+   format "s .[ t /]").
+Notation "s .[ t1 , t2 , .. , tn /]" :=
+  (subst (scons (Some t1) (scons (Some t2) .. (scons (Some tn) idsubst) .. )) s)
+  (at level 2, left associativity,
+   format "s '[ ' .[ t1 , '/' t2 , '/' .. , '/' tn /] ']'").
 
 (* Tests: *)
-Goal subst (idsubst [[ inl XVar ::= ELit 0 ]]) (inc 1) = inc 1. Proof. reflexivity. Qed.
-Goal subst (idsubst [[ inl YVar ::= ELit 0 ]]) (inc 1) = inc 1. Proof. reflexivity. Qed.
-Goal subst (idsubst [[ inl XVar ::= ELit 0 ]]) 
-           (EApp (EVar XVar) [EVar XVar; ELet XVar (EVar XVar) (EVar XVar)]) 
-  = (EApp (ELit 0) [ELit 0; ELet XVar (ELit 0) (EVar XVar)]) . Proof. reflexivity. Qed.
+Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
+Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
+Goal (EApp (EVar 0 XVar) [EVar 0 XVar; ELet XVar (EVar 0 XVar) (EVar 0 XVar)]).[ELit 0/]
+  = (EApp (ELit 0) [ELit 0; ELet XVar (ELit 0) (EVar 0 XVar)]). Proof. reflexivity. Qed.
 
 Lemma element_exist {A : Type} : forall n (l : list A), S n = length l -> exists e l', l = e::l'.
 Proof.
@@ -300,7 +375,7 @@ Proof.
   * apply ex_intro with a. apply ex_intro with l. reflexivity.
 Qed.
 
-Lemma subst_list_not_in :
+(* Lemma subst_list_not_in :
   forall l x, ~In x l ->
   forall ξ vs, length l = length vs -> (ξ[[::= combine l vs]]) x = ξ x.
 Proof.
@@ -337,9 +412,9 @@ Proof.
     - Transparent In. cbn. right. apply IHl. auto.
     - Transparent In. cbn. right. apply IHl. auto.
   * rewrite subst_list_not_in; auto. inversion H0. 2: contradiction. subst. rewrite subst_in. intuition.
-Qed.
+Qed. *)
 
-Lemma subst_list_exchange :
+(* Lemma subst_list_exchange :
   forall l x, In x l ->
   forall ξ φ vs, length l = length vs -> (ξ[[ ::= combine l vs]]) x = (φ[[::= combine l vs]]) x.
 Proof.
@@ -350,4 +425,4 @@ Proof.
     - apply IHl; auto.
     - inversion H. 2: contradiction. subst. repeat rewrite subst_list_not_in; auto.
       rewrite var_funid_eqb_refl. auto.
-Qed.
+Qed. *)
