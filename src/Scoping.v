@@ -896,3 +896,16 @@ Inductive FCLOSED : FrameStack -> Prop :=
   FCLOSED xs
 ->
   FCLOSED (FIf e2 e3 :: xs).
+
+
+Lemma scoped_list_subscoped :
+  forall vals Γ, Forall (fun v => VAL Γ ⊢ v) vals ->
+  SUBSCOPE length vals ⊢ list_subst vals ∷ Γ.
+Proof.
+  induction vals; intros. simpl.
+  unfold idsubst. intro. intros. inversion H0.
+  simpl. inversion H. intro. intros. destruct v.
+  * simpl. apply H2.
+  * simpl. apply IHvals; auto. lia.
+Qed.
+

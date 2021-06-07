@@ -31,8 +31,8 @@ match clock with
 | 0 => Timeout
 | S n => match e with
          | ELit l => Res (ELit l)
-         | EVar v => Fail
-         | EFunId f => Fail
+         | EVar n v => Fail
+         | EFunId n f => Fail
          | EFun vl e => Res (EFun vl e)
          | ERecFun f vl e => Res (ERecFun f vl e)
          | EApp exp l => match eval n exp with
@@ -43,7 +43,7 @@ match clock with
                                match vres with
                                | Res vals => 
                                  if length vals =? length vl
-                                 then eval n e.[]
+                                 then eval n e.[list_subst vals]
                                  else Fail
                                | Fail => Fail
                                | Timeout => Timeout
@@ -53,7 +53,7 @@ match clock with
                                match vres with
                                | Res vals => 
                                  if length vals =? length vl
-                                 then eval n (subst (idsubst[[::= (inr f, ERecFun f vl e) :: combine (map inl vl) vals]]) e)
+                                 then eval n e.[list_subst (ERecFun f vl e::vals)]
                                  else Fail
                                | Fail => Fail
                                | Timeout => Timeout
@@ -62,10 +62,10 @@ match clock with
                          | r => r
                          end
          | ELet v e1 e2 => match eval n e1 with
-                           | Res val => eval n (subst (idsubst[[inl v ::= val]]) e2)
+                           | Res val => eval n e2.[val/]
                            | r      => r
                            end
-         | ELetRec f vl b e => eval n (subst (idsubst[[inr f ::= ERecFun f vl b]]) e)
+         | ELetRec f vl b e => eval n e.[ERecFun f vl b/]
          | EPlus e1 e2 => 
             match eval n e1, eval n e2 with
             | Res (ELit n), Res (ELit m) => Res (ELit (n + m))
@@ -198,20 +198,20 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
   ⟨ (FApp1 [])::xs, EFun [] e ⟩ --> ⟨ xs, e ⟩
 
 | red_rec_app_fin xs e f :
-  ⟨ (FApp1 [])::xs, ERecFun f [] e ⟩ --> ⟨ xs, subst (idsubst[[ inr f ::= ERecFun f [] e]]) e ⟩
+  ⟨ (FApp1 [])::xs, ERecFun f [] e ⟩ --> ⟨ xs, e.[ERecFun f [] e/] ⟩
 
 | app2_step v H hd tl vs H2 xs v' (H' : is_value v') :
   ⟨ (FApp2 v H (hd::tl) vs H2) :: xs, v' ⟩ --> ⟨ (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H')) :: xs, hd ⟩
 
 | red_app2 vl e vs v xs H H2 : 
   is_value v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (EFun vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs,  subst (idsubst[[ ::= combine (map inl vl) (vs ++ [v])]]) e ⟩
+  ⟨ (FApp2 (EFun vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs, e.[list_subst (vs ++ [v])] ⟩
 
 | red_rec_app2 vl f e vs v xs H H2 : 
   is_value v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (ERecFun f vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs,  subst (idsubst[[ ::= combine (inr f::map inl vl) (ERecFun f vl e :: (vs ++ [v]))]]) e ⟩
+  ⟨ (FApp2 (ERecFun f vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (ERecFun f vl e :: (vs ++ [v]))] ⟩
 
-| red_let v val e2 xs (H : is_value val) : ⟨ (FLet v e2)::xs, val ⟩ --> ⟨ xs, subst (idsubst[[inl v ::= val]]) e2⟩
+| red_let val e2 xs (H : is_value val) : ⟨ (FLet e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
 
 | red_if_true e2 e3 xs : ⟨ (FIf e2 e3)::xs, ELit 0 ⟩ --> ⟨ xs, e2 ⟩
 
@@ -225,10 +225,10 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
    ⟨ (FPlus2 (ELit n) P)::xs, (ELit m) ⟩ --> ⟨ xs, ELit (n + m) ⟩ 
 
 | red_letrec xs f vl b e:
-  ⟨ xs, ELetRec f vl b e ⟩ --> ⟨ xs, subst (idsubst [[inr f ::= ERecFun f vl b]]) e ⟩
+  ⟨ xs, ELetRec f vl b e ⟩ --> ⟨ xs, e.[ERecFun f vl b/] ⟩
 
 (** Steps *)
-| step_let xs v e1 e2 : ⟨ xs, ELet v e1 e2 ⟩ --> ⟨ (FLet v e2)::xs, e1 ⟩
+| step_let xs v e1 e2 : ⟨ xs, ELet v e1 e2 ⟩ --> ⟨ (FLet e2)::xs, e1 ⟩
 | step_app xs e el: ⟨ xs, EApp e el ⟩ --> ⟨ (FApp1 el)::xs, e ⟩
 | step_plus xs e1 e2 : ⟨ xs, EPlus e1 e2⟩ --> ⟨ (FPlus1 e2)::xs, e1⟩
 | step_if xs e1 e2 e3 : ⟨ xs, EIf e1 e2 e3⟩ --> ⟨ (FIf e2 e3)::xs, e1⟩
@@ -356,12 +356,34 @@ Proof.
     constructor; auto. destruct v; inversion H; inversion H1; auto.
   * inversion H. inversion H0. subst. split; auto. inversion H5. exact H2.
   * inversion H. inversion H0. subst. split; auto. inversion H5. subst. cbn in H2.
-    eapply subst_preserves_scope_rev; eauto. intro. intros. inversion H1. 2: contradiction.
-    subst. unfold idsubst, extend_subst. rewrite var_funid_eqb_refl. auto.
+    apply -> sub_preserves_scope_exp; eauto.
   * inversion H0. subst. inversion H8. subst. split; auto. constructor; auto.
     apply Forall_app. split; auto. constructor; auto. destruct v'; inversion H'; inversion H1; auto.
-  * inversion H3. subst. split; auto. inversion H9. eapply subst_preserves_scope_rev; eauto.
-    intro. intros. Search extend_subst_list. Search extend_subst.
+  * inversion H3. subst. split; auto. inversion H9.
+    apply -> sub_preserves_scope_exp; eauto. subst.
+    rewrite Nat.add_0_r. replace (length vl) with (length (vs ++ [v])).
+    apply scoped_list_subscoped. apply Forall_app. split; auto. constructor; auto.
+    destruct v; inversion H0; inversion H4; auto.
+    rewrite app_length. rewrite H1. simpl. lia.
+  * inversion H3. split. auto. subst. inversion H9.
+    apply -> sub_preserves_scope_exp; eauto. subst.
+    rewrite Nat.add_0_r. replace (S (length vl)) with (length (ERecFun f vl e :: vs ++ [v])).
+    apply scoped_list_subscoped. constructor. auto. apply Forall_app. split; auto. constructor; auto.
+    destruct v; inversion H0; inversion H4; auto. simpl. rewrite H1, app_length. simpl. lia.
+  * inversion H0. subst. split; auto. apply -> sub_preserves_scope_exp; eauto.
+    apply cons_scope; auto. destruct val; inversion H; inversion H1; auto.
+  * inversion H. subst. split; auto.
+  * inversion H1. subst. split; auto.
+  * inversion H0; subst. split; auto. constructor.
+    destruct v; inversion H; inversion H1; auto. auto.
+  * inversion H. subst. split; auto. constructor. constructor.
+  * split; auto. inversion H0. 2: inversion H1. apply -> sub_preserves_scope_exp; eauto.
+    subst. apply cons_scope; auto. constructor. auto.
+  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
+  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
+    rewrite indexed_to_forall. exact H4.
+  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
+  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
 Qed.
 
 (* Theorem frame_stack_sound :
