@@ -287,16 +287,16 @@ match e with
  | EIf e1 e2 e3 => EIf (rename ρ e1) (rename ρ e2) (rename ρ e3)
 end.
 
-Definition Substitution := nat -> option Exp (* + nat *).
-Definition idsubst : Substitution := fun x => None.
+Definition Substitution := nat -> Exp + nat. (* We need to have the names for the identity elements explicitly, because of the shiftings (up, upn) *)
+Definition idsubst : Substitution := fun x => inr x.
 
 Definition up_subst (ξ : Substitution) : Substitution :=
   fun x =>
     match x with
-    | 0 => None
+    | 0 => inr 0
     | S x' => match (ξ x') with
-              | Some exp => Some (rename (fun n => n + 1) exp)
-              | None     => None
+              | inl exp => inl (rename (fun n => S n) exp)
+              | inr num => inr (S num)
               end
     end.
 
@@ -315,12 +315,12 @@ Fixpoint subst (ξ : Substitution) (base : Exp) : Exp :=
 match base with
  | ELit l => base
  | EVar n v => match ξ n with
-               | Some exp => exp
-               | None => EVar n v
+               | inl exp => exp
+               | inr num => EVar num v
                end
  | EFunId n f => match ξ n with
-                 | Some exp => exp
-                 | None     => EFunId n f
+                 | inl exp => exp
+                 | inr num => EFunId num f
                  end
  | EFun vl e => EFun vl (subst (upn (length vl) ξ) e)
  | ERecFun f vl e => ERecFun f vl (subst (upn (1 + length vl) ξ) e)
@@ -350,15 +350,15 @@ Definition scons {X : Type} (s : X) (σ : nat -> X) (x : nat) : X :=
   | S y => σ y
   | _ => s
   end.
-Notation "s .: σ" := (scons s σ) (at level 55, σ at level 56, right associativity).
+Notation "s .: σ" := (scons (inl s) σ) (at level 55, σ at level 56, right associativity).
 Notation "s .[ σ ]" := (subst σ s)
   (at level 2, σ at level 200, left associativity,
    format "s .[ σ ]" ).
-Notation "s .[ t /]" := (subst (Some t .: idsubst) s)
+Notation "s .[ t /]" := (subst (t .: idsubst) s)
   (at level 2, t at level 200, left associativity,
    format "s .[ t /]").
 Notation "s .[ t1 , t2 , .. , tn /]" :=
-  (subst (scons (Some t1) (scons (Some t2) .. (scons (Some tn) idsubst) .. )) s)
+  (subst (scons (t1) (scons (t2) .. (scons (tn) idsubst) .. )) s)
   (at level 2, left associativity,
    format "s '[ ' .[ t1 , '/' t2 , '/' .. , '/' tn /] ']'").
 
@@ -368,61 +368,11 @@ Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
 Goal (EApp (EVar 0 XVar) [EVar 0 XVar; ELet XVar (EVar 0 XVar) (EVar 0 XVar)]).[ELit 0/]
   = (EApp (ELit 0) [ELit 0; ELet XVar (ELit 0) (EVar 0 XVar)]). Proof. reflexivity. Qed.
 
+Compute (ELit 0 .: ELit 0 .: idsubst) 3.
+
 Lemma element_exist {A : Type} : forall n (l : list A), S n = length l -> exists e l', l = e::l'.
 Proof.
   intros. destruct l.
   * inversion H.
   * apply ex_intro with a. apply ex_intro with l. reflexivity.
 Qed.
-
-(* Lemma subst_list_not_in :
-  forall l x, ~In x l ->
-  forall ξ vs, length l = length vs -> (ξ[[::= combine l vs]]) x = ξ x.
-Proof.
-  induction l; intros.
-  * simpl. auto.
-  * apply element_exist in H0 as H0'. destruct H0', H1. subst. inversion H0. simpl.
-    apply not_in_cons in H. destruct H.
-    replace (ξ x) with (ξ [[a ::= x0]] x). apply IHl; auto.
-    apply not_eq_sym, var_funid_eqb_neq in H. unfold extend_subst. rewrite H. auto. 
-Qed.
-
-Theorem subst_in :
-  forall ξ e v, ξ[[ v ::= e ]] v = e.
-Proof. intros. unfold extend_subst. rewrite var_funid_eqb_refl. auto. Qed.
-
-Theorem subst_not_in :
-  forall ξ e v v', v' <> v -> ξ[[ v' ::= e ]] v = ξ v.
-Proof.
-  intros. unfold extend_subst. apply var_funid_eqb_neq in H.
-  rewrite H. auto.
-Qed.
-
-Lemma subst_list_nth :
-  forall l vs, length l = length vs ->
-  forall ξ x, In x l -> In (ξ[[::= combine l vs]] x) vs.
-Proof.
-  induction l; intros. inversion H0.
-  apply element_exist in H as H'. destruct H', H1. subst. inversion H.
-  Opaque In. cbn.
-  replace (fold_left (fun (ξ' : Substitution) '(x2, e) => ξ' [[x2 ::= e]]) (combine l x1) (ξ [[a ::= x0]])) with
-          (ξ[[a ::= x0]][[::=combine l x1]]) by reflexivity.
-  destruct (In_dec var_funid_eq_dec x l).
-  * specialize (IHl x1 H2). destruct (var_funid_eq_dec x a); subst.
-    - Transparent In. cbn. right. apply IHl. auto.
-    - Transparent In. cbn. right. apply IHl. auto.
-  * rewrite subst_list_not_in; auto. inversion H0. 2: contradiction. subst. rewrite subst_in. intuition.
-Qed. *)
-
-(* Lemma subst_list_exchange :
-  forall l x, In x l ->
-  forall ξ φ vs, length l = length vs -> (ξ[[ ::= combine l vs]]) x = (φ[[::= combine l vs]]) x.
-Proof.
-  induction l; intros.
-  * inversion H.
-  * apply element_exist in H0 as H0'. destruct H0', H1. subst. inversion H0. simpl.
-    unfold extend_subst. destruct (in_dec var_funid_eq_dec x l).
-    - apply IHl; auto.
-    - inversion H. 2: contradiction. subst. repeat rewrite subst_list_not_in; auto.
-      rewrite var_funid_eqb_refl. auto.
-Qed. *)

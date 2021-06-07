@@ -193,3 +193,20 @@ Check Environment.MapsTo.
 Check Environment.MapsTo _ (inl "a"%string) (Environment.empty _).
 Import Environment.
 Compute add (inl "a"%string) 1 (Environment.empty _).
+
+
+Theorem indexed_to_forall {A : Type} (l : list A) : forall P def,
+  Forall P l
+<->
+  (forall i, i < Datatypes.length l -> P (nth i l def)).
+Proof.
+  induction l; split; intros.
+  * inversion H0.
+  * constructor.
+  * inversion H. subst. destruct i.
+    - simpl. auto.
+    - simpl. apply IHl. exact H4. simpl in H0. lia.
+  * constructor.
+    - apply (H 0). simpl. lia.
+    - eapply IHl. intros. apply (H (S i)). simpl. lia.
+Qed.
