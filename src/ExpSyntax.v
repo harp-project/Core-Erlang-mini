@@ -2,6 +2,7 @@
 From Coq Require Export ZArith.BinInt.
 Require Export ExpEnv.
 From Coq Require Export Lists.List.
+Require Export FunctionalExtensionality.
 
 Import ListNotations.
 
@@ -362,6 +363,9 @@ Notation "s .[ t1 , t2 , .. , tn /]" :=
   (at level 2, left associativity,
    format "s '[ ' .[ t1 , '/' t2 , '/' .. , '/' tn /] ']'").
 
+Definition list_subst (l : list Exp) : Substitution :=
+fold_right (fun v acc => v .: acc) idsubst l.
+
 (* Tests: *)
 Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
 Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
@@ -376,3 +380,87 @@ Proof.
   * inversion H.
   * apply ex_intro with a. apply ex_intro with l. reflexivity.
 Qed.
+
+Definition composition {A B C} (g : B -> C) (f : A -> B) : A -> C := fun x => g (f x).
+
+Definition mk_term (ξ : Substitution) (n : nat) : Exp :=
+  match ξ n with
+  | inl exp => exp
+  | inr n   => EVar n "x"%string
+  end.
+
+Definition substcomp (ξ η : Substitution) : Substitution :=
+  fun x =>
+    match ξ x with
+    | inl exp => inl (subst η exp)
+    | inr n   => η n
+    end.
+
+(* Definition ren (ρ : Renaming) (ξ : Substitution) : Substitution :=
+  fun x => match ξ (ρ x) with
+           | inl exp => inl (rename ρ exp)
+           | inr num => inr (ρ num)
+           end.
+
+Theorem rename_subst_comm :
+  forall e ρ ξ,
+  (rename ρ e.[ξ]) = (rename ρ e).[ren ρ ξ].
+Proof.
+  induction e using Exp_ind2 with (Q := fun l => Forall (fun e => forall ρ ξ, (rename ρ e).[ξ] = (rename ρ e).[ren ρ ξ]) l); intros; try reflexivity.
+  * simpl. unfold ren.
+Qed. *)
+
+Definition ren (ρ : Renaming) : Substitution :=
+  fun x => inr (ρ x).
+
+Theorem ren_up ρ :
+  ren (upren ρ) = up_subst (ren ρ).
+Proof.
+  extensionality x. unfold ren, upren, up_subst.
+  destruct x; reflexivity.
+Qed.
+
+Corollary renn_up : forall n ρ,
+  ren (uprenn n ρ) = upn n (ren ρ).
+Proof.
+  induction n; intros; try reflexivity.
+  cbn. rewrite ren_up. rewrite IHn. auto.
+Qed.
+
+Theorem renaming_is_subst : forall e ρ,
+  rename ρ e = e.[ren ρ].
+Proof.
+  induction e using Exp_ind2 with (Q := fun l => Forall (fun e => forall ρ, rename ρ e = e.[ren ρ]) l); intros; try reflexivity.
+  * simpl. rewrite IHe, renn_up. auto.
+  * (* TODO *)
+Admitted.
+
+Theorem subst_comm : forall e n ξ,
+  e.[ξ].[ren (fun x => n + x)] = e.[ren (fun x => n + x)].[upn n ξ].
+Proof.
+  induction e; intros; try reflexivity.
+  * cbn. break_match_goal.
+Abort.
+
+Theorem up_substcomp : forall ξ η,
+  up_subst (substcomp ξ η) = substcomp (up_subst ξ) (up_subst η).
+Proof.
+  intros. extensionality x. unfold up_subst, substcomp.
+  destruct x; auto. break_match_goal.
+  * break_match_hyp.
+    - inversion Heqs. subst. replace (fun x0 : nat =>
+                                    match x0 with
+                                    | 0 => inr 0
+                                    | S x' =>
+                                        match η x' with
+                                        | inl exp => inl (rename (fun n : nat => S n) exp)
+                                        | inr num => inr (S num)
+                                        end
+                                    end) with (up_subst η) by reflexivity.
+      rewrite renaming_is_subst, renaming_is_subst. admit. (* TODO: this is reasonable *)
+    - rewrite Heqs. auto.
+  * break_match_hyp.
+    - inversion Heqs.
+    - rewrite Heqs. auto.
+Admitted.
+

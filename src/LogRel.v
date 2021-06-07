@@ -35,7 +35,7 @@ Definition exp_rel (n : nat)
 Definition frame_rel (n : nat)
                      (Vrel : forall m, m <= n -> Expr -> Expr -> Prop)
                      (K1 K2 : FrameStack) : Prop :=
-  KCLOSED K1 /\ KCLOSED K2 /\
+  FCLOSED K1 /\ FCLOSED K2 /\
   forall m (Hmn : m <= n) v1 v2,
     Vrel m Hmn v1 v2 ->
     ⟨K1, v1⟩ -[m]-> ⟨[], v1'⟩ -> ⟨K2, v2⟩ -->* v2' /\ Vrel m Hmn v1' v2').

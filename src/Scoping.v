@@ -1,7 +1,6 @@
 Require Export ExpSyntax.
 Export Relations.Relations.
 Export Classes.RelationClasses.
-Require Export FunctionalExtensionality.
 
 Import ListNotations.
 

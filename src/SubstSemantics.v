@@ -1,4 +1,4 @@
-Require Export ExpSyntax.
+Require Export Scoping.
 From Coq Require Export Logic.ProofIrrelevance Program.Equality.
 Export PeanoNat.
 (* Export Relations.Relations.
@@ -43,7 +43,7 @@ match clock with
                                match vres with
                                | Res vals => 
                                  if length vals =? length vl
-                                 then eval n (subst (idsubst[[::= combine (map inl vl) vals]]) e)
+                                 then eval n e.[]
                                  else Fail
                                | Fail => Fail
                                | Timeout => Timeout
