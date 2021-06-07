@@ -188,30 +188,6 @@ Definition terminating (e : Exp) : Prop :=
   exists v clock, eval clock e = Res v
 .
 
-(** Based on Pitts' work: https://www.cl.cam.ac.uk/~amp12/papers/opespe/opespe-lncs.pdf *)
-(* Section stack_machine_semantics. *)
-
-Inductive Frame : Set :=
-| FApp1 (l : list Exp) (* apply □(e₁, e₂, ..., eₙ) *)
-| FApp2 (v : Exp) (p : is_value v) (l1 l2 : list Exp) (p2 : forall e, In e l2 -> is_value e) (** Can be problematic *)
-| FLet (v : Var) (e2 : Exp) (* let v = □ in e2 *)
-| FPlus1 (e2 : Exp) (* □ + e2 *)
-| FPlus2 (v : Exp) (p : is_value v) (* v + □ *)
-| FIf (e2 e3 : Exp) (* if □ then e2 else e3 *).
-
-Definition FrameStack := list Frame.
-
-Lemma empty_is_value : forall e, In e [] -> is_value e. Proof. firstorder. Qed.
-Lemma step_value : forall l v,
-  (forall e, In e l -> is_value e) -> is_value v
-->
-  (forall e, In e (l ++ [v]) -> is_value e).
-Proof.
-  intros. apply in_app_or in H1. destruct H1.
-  * apply H. auto.
-  * firstorder. subst. auto.
-Qed.
-
 Reserved Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" (at level 50).
 Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 (**  Reduction rules *)
@@ -368,6 +344,24 @@ Proof.
   intro. dependent induction H; intros.
   * inversion H1; subst; auto.
   * inversion H2; subst. apply IHstep_rt; auto. eapply step_determinism in H; eauto. destruct H. subst. auto.
+Qed.
+
+Theorem step_closedness : forall F e F' e',
+   ⟨ F, e ⟩ --> ⟨ F', e' ⟩ -> FCLOSED F -> EXPCLOSED e
+->
+  FCLOSED F' /\ EXPCLOSED e'.
+Proof.
+  intros F e F' e' IH. induction IH; intros.
+  * inversion H0. subst. inversion H4. subst. split; auto.
+    constructor; auto. destruct v; inversion H; inversion H1; auto.
+  * inversion H. inversion H0. subst. split; auto. inversion H5. exact H2.
+  * inversion H. inversion H0. subst. split; auto. inversion H5. subst. cbn in H2.
+    eapply subst_preserves_scope_rev; eauto. intro. intros. inversion H1. 2: contradiction.
+    subst. unfold idsubst, extend_subst. rewrite var_funid_eqb_refl. auto.
+  * inversion H0. subst. inversion H8. subst. split; auto. constructor; auto.
+    apply Forall_app. split; auto. constructor; auto. destruct v'; inversion H'; inversion H1; auto.
+  * inversion H3. subst. split; auto. inversion H9. eapply subst_preserves_scope_rev; eauto.
+    intro. intros. Search extend_subst_list. Search extend_subst.
 Qed.
 
 (* Theorem frame_stack_sound :
