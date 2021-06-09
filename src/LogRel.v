@@ -1,4 +1,4 @@
-Require Export Scoping.
+Require Export SubstSemantics.
 
 Import ListNotations.
 
@@ -15,38 +15,22 @@ Proof.
     - eapply H0; eauto.
 Qed.
 
-(* I think this definition is not suitable for equivalence:
-  - forall v1 v2, which are equivalent:
-  e.g. fun() -> 1 ~ fun() -> 1 iff
-  forall v1 ~ v2, where `eval fun() -> 1 = v1` (i.e. `v1 = fun() -> 1`) implies `eval fun() -> 1 = v2`
-     that means, v2 = fun() -> b, where `eval b = 1`
-     This does NOT imply, that `b = 1`, it could be `b = (fun() -> 1)()` too for example
-
-Definition exp_rel (n : nat)
-                   (Vrel : forall m, m <= n -> Exp -> Exp -> Prop)
-                   (e1 e2 : Exp)
-                 : Prop :=
-  (* closed e1 /\ closed e2 /\ *)
-  forall m (Hmn : m <= n) v1 v2,
-    (Vrel m Hmn v1 v2 /\ (* maybe -> ? *)
-     eval m e1 = Res v1) -> (exists clock, eval clock e2 = Res v2)
-. *)
-
 Definition frame_rel (n : nat)
-                     (Vrel : forall m, m <= n -> Expr -> Expr -> Prop)
+                     (Vrel : forall m, m <= n -> Exp -> Exp -> Prop)
                      (K1 K2 : FrameStack) : Prop :=
   FCLOSED K1 /\ FCLOSED K2 /\
   forall m (Hmn : m <= n) v1 v2,
     Vrel m Hmn v1 v2 ->
-    ⟨K1, v1⟩ -[m]-> ⟨[], v1'⟩ -> ⟨K2, v2⟩ -->* v2' /\ Vrel m Hmn v1' v2').
+    | K1, v1 | m ↓ -> | K2, v2 | ↓.
 
 Definition exp_rel (n : nat)
                    (Vrel : forall m, m <= n -> Exp -> Exp -> Prop)
                    (e1 e2 : Exp)
                  : Prop :=
   EXPCLOSED e1 /\ EXPCLOSED e2 /\
-  forall m (Hmn : m <= n) v1,
-     eval m e1 = Res v1 -> (exists v2, (exists clock, eval clock e2 = Res v2) /\ Vrel m Hmn v1 v2)
+  forall m (Hmn : m <= n) F1 F2,
+     frame_rel m (fun m' H => Vrel m' (Nat.le_trans _ _ _ H Hmn)) F1 F2 ->
+     | F1, e1 | m ↓ -> | F2, e2 | ↓
 .
 
 Inductive list_biforall {T : Type} (P : T -> T -> Prop) : list T -> list T -> Prop :=
@@ -62,29 +46,25 @@ Definition Vrel_rec (n : nat)
   match v1, v2 with
   | ELit l1, ELit l2 => l1 = l2
   | EFun vl1 b1, EFun vl2 b2 => 
-    match list_eq_dec string_dec vl1 vl2 with
-    | right _ => False
-    | left _ => 
-     forall m (Hmn : m < n), forall (vals1 vals2 : list Exp),
-       length vals1 = length vl1 -> length vals2 = length vl2 -> (* With DB indices, this could be removed *)
-       list_biforall (Vrel m Hmn) vals1 vals2 
-     ->
-       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
-                                                   (subst (idsubst[[::= combine (map inl vl1) vals1 ]]) b1)
-                                                   (subst (idsubst[[::= combine (map inl vl2) vals2 ]]) b2)
-    end
-  | ERecFun f1 vl1 b1, ERecFun f2 vl2 b2 =>
-    match list_eq_dec string_dec vl1 vl2 with
-    | right _ => False
-    | left _ => 
+    if length vl1 =? length vl2 then
      forall m (Hmn : m < n), forall (vals1 vals2 : list Exp),
        length vals1 = length vl1 -> length vals2 = length vl2 ->
        list_biforall (Vrel m Hmn) vals1 vals2 
      ->
        exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
-                 (subst (idsubst[[::= combine ((inr f1) :: map inl vl1) ((ERecFun f1 vl1 b1) :: vals1)]]) b1)
-                 (subst (idsubst[[::= combine ((inr f2) :: map inl vl2) ((ERecFun f2 vl2 b2) :: vals2)]]) b2)
-    end
+                 (b1.[list_subst vals1])
+                 (b2.[list_subst vals2])
+    else False
+  | ERecFun f1 vl1 b1, ERecFun f2 vl2 b2 =>
+    if length vl1 =? length vl2 then
+     forall m (Hmn : m < n), forall (vals1 vals2 : list Exp),
+       length vals1 = length vl1 -> length vals2 = length vl2 ->
+       list_biforall (Vrel m Hmn) vals1 vals2 
+     ->
+       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
+                 (b1.[list_subst (ERecFun f1 vl1 b1 :: vals1)])
+                 (b2.[list_subst (ERecFun f2 vl2 b2 :: vals2)])
+     else False
   | _, _ => False
   end
 .
@@ -152,59 +132,43 @@ Section Tests.
   Local Definition e1 := ELit 0.
   Local Definition e2 := EFun [] e1.
   Local Definition e3 := EFun [] (EPlus e1 e1).
-  Local Definition inf f := EApp (ERecFun f [] (EApp (EFunId f) [])) [].
+  Local Definition inf f := EApp (ERecFun f [] (EApp (EFunId 0 f) [])) [].
 
   Axiom inf_diverges : forall f clock, eval clock (inf f) = Timeout.
 
   Goal Erel 0 e1 e1.
   Proof.
     split. 2: split.
-    1-2: repeat constructor.
-    exists e1. split.
-    * destruct m; inversion H; inversion Hmn.
-    * inversion Hmn. subst. inversion H.
+    1-2: repeat constructor. intros.
+    destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
   Qed.
   
   Goal Erel 3 e1 e1.
   Proof.
     split. 2: split.
-    1-2: repeat constructor.
-    exists e1. split.
-    * destruct m; inversion H. exists 1. reflexivity.
-    * destruct m; inversion H.
-      split; try split; try constructor.
+    1-2: repeat constructor. intros.
+    destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
   Qed.
   
   Goal Erel 3 e2 e2.
   Proof.
     split. 2: split.
-    1-2: repeat constructor.
-    exists e2. split.
-    * destruct m; inversion H. exists 1. reflexivity.
-    * destruct m; inversion H. subst. rewrite Vrel_Fix_eq.
-      split; try split; repeat constructor.
-      simpl.
-      intros. apply length_zero_iff_nil in H0. apply length_zero_iff_nil in H1. subst.
-      exists e1. split.
-      - exists 1. reflexivity.
-      - destruct m1; inversion H3. subst.
-        split; try split; try constructor.
+    1-2: repeat constructor. intros.
+    destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
+    apply length_zero_iff_nil in H3. apply length_zero_iff_nil in H4. subst. intros. cbn. cbn in H4.
+    destruct H3, H6. eapply H7; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
   Qed.
   
   Goal Erel 3 e2 e3.
   Proof.
-    split; try split.
-    1-2: repeat constructor.
-    exists e3. split.
-    * destruct m; inversion H. exists 1. reflexivity.
-    * destruct m; inversion H. subst. rewrite Vrel_Fix_eq.
-      split; try split; repeat constructor.
-      simpl.
-      intros. apply length_zero_iff_nil in H0. apply length_zero_iff_nil in H1. subst.
-      exists e1. split.
-      - exists 3. reflexivity.
-      - destruct m1; inversion H3. subst.
-        split; try split; repeat constructor.
+    split. 2: split.
+    1-2: repeat constructor. intros.
+    destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
+    apply length_zero_iff_nil in H3. apply length_zero_iff_nil in H4. subst. intros. cbn. cbn in H4.
+    destruct H3, H6. epose (H7 m1 _ (ELit 0) (ELit 0) _ H4).
+    destruct t. exists (S (S (S x))). constructor. econstructor. constructor. assumption.
+    Unshelve.
+    all: repeat constructor.
   Qed.
 
 End Tests.

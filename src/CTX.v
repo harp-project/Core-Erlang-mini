@@ -1,4 +1,4 @@
- Require Import LogRel.
+Require Export SubstSemantics.
 
 Import ListNotations.
 
@@ -14,70 +14,111 @@ Proof.
   rewrite IHl; auto. rewrite H. auto.
 Qed.
 
-Definition Adequate (R : list VarFunId -> Exp -> Exp -> Prop) :=
-  forall e1 e2,
-    R [] e1 e2 ->
-    forall v1, (exists clock, eval clock e1 = Res v1) ->
-         exists v2, (exists clock, eval clock e2 = Res v2) /\ equivalent_values v1 v2.
+Definition Adequate (R : nat -> Exp -> Exp -> Prop) :=
+  forall e1 e2, R 0 e1 e2 -> |[], e1| ↓ -> |[], e2| ↓.
 
-Definition IsReflexive (R : list VarFunId -> Exp -> Exp -> Prop) :=
+Definition IsReflexive (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ e,
   EXP Γ ⊢ e -> R Γ e e.
 
-Definition CompatibleFun (R : list VarFunId -> Exp -> Exp -> Prop) :=
+Definition CompatibleFun (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ vl e1 e2,
-    R (Γ ++ map inl vl) e1 e2 ->
+    R (length vl + Γ) e1 e2 ->
     R Γ (EFun vl e1) (EFun vl e2).
 
-Definition CompatibleRecFun (R : list VarFunId -> Exp -> Exp -> Prop) :=
+Definition CompatibleRecFun (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ f vl e1 e2,
-    R (Γ ++ (inr f :: map inl vl)) e1 e2 ->
+    R (S (length vl) + Γ) e1 e2 ->
     R Γ (ERecFun f vl e1) (ERecFun f vl e2).
 
-Definition CompatibleApp (R : list VarFunId -> Exp -> Exp -> Prop) :=
+Definition CompatibleApp (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ f1 f2 vals1 vals2,
   Forall (fun e => EXP Γ ⊢ e) vals1 -> Forall (fun e => EXP Γ ⊢ e) vals2 ->
   EXP Γ ⊢ f1 -> EXP Γ ⊢ f2 ->
   R Γ f1 f2 -> Forall (fun '(e1, e2) => R Γ e1 e2) (combine vals1 vals2) ->
   R Γ (EApp f1 vals1) (EApp f2 vals2).
 
-Definition CompatibleLet (R : list VarFunId -> Exp -> Exp -> Prop) :=
+Definition CompatibleLet (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ e1 e1' x e2 e2',
-  EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP (Γ ++ [inl x]) ⊢ e2 -> EXP (Γ ++ [inl x]) ⊢ e2' ->
-  R Γ e1 e1' -> R (Γ ++ [inl x]) e2 e2' ->
+  EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP (S Γ) ⊢ e2 -> EXP (S Γ) ⊢ e2' ->
+  R Γ e1 e1' -> R (S Γ) e2 e2' ->
   R Γ (ELet x e1 e2) (ELet x e1' e2').
 
-Definition CompatibleLetRec (R : list VarFunId -> Exp -> Exp -> Prop) :=
+Definition CompatibleLetRec (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ f vl b1 b1' e2 e2',
-  EXP Γ ++ (inr f :: map inl vl) ⊢ b1 -> EXP Γ ++ (inr f :: map inl vl) ⊢ b1' -> 
-  EXP Γ ++ [inr f] ⊢ e2 -> EXP Γ ++ [inr f] ⊢ e2' ->
-  R (Γ ++ (inr f :: map inl vl)) b1 b1' -> R (Γ ++ [inr f]) e2 e2' ->
+  EXP S (length vl) + Γ ⊢ b1 -> EXP S (length vl) + Γ ⊢ b1' -> 
+  EXP S Γ ⊢ e2 -> EXP S Γ ⊢ e2' ->
+  R (S (length vl) + Γ) b1 b1' -> R (S Γ) e2 e2' ->
   R Γ (ELetRec f vl b1 e2) (ELetRec f vl b1' e2').
 
-Definition CompatiblePlus (R : list VarFunId -> Exp -> Exp -> Prop) :=
+Definition CompatiblePlus (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ e1 e1' e2 e2',
   EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e2' ->
   R Γ e1 e1' -> R Γ e2 e2' ->
   R Γ (EPlus e1 e2) (EPlus e1' e2').
 
-Definition CompatibleIf (R : list VarFunId -> Exp -> Exp -> Prop) :=
+Definition CompatibleIf (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ e1 e1' e2 e2' e3 e3',
   EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e2' -> EXP Γ ⊢ e3 -> EXP Γ ⊢ e3' -> (* is this needed? *)
   R Γ e1 e1' -> R Γ e2 e2' -> R Γ e3 e3' ->
   R Γ (EIf e1 e2 e3) (EIf e1' e2' e3').
 
-Definition IsPreCtxRel (R : list VarFunId -> Exp -> Exp -> Prop) :=
+Definition IsPreCtxRel (R : nat -> Exp -> Exp -> Prop) :=
   (forall Γ e1 e2, R Γ e1 e2 -> EXP Γ ⊢ e1 /\ EXP Γ ⊢ e2) /\
   Adequate R /\ IsReflexive R /\
   (forall Γ, Transitive (R Γ)) /\
   CompatibleFun R /\ CompatibleRecFun R /\ CompatibleApp R /\ CompatibleLet R/\ CompatibleLetRec R /\
   CompatiblePlus R /\ CompatibleIf R.
 
-Definition IsCtxRel (R : list VarFunId -> Exp -> Exp -> Prop) :=
+Definition IsCtxRel (R : nat -> Exp -> Exp -> Prop) :=
   IsPreCtxRel R /\
   forall R', IsPreCtxRel R' ->
     forall Γ e1 e2, R' Γ e1 e2 -> R Γ e1 e2.
 
+Definition equiv_subst (R : Exp -> Exp -> Prop) (n : nat) (ξ η : Substitution) : Prop :=
+  forall v, v < n -> match (ξ v), (η v) with
+                     | inl exp1, inl exp2 => VALCLOSED exp1 /\ VALCLOSED exp2 /\ R exp1 exp2
+                     | _, _ => False
+                     end.
+
+Fixpoint equivalent_values (n : nat) (v1 v2 : Exp) : Prop :=
+match n with
+| 0 => True
+| S n' =>
+  match v1, v2 with
+  | ELit l1, ELit l2 => l1 = l2
+  | EFun vl1 b1, EFun vl2 b2 => if length vl1 =? length vl2 then (*TODO: wrong, b1.[ξ] should be evaluated first!*)
+    forall ξ η, equiv_subst (equivalent_values n') (length vl1) ξ η -> equivalent_values n' (b1.[ξ]) (b2.[ξ])
+                                else False
+  | _, _ => False
+  end
+end.
+
+Definition inf : Exp := EApp (ERecFun ("f"%string, 0) [] (EApp (EFunId 0 ("f"%string, 0)) [])) [].
+Lemma inf_diverges : forall fs v, ~⟨fs, inf⟩ -->* v.
+Admitted.
+
+Lemma alma :
+  forall R, IsPreCtxRel R -> forall e1 e2 v1 v2,
+  ⟨ [], e1 ⟩ -->* v1 -> ⟨[], e2⟩ -->* v2 -> R 0 v1 v2.
+Proof.
+  intros.
+Admitted.
+
+Theorem det_implies_equiv :
+  forall R e1 e2, IsPreCtxRel R -> R 0 e1 e2 ->
+    forall v1 v2, ⟨ [], e1 ⟩ -->* v1 -> ⟨[], e2⟩ -->* v2
+  ->
+    forall n, equivalent_values n v1 v2.
+Proof.
+  intros. generalize dependent e1. generalize dependent R. generalize dependent n. destruct H, H3, H4, H5, H6, H7, H8, H9, H10, H11.
+  assert (| [], e1 | ↓). { eexists. eauto. } assert (| [], e2 | ↓). { eexists. eauto. }
+  destruct v1, v2.
+  * destruct (Z.eq_dec l l0).
+    - exists 1. simpl. auto.
+    - epose (H11 ).
+      epose (H12 0). 
+Qed.
 (* Lemma CTX_closed_under_substitution : forall {Γ e1 e2 vals CTX},
     IsCtxRel CTX ->
     Forall (fun v => VAL Γ ⊢ v) vals ->

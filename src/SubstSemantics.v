@@ -244,7 +244,7 @@ Inductive step_rt : FrameStack -> Exp -> nat -> FrameStack -> Exp -> Prop :=
 where "⟨ fs , e ⟩ -[ k ]-> ⟨ fs' , e' ⟩" := (step_rt fs e k fs' e').
 
 Definition eval_star (fs : FrameStack) (e : Exp) (v : Exp) : Prop :=
-  is_value v /\ exists fs' k, ⟨fs, e⟩ -[k]-> ⟨fs', v⟩.
+  exists k, ⟨fs, e⟩ -[k]-> ⟨[], v⟩.
 
 Notation "⟨ fs , e ⟩ -->* v" := (eval_star fs e v) (at level 50).
 
@@ -270,10 +270,7 @@ Qed.
 Goal ⟨ [], sum 1 ⟩ -->* ELit 1.
 Proof.
   unfold sum.
-  econstructor.
-  econstructor.
   simpl.
-  econstructor.
   econstructor.
   econstructor.
   econstructor.
@@ -386,16 +383,89 @@ Proof.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
 Qed.
 
-(* Theorem frame_stack_sound :
-  forall clock e v, eval clock e = Res v ->
-  ⟨[], e⟩ -->* v.
-Proof.
-  induction clock; intros. inversion H.
-  destruct e; simpl in H.
-  1-5: inversion H; repeat econstructor.
-  * break_match_hyp; try congruence; destruct v0; try congruence. admit. admit.
-  * break_match_hyp; try congruence. apply IHclock in Heqr as B1. apply IHclock in H as B2.
-    apply result_is_value in Heqr. apply result_is_value in H.
-    constructor. auto. exists []. exists 3. econstructor. *)
 
-(* End stack_machine_semantics. *)
+Definition terminates_sem (fs : FrameStack) (e : Exp) : Prop :=
+  exists v, ⟨fs, e⟩ -->* v.
+
+Definition terminates_in_k_sem (fs : FrameStack) (e : Exp) (k : nat) : Prop :=
+  exists v, ⟨fs, e⟩ -[k]-> ⟨[], v⟩.
+
+
+
+Reserved Notation "| fs , e | k ↓" (at level 80).
+Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
+
+| term_value v : is_value v -> | [] , v | 0 ↓ (** TODO: empty stack + 0 steps? *)
+| term_if_true fs e1 e2 k : | fs , e1 | k ↓ -> | (FIf e1 e2)::fs , ELit 0 | S k ↓
+| term_if_false fs e1 e2 v k : is_value v -> v <> ELit 0 -> | fs , e2 | k ↓ -> | (FIf e1 e2)::fs , v | S k ↓
+| term_plus_left e2 v fs (H : is_value v) k : | (FPlus2 v H)::fs , e2 | k ↓ -> | (FPlus1 e2)::fs, v | S k ↓
+| term_plus_right n m fs H k : | fs , ELit (n + m) | k ↓ -> | (FPlus2 (ELit n) H )::fs, ELit m | S k ↓
+| term_let_subst v e2 fs k : is_value v -> | fs, e2.[v/] | k ↓ -> | (FLet e2)::fs, v | S k ↓
+| term_letrec_subst f vl b e fs k : | fs, e.[ERecFun f vl b/] | k ↓ -> | fs, ELetRec f vl b e | S k ↓
+| term_app_start v hd tl (H : is_value v) fs k : 
+  | (FApp2 v H tl [] empty_is_value)::fs, hd| k ↓ -> | (FApp1 (hd::tl))::fs, v | S k ↓
+| term_app1 fs e k :  | fs, e | k ↓ -> | (FApp1 [])::fs, EFun [] e | S k ↓
+| term_app1_rec f e fs k : | fs, e.[ERecFun f [] e/] | k ↓ -> | (FApp1 [])::fs, ERecFun f [] e | S k ↓
+| term_app_step v v' H hd tl vs H2 (H' : is_value v') fs k :
+  | (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H'))::fs, hd | k ↓ -> | (FApp2 v H (hd::tl) vs H2)::fs , v' | S k ↓
+| term_app2 v vl e vs fs H H2 k : 
+  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (vs ++ [v])] | k ↓ -> | (FApp2 (EFun vl e) H [] vs H2)::fs, v | S k ↓
+| term_app2_rec v f vl e vs fs H H2 k :
+  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst(ERecFun f vl e  :: (vs ++ [v]))] | k ↓ 
+-> | (FApp2 (ERecFun f vl e) H [] vs H2)::fs, v | S k ↓
+
+
+| term_if e e1 e2 fs k : | (FIf e1 e2)::fs, e | k ↓ -> | fs, EIf e e1 e2 | S k ↓
+| term_plus e1 e2 fs k : | (FPlus1 e2)::fs, e1 | k ↓ -> | fs, EPlus e1 e2 | S k ↓
+| term_app e vs fs k : | (FApp1 vs)::fs, e | k ↓ -> | fs, EApp e vs | S k ↓
+| term_let v e1 e2 fs k : | (FLet e2)::fs, e1 | k ↓ -> | fs, ELet v e1 e2 | S k ↓
+
+where "| fs , e | k ↓" := (terminates_in_k fs e k).
+
+Definition terminates (fs : FrameStack) (e : Exp) := exists n, | fs, e | n ↓.
+Notation "| fs , e | ↓" := (terminates fs e) (at level 80).
+
+Theorem terminates_in_k_eq_terminates_in_k_sem :
+  forall k e fs, terminates_in_k_sem fs e k <-> | fs, e | k ↓.
+Proof.
+  induction k; intros.
+  * split; intros.
+    - inversion H. inversion H0. inversion H2. constructor. auto.
+    - inversion H. subst. econstructor. constructor. eauto.
+  * split; intros.
+    {
+      inversion H. clear H. inversion H0; subst.
+      assert (terminates_in_k_sem fs' e' k). { econstructor. eauto. } apply IHk in H.
+      clear H4 H0. inversion H1; subst; econstructor; eauto.
+    }
+    {
+      inversion H; subst;
+      match goal with
+      | [ H0 : | _, _ | S k ↓, H1 : | _, _ | k ↓ |- _] => apply IHk in H1; inversion H1; econstructor; econstructor; eauto; constructor
+      end. all: auto.
+    }
+Qed.
+
+Corollary terminates_eq_terminates_sem :
+  forall e fs, terminates_sem fs e <-> | fs, e | ↓.
+Proof.
+  split; intros; inversion H.
+  * inversion H0. econstructor. apply terminates_in_k_eq_terminates_in_k_sem.
+    econstructor. eauto.
+  * apply terminates_in_k_eq_terminates_in_k_sem in H0. inversion H0. econstructor. econstructor. eauto.
+Qed.
+
+Theorem terminates_step :
+  forall fs e, | fs, e | ↓ -> forall fs' e', ⟨fs, e⟩ --> ⟨fs', e'⟩
+->
+  | fs', e' | ↓.
+Proof.
+  intros. apply terminates_eq_terminates_sem in H. destruct H, H. destruct x0.
+  * inversion H. subst. apply value_nostep in H0; intuition.
+  * inversion H. subst. apply (step_determinism H0) in H2. destruct H2. subst.
+    assert (terminates_sem fs' e'). { eexists. eexists. eauto. } apply terminates_eq_terminates_sem in H1.
+    auto.
+Qed.
+
+
+
