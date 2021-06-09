@@ -441,9 +441,10 @@ Proof.
 Qed.
 
 Hint Resolve cons_scope.
+Hint Resolve consn_scope.
 
 (** Substitution is scope-preserving. *)
-Lemma sub_preserves_scope : forall e Γ,
+Lemma subst_preserves_scope : forall e Γ,
     (EXP Γ ⊢ e <->
      forall Γ' ξ,
        SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
@@ -516,24 +517,24 @@ Proof.
   * constructor.
 Qed.
 
-Lemma sub_preserves_scope_exp : forall e Γ,
+Lemma subst_preserves_scope_exp : forall e Γ,
     EXP Γ ⊢ e <->
     forall Γ' ξ,
       SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
       EXP Γ' ⊢ e.[ξ].
 Proof.
   intros.
-  apply sub_preserves_scope.
+  apply subst_preserves_scope.
 Qed.
 
-Lemma sub_preserves_scope_val : forall e Γ,
+Lemma subst_preserves_scope_val : forall e Γ,
     VAL Γ ⊢ e <->
     forall Γ' ξ,
       SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
       VAL Γ' ⊢ e.[ξ].
 Proof.
   intros.
-  apply sub_preserves_scope.
+  apply subst_preserves_scope.
 Qed.
 
 Module SUB_IMPLIES_SCOPE.

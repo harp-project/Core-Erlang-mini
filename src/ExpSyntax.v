@@ -291,14 +291,18 @@ end.
 Definition Substitution := nat -> Exp + nat. (* We need to have the names for the identity elements explicitly, because of the shiftings (up, upn) *)
 Definition idsubst : Substitution := fun x => inr x.
 
+Definition shift (ξ : Substitution) : Substitution := 
+fun s =>
+  match ξ s with
+  | inl exp => inl (rename (fun n => S n) exp)
+  | inr num => inr (S num)
+  end.
+
 Definition up_subst (ξ : Substitution) : Substitution :=
   fun x =>
     match x with
     | 0 => inr 0
-    | S x' => match (ξ x') with
-              | inl exp => inl (rename (fun n => S n) exp)
-              | inr num => inr (S num)
-              end
+    | S x' => shift ξ x'
     end.
 
 Notation upn := (iterate up_subst).
@@ -446,7 +450,7 @@ Theorem up_substcomp : forall ξ η,
   up_subst (substcomp ξ η) = substcomp (up_subst ξ) (up_subst η).
 Proof.
   intros. extensionality x. unfold up_subst, substcomp.
-  destruct x; auto. break_match_goal.
+  destruct x; auto. unfold shift. break_match_goal.
   * break_match_hyp.
     - inversion Heqs. subst. replace (fun x0 : nat =>
                                     match x0 with
@@ -464,3 +468,44 @@ Proof.
     - rewrite Heqs. auto.
 Admitted.
 
+Theorem upn_substcomp : forall n ξ η,
+  upn n (substcomp ξ η) = substcomp (upn n ξ) (upn n η).
+Proof.
+  induction n; intros; cbn; auto.
+  rewrite IHn, up_substcomp. auto.
+Qed.
+
+Theorem substcomp_subst : forall e ξ η,
+  e.[ξ].[η] = e.[substcomp ξ η].
+Proof.
+  induction e using Exp_ind2 with
+  (Q := fun l => forall ξ η, Forall (fun e => e.[ξ].[η] = e.[substcomp ξ η]) l); intros; try reflexivity.
+  * unfold substcomp. cbn. break_match_goal; auto.
+  * unfold substcomp. cbn. break_match_goal; auto.
+  * cbn. rewrite upn_substcomp, IHe. auto.
+  * cbn. rewrite upn_substcomp, up_substcomp, IHe. auto.
+  * cbn. rewrite IHe, map_map. Search map Forall.
+    assert (map (fun x : Exp => x.[ξ].[η]) el = map (subst (substcomp ξ η)) el).
+    { apply map_ext_Forall. auto. } rewrite H. auto.
+  * cbn. rewrite up_substcomp, IHe1, IHe2. auto.
+  * cbn. rewrite up_substcomp, upn_substcomp, up_substcomp, IHe1, IHe2. auto.
+  * cbn. rewrite IHe1, IHe2. auto.
+  * cbn. rewrite IHe1, IHe2, IHe3. auto.
+  * constructor; auto.
+  * constructor.
+Qed.
+
+Theorem shift_is_id ξ x v:
+  match shift ξ x with
+  | inl exp => inl exp.[v/]
+  | inr n => (v .: idsubst) n
+  end = shift ξ x.
+Proof.
+
+Admitted.
+
+Theorem substcomp_scons : forall ξ v,
+  substcomp (up_subst ξ) (v .: idsubst) = v .: (shift ξ).
+Proof.
+  intros. unfold substcomp. extensionality x. destruct x; auto. 
+  unfold up_subst. cbn.

@@ -189,8 +189,8 @@ Proof.
   unfold Vrel_rec at 1.
   unfold Vrel_rec at 1 in H.
   destruct v1, v2; intuition; break_match_hyp; intros.
-  epose (H2 m1 _ vals1 vals2 H1 H3 H4). apply e0. contradiction.
-  epose (H2 m1 _ vals1 vals2 H1 H3 H4). apply e0. contradiction.
+  epose (H2 m1 _ vals1 vals2 H1 H3 H4). apply e. contradiction.
+  epose (H2 m1 _ vals1 vals2 H1 H3 H4). apply e. contradiction.
   Unshelve. all: lia.
 Qed.
 
@@ -268,22 +268,24 @@ Qed.
 
 Hint Resolve Erel_closed_r.
 
-(*
-Definition subscoped (l l' : list VarFunId) (ξ : VarFunId -> Exp) : Prop :=
-  forall v, In v l -> ValScoped l' (ξ v).
-
-Notation "'SUBSCOPE' Γ ⊢ ξ :: Γ'" := (subscoped Γ Γ' ξ) (at level 69, ξ at level 99, no associativity).
-*)
-
 (* Def: closed values are related *)
-Definition Grel (n : nat) (Γ : list VarFunId) (ξ₁ ξ₂ : Substitution) : Prop :=
-  subscoped Γ [] ξ₁ /\ subscoped Γ [] ξ₂ /\
-  forall x, In x Γ -> Vrel n (ξ₁ x) (ξ₂ x).
+Definition Grel (n : nat) (Γ : nat) (ξ₁ ξ₂ : Substitution) : Prop :=
+  SUBSCOPE Γ ⊢ ξ₁ ∷ 0 /\ SUBSCOPE Γ ⊢ ξ₂ ∷ 0 /\
+  forall x, x < Γ -> 
+    match (ξ₁ x), (ξ₂ x) with
+    | inl e1, inl e2 => Vrel n e1 e2
+(*     | inr n1, inr n2 => n1 = n2 NOTE: these are not needed, because of the subscoped property
+    | inr n1, inl (EVar n2 f) => n1 = n2
+    | inr n1, inl (EFunId n2 f) => n1 = n2
+    | inl (EVar n2 f), inr n1 => n2 = n1
+    | inl (EFunId n2 f), inr n1 => n2 = n1 *)
+    | _, _ => False
+    end.
 
 
 (** Closing substitutions  *)
 
-(* Definition Grel (n : nat) (Γ : list VarFunId) (ξ η : VarFunId -> Exp) : Prop :=
+(* Definition Grel (n : nat) (Γ : nat) (ξ η : VarFunId -> Exp) : Prop :=
   (subscoped Γ [] ξ) /\
   (subscoped Γ [] η) /\
   forall x, In x Γ -> Vrel n (ξ x) (η x). *)
@@ -324,20 +326,22 @@ Unshelve. auto.
 Qed.
 
 Lemma Grel_downclosed :
-  forall {n m : nat} {Hmn : m <= n} {Γ : list VarFunId} {ξ₁ ξ₂ : Substitution},
+  forall {n m : nat} {Hmn : m <= n} {Γ : nat} {ξ₁ ξ₂ : Substitution},
     Grel n Γ ξ₁ ξ₂ ->
     Grel m Γ ξ₁ ξ₂ .
 Proof.
-  unfold Grel; intros; intuition (eauto using Vrel_downclosed).
+  unfold Grel; intros.
+  unfold Grel; intros. intuition.
+  repeat break_match_goal; specialize (H2 x H1); try rewrite Heqs in H2; try rewrite Heqs0 in H2; [ intuition (eauto using Vrel_downclosed) | contradiction | contradiction ].
 Qed.
 
-Definition Vrel_open (Γ : list VarFunId) (e1 e2 : Exp) :=
+Definition Vrel_open (Γ : nat) (e1 e2 : Exp) :=
   forall n ξ₁ ξ₂,
   Grel n Γ ξ₁ ξ₂
 ->
   Vrel n (subst ξ₁ e1) (subst ξ₂ e2).
 
-Definition Erel_open (Γ : list VarFunId) (e1 e2 : Exp) :=
+Definition Erel_open (Γ : nat) (e1 e2 : Exp) :=
   forall n ξ₁ ξ₂,
   Grel n Γ ξ₁ ξ₂
 ->
@@ -362,17 +366,19 @@ Qed. *)
 
 Lemma Erel_open_closed : forall {Γ e1 e2},
     Erel_open Γ e1 e2 ->
-    forall ξ, subscoped Γ [] ξ ->
+    forall ξ, SUBSCOPE Γ ⊢ ξ ∷ 0 ->
               EXPCLOSED (subst ξ e1) /\ EXPCLOSED (subst ξ e2).
 Proof.
   intros.
   apply @Erel_closed with (n:=0).
   apply H; auto.
   unfold Grel.
-  intuition idtac.
+  intuition idtac. break_match_goal.
   rewrite Vrel_Fix_eq. unfold Vrel_rec at 1.
-  pose (P := H0 x H1). destruct P; intuition; try constructor; auto.
-  1-2: break_match_goal; intros; try congruence; inversion Hmn.
+  specialize (H0 x H1) as P'. rewrite Heqs in P'.
+  * destruct P'; intuition; cbn; try constructor; auto. inversion H2. inversion H2.
+    1-2: break_match_goal; intros; try congruence; try inversion Hmn. 1-2: rewrite Nat.eqb_refl in Heqb; congruence.
+  * specialize (H0 x H1). rewrite Heqs in H0. lia.
 Qed.
 
 Lemma Erel_open_scope : forall {Γ e1 e2},
@@ -414,63 +420,6 @@ Proof.
   * right. left. repeat eexists.
   * right. right. repeat eexists.
 Qed.
-
-Definition equivalent_values (v1 v2 : Exp) := Vrel_open [] v1 v2.
-
-Theorem Vrel_Fundamental_closed :
-  forall (v : Exp),
-    VALCLOSED v ->
-    forall n, Vrel n v v.
-Proof.
-Admitted.
-
-Theorem exp_rel_trans :
-  forall n vrel e1 e2 e3,
-    exp_rel n vrel e1 e2 -> exp_rel n vrel e2 e3 -> exp_rel n vrel e1 e3.
-Proof.
-  intros. unfold exp_rel in *. destruct H, H0, H1, H2. intuition.
-  specialize (H3 _ Hmn _ H5). destruct H3, H3, H3.
-Abort.
-
-Theorem Vrel_closed_trans :
-  forall n (v1 v2 v3 : Exp),
-    Vrel n v1 v2 -> Vrel n v2 v3 -> Vrel n v1 v3.
-Proof.
-  induction n.
-  {
-  intros.
-  rewrite Vrel_Fix_eq in H. rewrite Vrel_Fix_eq in H0. rewrite Vrel_Fix_eq.
-  destruct v1.
-  2-3, 6-10: inversion H; inversion H2; contradiction.
-  all: destruct v2.
-  all: try inversion H; try inversion H2; try contradiction.
-  all: destruct v3.
-  all: try inversion H0; try inversion H6; try contradiction.
-  all: subst.
-  * unfold Vrel_rec. split. 2: split. all: constructor.
-  * clear H2 H6. break_match_hyp. break_match_hyp. 2-3: contradiction.
-    subst. unfold Vrel_rec. intuition. break_match_goal. 2: contradiction. intros. inversion Hmn.
-  * clear H2 H6. break_match_hyp. break_match_hyp. 2-3: contradiction.
-    subst. unfold Vrel_rec. intuition. break_match_goal. 2: contradiction. intros. inversion Hmn.
-  }
-  {
-  intros.
-  rewrite Vrel_Fix_eq in H. rewrite Vrel_Fix_eq in H0. rewrite Vrel_Fix_eq.
-  destruct v1.
-  2-3, 6-10: inversion H; inversion H2; contradiction.
-  all: destruct v2.
-  all: try inversion H; try inversion H2; try contradiction.
-  all: destruct v3.
-  all: try inversion H0; try inversion H6; try contradiction.
-  all: subst.
-  * unfold Vrel_rec. split. 2: split. all: constructor.
-  * clear H2 H6. break_match_hyp. break_match_hyp. 2-3: contradiction.
-    subst. unfold Vrel_rec. intuition. break_match_goal. 2: contradiction. intros.
-    specialize (H8 m Hmn vals1 vals2 H2 H6 H9).
-    specialize (H4 m Hmn vals1 vals2 H2 H6 H9). admit.
-  * admit.
-  }
-Admitted.
 
 (* Theorem Erel_open_trans :
   forall Γ, Transitive (Erel_open Γ).

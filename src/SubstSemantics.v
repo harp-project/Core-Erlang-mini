@@ -353,28 +353,28 @@ Proof.
     constructor; auto. destruct v; inversion H; inversion H1; auto.
   * inversion H. inversion H0. subst. split; auto. inversion H5. exact H2.
   * inversion H. inversion H0. subst. split; auto. inversion H5. subst. cbn in H2.
-    apply -> sub_preserves_scope_exp; eauto.
+    apply -> subst_preserves_scope_exp; eauto.
   * inversion H0. subst. inversion H8. subst. split; auto. constructor; auto.
     apply Forall_app. split; auto. constructor; auto. destruct v'; inversion H'; inversion H1; auto.
   * inversion H3. subst. split; auto. inversion H9.
-    apply -> sub_preserves_scope_exp; eauto. subst.
+    apply -> subst_preserves_scope_exp; eauto. subst.
     rewrite Nat.add_0_r. replace (length vl) with (length (vs ++ [v])).
     apply scoped_list_subscoped. apply Forall_app. split; auto. constructor; auto.
     destruct v; inversion H0; inversion H4; auto.
     rewrite app_length. rewrite H1. simpl. lia.
   * inversion H3. split. auto. subst. inversion H9.
-    apply -> sub_preserves_scope_exp; eauto. subst.
+    apply -> subst_preserves_scope_exp; eauto. subst.
     rewrite Nat.add_0_r. replace (S (length vl)) with (length (ERecFun f vl e :: vs ++ [v])).
     apply scoped_list_subscoped. constructor. auto. apply Forall_app. split; auto. constructor; auto.
     destruct v; inversion H0; inversion H4; auto. simpl. rewrite H1, app_length. simpl. lia.
-  * inversion H0. subst. split; auto. apply -> sub_preserves_scope_exp; eauto.
+  * inversion H0. subst. split; auto. apply -> subst_preserves_scope_exp; eauto.
     apply cons_scope; auto. destruct val; inversion H; inversion H1; auto.
   * inversion H. subst. split; auto.
   * inversion H1. subst. split; auto.
   * inversion H0; subst. split; auto. constructor.
     destruct v; inversion H; inversion H1; auto. auto.
   * inversion H. subst. split; auto. constructor. constructor.
-  * split; auto. inversion H0. 2: inversion H1. apply -> sub_preserves_scope_exp; eauto.
+  * split; auto. inversion H0. 2: inversion H1. apply -> subst_preserves_scope_exp; eauto.
     subst. apply cons_scope; auto. constructor. auto.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
