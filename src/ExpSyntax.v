@@ -385,7 +385,11 @@ Proof.
   * apply ex_intro with a. apply ex_intro with l. reflexivity.
 Qed.
 
-Definition composition {A B C} (g : B -> C) (f : A -> B) : A -> C := fun x => g (f x).
+Definition composition {A B C} (f : A -> B) (g : B -> C) : A -> C := fun x => g (f x).
+
+Notation "f >>> g" := (composition f g)
+  (at level 56, left associativity).
+
 
 Definition mk_term (ξ : Substitution) (n : nat) : Exp :=
   match ξ n with
@@ -505,28 +509,137 @@ Proof.
   extensionality x. induction m; cbn; auto.
 Qed.
 
-Theorem rename_up : forall e σ δ,
-  rename (upren σ) (rename (upren δ) e) = rename (upren (composition σ δ)) e.
+Lemma upren_subst_up : forall σ ξ,
+  upren σ >>> up_subst ξ = up_subst (σ >>> ξ).
 Proof.
-  induction e; intros; cbn; auto.
-  * unfold upren, composition. destruct n; auto.
-  * unfold upren, composition. destruct n; auto.
-  * 
-Abort.
-
-Theorem rename_comp :
-  forall e σ δ, rename σ (rename δ e) = rename (composition σ δ) e.
-Proof.
-  induction e; intros; auto.
-  * simpl.
-  TODO: https://www.ps.uni-saarland.de/courses/sem-ws15/html/UntypedLambda.html
+  intros. extensionality x. unfold upren, up_subst, ">>>".
+  destruct x; auto.
 Qed.
 
-Theorem iterate_extract :
-  forall e σ n, rename (iterate σ (S n)) e = rename σ (rename (iterate σ n) e).
+Corollary uprenn_subst_upn n : forall σ ξ,
+  uprenn n σ >>> upn n ξ = upn n (σ >>> ξ).
 Proof.
-  induction e; intros; auto.
-  * simpl.
+  induction n; intros; auto.
+  cbn. rewrite <- IHn, upren_subst_up. auto.
+Qed.
+
+Lemma subst_ren (σ : Renaming) (ξ : Substitution) e :
+  e.[ren σ].[ξ] = e.[σ >>> ξ].
+Proof.
+  revert ξ σ. induction e using Exp_ind2 with (Q := fun l => forall ξ σ, Forall (fun e => e.[ren σ].[ξ] = e.[σ >>> ξ]) l); simpl; intros; auto.
+  * rewrite <- renn_up. rewrite IHe, uprenn_subst_upn. auto.
+  * rewrite <- renn_up, <- ren_up. rewrite IHe, upren_subst_up, uprenn_subst_upn. auto.
+  * rewrite IHe. erewrite map_map, map_ext_Forall. reflexivity. auto.
+  * rewrite <- ren_up, IHe1, IHe2, upren_subst_up. auto.
+  * rewrite <- renn_up, <- ren_up. rewrite IHe1, upren_subst_up, uprenn_subst_upn.
+    rewrite <- ren_up, IHe2, upren_subst_up. auto.
+  * rewrite IHe1, IHe2. auto.
+  * rewrite IHe1, IHe2, IHe3. auto.
+Qed.
+
+Notation "σ >> ξ" := (substcomp σ ξ) (at level 56, left associativity).
+
+Theorem upren_comp : forall σ ρ,
+  upren σ >>> upren ρ = upren (σ >>> ρ).
+Proof.
+  intros. unfold upren, ">>>". extensionality n. destruct n; auto.
+Qed.
+
+Corollary uprenn_comp : forall n σ ρ,
+  uprenn n σ >>> uprenn n ρ = uprenn n (σ >>> ρ).
+Proof.
+  induction n; intros; auto. simpl. rewrite upren_comp, IHn. auto.
+Qed.
+
+Theorem rename_up : forall e n σ ρ,
+  rename (uprenn n σ) (rename (uprenn n ρ) e) = rename (uprenn n (ρ >>> σ)) e.
+Proof.
+  induction e; intros; simpl; auto.
+  * rewrite <- uprenn_comp. reflexivity.
+  * rewrite <- uprenn_comp. reflexivity.
+  * rewrite IHe, uprenn_comp. auto.
+  * replace (upren (uprenn (Datatypes.length vl) (uprenn n σ))) with
+            (uprenn (S (Datatypes.length vl)) (uprenn n σ)) by auto.
+    replace (upren (uprenn (Datatypes.length vl) (uprenn n ρ))) with
+            (uprenn (S (Datatypes.length vl)) (uprenn n ρ)) by auto.
+    replace (upren (uprenn (Datatypes.length vl) (uprenn n (ρ >>> σ)))) with
+            (uprenn (S (Datatypes.length vl)) (uprenn n (ρ >>> σ))) by auto.
+    rewrite IHe, uprenn_comp. auto.
+  (* TODO: Finish this, provable *)
+Admitted.
+
+Theorem rename_comp :
+  forall e σ ρ, rename σ (rename ρ e) = rename (ρ >>> σ) e.
+Proof.
+  induction e; intros; auto; cbn.
+  * rewrite rename_up. auto.
+  * replace (upren (uprenn (Datatypes.length vl) σ)) with
+            (uprenn (S (Datatypes.length vl)) σ) by auto.
+    replace (upren (uprenn (Datatypes.length vl) ρ)) with
+            (uprenn (S (Datatypes.length vl)) ρ) by auto.
+    rewrite rename_up. auto.
+  (* TODO: Finish this, provable *)
+Admitted.
+
+Lemma subst_up_upren : forall σ ξ,
+  up_subst ξ >> ren (upren σ) = up_subst (ξ >> ren σ).
+Proof.
+  intros. extensionality x. unfold upren, up_subst, ">>", shift.
+  destruct x; auto. destruct (ξ x) eqn:P; auto.
+  rewrite <- renaming_is_subst, <- renaming_is_subst. f_equiv.
+  replace (fun n : nat => match n with
+                       | 0 => 0
+                       | S n' => S (σ n')
+                       end) with (upren σ) by auto.
+  rewrite rename_comp, rename_comp. f_equiv.
+Qed.
+
+Lemma subst_upn_uprenn : forall n σ ξ,
+  upn n ξ >> ren (uprenn n σ) = upn n (ξ >> ren σ).
+Proof.
+  induction n; intros; auto. simpl.
+  rewrite subst_up_upren, IHn. auto.
+Qed.
+
+Lemma ren_subst (ξ : Substitution) (σ : Renaming) e :
+  e.[ξ].[ren σ] = e.[ξ >> ren σ].
+Proof.
+  revert ξ σ. induction e; simpl; intros; auto.
+  * unfold ">>", ren. destruct (ξ n) eqn:P; auto.
+  * unfold ">>", ren. destruct (ξ n) eqn:P; auto.
+  * rewrite <- renn_up, IHe. f_equiv. rewrite <- subst_upn_uprenn. auto.
+  *
+  (* TODO: Finish this, provable *)
+Admitted.
+
+Lemma up_comp ξ η :
+  up_subst ξ >> up_subst η = up_subst (ξ >> η).
+Proof.
+  extensionality x.
+  unfold ">>". cbn. unfold up_subst, shift. destruct x; auto. 
+  destruct (ξ x) eqn:P; auto.
+  do 2 rewrite renaming_is_subst. rewrite ren_subst, subst_ren.
+  Check renaming_is_subst.
+  unfold ren. f_equiv. f_equiv. extensionality n.
+  unfold ">>>", ">>", up_subst, shift. destruct (η n) eqn:P0; auto.
+  rewrite renaming_is_subst. auto.
+Qed.
+
+Corollary upn_comp : forall n ξ η,
+  upn n ξ >> upn n η = upn n (ξ >> η).
+Proof.
+  induction n; intros; auto. simpl. rewrite <- IHn, up_comp. auto.
+Qed.
+
+Lemma subst_comp ξ η e :
+  e.[ξ].[η] = e.[ξ >> η].
+Proof.
+  revert ξ η. induction e; simpl; intros; auto.
+  * unfold ">>". break_match_goal; auto.
+  * unfold ">>". break_match_goal; auto.
+  * rewrite IHe, upn_comp. auto.
+  *
+  (* TODO: Finish this, provable *)
 Admitted.
 
 Corollary upn_get_inl m : forall ξ x y,
