@@ -52,8 +52,8 @@ Definition Vrel_rec (n : nat)
        list_biforall (Vrel m Hmn) vals1 vals2 
      ->
        exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
-                 (b1.[list_subst vals1])
-                 (b2.[list_subst vals2])
+                 (b1.[list_subst vals1 idsubst])
+                 (b2.[list_subst vals2 idsubst])
     else False
   | ERecFun f1 vl1 b1, ERecFun f2 vl2 b2 =>
     if length vl1 =? length vl2 then
@@ -62,8 +62,8 @@ Definition Vrel_rec (n : nat)
        list_biforall (Vrel m Hmn) vals1 vals2 
      ->
        exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
-                 (b1.[list_subst (ERecFun f1 vl1 b1 :: vals1)])
-                 (b2.[list_subst (ERecFun f2 vl2 b2 :: vals2)])
+                 (b1.[list_subst (ERecFun f1 vl1 b1 :: vals1) idsubst])
+                 (b2.[list_subst (ERecFun f2 vl2 b2 :: vals2) idsubst])
      else False
   | _, _ => False
   end

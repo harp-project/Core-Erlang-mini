@@ -1,6 +1,7 @@
 -R src Core_Erlang
-src/ExpEnv.v
+src/Basics.v
 src/ExpSyntax.v
+src/ExpManipulation.v
 src/SubstSemantics.v
 src/Scoping.v
 src/LogRel.v

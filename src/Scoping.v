@@ -1,4 +1,4 @@
-Require Export ExpSyntax.
+Require Export ExpManipulation.
 Export Relations.Relations.
 Export Classes.RelationClasses.
 
@@ -106,7 +106,7 @@ Theorem subst_preserves_up : forall Γ ξ,
   subst_preserves Γ ξ -> subst_preserves (S Γ) (up_subst ξ).
 Proof.
   intros. unfold subst_preserves in *. intros. unfold up_subst. destruct v; auto.
-  apply Lt.lt_S_n in H0. apply H in H0. rewrite H0. auto.
+  apply Lt.lt_S_n in H0. apply H in H0. unfold shift. rewrite H0. auto.
 Qed.
 
 Hint Resolve subst_preserves_up.
@@ -381,9 +381,9 @@ Lemma up_val : forall Γ v (ξ : Substitution),
 Proof.
   intros. unfold up_subst.
   break_match_hyp.
-  * apply -> ren_preserves_scope_val; eauto.
+  * unfold shift. rewrite Heqs. apply -> ren_preserves_scope_val; eauto.
     intro. intros. lia.
-  * lia.
+  * unfold shift. rewrite Heqs. lia.
 Qed.
 
 Lemma up_scope : forall Γ Γ' ξ,
@@ -395,7 +395,7 @@ Proof.
   intros.
   destruct v; intros.
   * simpl. lia.
-  * simpl. break_match_goal. break_match_hyp.
+  * simpl. unfold shift. break_match_goal. break_match_hyp.
     - inversion Heqs. eapply ren_preserves_scope_val with (Γ:= Γ'); eauto.
       + epose (H v _). rewrite Heqs0 in y. auto. Unshelve. lia.
       + intro. intros. lia.
@@ -559,7 +559,7 @@ Module SUB_IMPLIES_SCOPE.
     extensionality x.
     unfold magic_ξ, up_subst.
     destruct x; cbn; auto.
-    repeat destruct Compare_dec.lt_dec; auto; lia.
+    unfold shift. repeat destruct Compare_dec.lt_dec; auto; lia.
   Qed.
 
   Lemma upn_magic : forall n Γ Γ', upn n (magic_ξ Γ Γ') = magic_ξ (n + Γ) (n + Γ').
@@ -792,7 +792,7 @@ Proof.
   + inversion H.
   + simpl. destruct v.
     * simpl. auto.
-    * simpl. rewrite IHΓ. 2: lia. auto.
+    * simpl. unfold shift. rewrite IHΓ. 2: lia. auto.
 Qed.
 
 Corollary upn_ignores_sub : forall e Γ ξ,
@@ -900,8 +900,18 @@ Inductive FCLOSED : FrameStack -> Prop :=
 
 
 Lemma scoped_list_subscoped :
+  forall vals Γ ξ Γ', Forall (fun v => VAL Γ ⊢ v) vals -> SUBSCOPE Γ' ⊢ ξ ∷ Γ ->
+  SUBSCOPE length vals + Γ' ⊢ list_subst vals ξ ∷ Γ.
+Proof.
+  induction vals; intros; simpl; auto.
+  simpl. inversion H. intro. intros. destruct v.
+  * simpl. apply H3.
+  * simpl. specialize (IHvals _ _ _ H4 H0 v). apply IHvals. lia.
+Qed.
+
+Lemma scoped_list_idsubst :
   forall vals Γ, Forall (fun v => VAL Γ ⊢ v) vals ->
-  SUBSCOPE length vals ⊢ list_subst vals ∷ Γ.
+  SUBSCOPE length vals ⊢ list_subst vals idsubst ∷ Γ.
 Proof.
   induction vals; intros. simpl.
   unfold idsubst. intro. intros. inversion H0.

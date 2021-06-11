@@ -41,6 +41,17 @@ Qed.
 
 Hint Resolve Vrel_Lit_compat_open.
 
+Lemma biforall_vrel_closed : forall vals1 vals2 m,
+  list_biforall (Vrel m) vals1 vals2 ->
+  Forall (fun e => VALCLOSED e) vals1 /\ Forall (fun e => VALCLOSED e) vals2.
+Proof.
+  induction vals1; intros; inversion H; subst; repeat constructor.
+  * eapply Vrel_closed_l; eauto.
+  * specialize (IHvals1 _ _ H4); apply IHvals1.
+  * eapply Vrel_closed_r; eauto.
+  * eapply IHvals1; eauto.
+Qed.
+
 Lemma Vrel_Fun_compat :
   forall Γ vl1 vl2 b1 b2, length vl1 = length vl2 ->
   Erel_open (length vl1 + Γ) b1 b2 ->
@@ -57,9 +68,12 @@ Proof.
     Search subscoped. replace (length vl2) with (length vl2 + 0) at 2 by lia. eapply upn_scope. auto.
   - break_match_goal.
     + intros. unfold Erel_open, Erel in H0.
-      rewrite substcomp_subst, substcomp_subst. apply H0.
+      do 2 rewrite subst_comp. apply H0.
       split. 2: split.
-      * Search upn subscoped.
+      1-2: rewrite subst_list_extend; auto.
+      1: rewrite <- H5. 2: apply Nat.eqb_eq in Heqb; rewrite <- Heqb in H6; rewrite <- H6.
+      1-2: apply scoped_list_subscoped; auto; apply biforall_vrel_closed in H7; apply H7.
+      rewrite subst_list_extend, subst_list_extend; auto. admit. (* TODO: Provable *)
     + apply Nat.eqb_neq in Heqb. contradiction.
 Admitted.
 

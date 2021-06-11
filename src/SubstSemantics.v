@@ -43,7 +43,7 @@ match clock with
                                match vres with
                                | Res vals => 
                                  if length vals =? length vl
-                                 then eval n e.[list_subst vals]
+                                 then eval n e.[list_subst vals idsubst]
                                  else Fail
                                | Fail => Fail
                                | Timeout => Timeout
@@ -53,7 +53,7 @@ match clock with
                                match vres with
                                | Res vals => 
                                  if length vals =? length vl
-                                 then eval n e.[list_subst (ERecFun f vl e::vals)]
+                                 then eval n e.[list_subst (ERecFun f vl e::vals) idsubst]
                                  else Fail
                                | Fail => Fail
                                | Timeout => Timeout
@@ -205,11 +205,11 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 
 | red_app2 vl e vs v xs H H2 : 
   is_value v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (EFun vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs, e.[list_subst (vs ++ [v])] ⟩
+  ⟨ (FApp2 (EFun vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs, e.[list_subst (vs ++ [v]) idsubst] ⟩
 
 | red_rec_app2 vl f e vs v xs H H2 : 
   is_value v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (ERecFun f vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (ERecFun f vl e :: (vs ++ [v]))] ⟩
+  ⟨ (FApp2 (ERecFun f vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (ERecFun f vl e :: (vs ++ [v])) idsubst] ⟩
 
 | red_let val e2 xs (H : is_value val) : ⟨ (FLet e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
 
@@ -359,13 +359,13 @@ Proof.
   * inversion H3. subst. split; auto. inversion H9.
     apply -> subst_preserves_scope_exp; eauto. subst.
     rewrite Nat.add_0_r. replace (length vl) with (length (vs ++ [v])).
-    apply scoped_list_subscoped. apply Forall_app. split; auto. constructor; auto.
+    apply scoped_list_idsubst. apply Forall_app. split; auto. constructor; auto.
     destruct v; inversion H0; inversion H4; auto.
     rewrite app_length. rewrite H1. simpl. lia.
   * inversion H3. split. auto. subst. inversion H9.
     apply -> subst_preserves_scope_exp; eauto. subst.
     rewrite Nat.add_0_r. replace (S (length vl)) with (length (ERecFun f vl e :: vs ++ [v])).
-    apply scoped_list_subscoped. constructor. auto. apply Forall_app. split; auto. constructor; auto.
+    apply scoped_list_idsubst. constructor. auto. apply Forall_app. split; auto. constructor; auto.
     destruct v; inversion H0; inversion H4; auto. simpl. rewrite H1, app_length. simpl. lia.
   * inversion H0. subst. split; auto. apply -> subst_preserves_scope_exp; eauto.
     apply cons_scope; auto. destruct val; inversion H; inversion H1; auto.
@@ -409,9 +409,9 @@ Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
 | term_app_step v v' H hd tl vs H2 (H' : is_value v') fs k :
   | (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H'))::fs, hd | k ↓ -> | (FApp2 v H (hd::tl) vs H2)::fs , v' | S k ↓
 | term_app2 v vl e vs fs H H2 k : 
-  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (vs ++ [v])] | k ↓ -> | (FApp2 (EFun vl e) H [] vs H2)::fs, v | S k ↓
+  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (vs ++ [v]) idsubst] | k ↓ -> | (FApp2 (EFun vl e) H [] vs H2)::fs, v | S k ↓
 | term_app2_rec v f vl e vs fs H H2 k :
-  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst(ERecFun f vl e  :: (vs ++ [v]))] | k ↓ 
+  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (ERecFun f vl e  :: (vs ++ [v])) idsubst] | k ↓ 
 -> | (FApp2 (ERecFun f vl e) H [] vs H2)::fs, v | S k ↓
 
 
