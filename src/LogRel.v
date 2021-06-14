@@ -33,10 +33,6 @@ Definition exp_rel (n : nat)
      | F1, e1 | m ↓ -> | F2, e2 | ↓
 .
 
-Inductive list_biforall {T : Type} (P : T -> T -> Prop) : list T -> list T -> Prop :=
-| biforall_nil : list_biforall P [] []
-| biforall_cons hd hd' tl tl' : P hd hd' -> list_biforall P tl tl' -> list_biforall P (hd::tl) (hd'::tl').
-
 Check list_eq_dec. Print sumbool.
 
 Definition Vrel_rec (n : nat)

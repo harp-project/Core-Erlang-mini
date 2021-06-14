@@ -383,6 +383,17 @@ Proof.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
 Qed.
 
+Theorem result_is_value_m (fs : FrameStack) (e v : Exp) m :
+  ⟨ fs, e ⟩ -[m]-> ⟨[], v⟩ -> is_value v.
+Proof.
+  intros. induction H; auto.
+Qed.
+
+Theorem result_is_value_star (fs : FrameStack) (e v : Exp) :
+  ⟨ fs, e ⟩ -->* v -> is_value v.
+Proof.
+  intros. destruct H. induction H; auto.
+Qed.
 
 Definition terminates_sem (fs : FrameStack) (e : Exp) : Prop :=
   exists v, ⟨fs, e⟩ -->* v.
@@ -466,6 +477,4 @@ Proof.
     assert (terminates_sem fs' e'). { eexists. eexists. eauto. } apply terminates_eq_terminates_sem in H1.
     auto.
 Qed.
-
-
 

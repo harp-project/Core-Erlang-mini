@@ -401,3 +401,33 @@ Proof.
   * simpl. apply eq_sym in H as H'. apply element_exist in H'. destruct H', H0. subst.
     simpl. rewrite substcomp_scons. rewrite IHn; auto.
 Qed.
+
+Theorem list_subst_lt : forall n vals ξ, n < length vals ->
+  list_subst vals ξ n = inl (nth n vals (ELit 0)).
+Proof.
+  induction n; intros; destruct vals.
+  * inversion H.
+  * simpl. auto.
+  * inversion H.
+  * simpl in H. apply Lt.lt_S_n in H. eapply IHn in H. simpl. exact H.
+Qed.
+
+Theorem list_subst_ge : forall n vals ξ, n >= length vals ->
+  list_subst vals ξ n = ξ (n - length vals).
+Proof.
+  induction n; intros; destruct vals.
+  * simpl. auto.
+  * inversion H.
+  * cbn. auto.
+  * simpl in H. apply le_S_n in H. eapply IHn in H. simpl. exact H.
+Qed.
+
+Corollary list_subst_get_possibilities : forall n vals ξ,
+  list_subst vals ξ n = inl (nth n vals (ELit 0)) /\ n < length vals
+\/
+  list_subst vals ξ n = ξ (n - length vals) /\ n >= length vals.
+Proof.
+  intros. pose (Nat.lt_decidable n (length vals)). destruct d.
+  * left. split. now apply list_subst_lt. auto.
+  * right. split. apply list_subst_ge. lia. lia.
+Qed.
