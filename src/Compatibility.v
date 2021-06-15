@@ -398,77 +398,103 @@ Proof.
   Unshelve. lia.
 Qed.
 
-(*
-Lemma Erel_Seq_compatible :
-  forall Γ (e1 e2 e1' e2': Expr),
-    Erel_open (S Γ) e1 e2 ->
-    Erel_open Γ e1' e2' ->
-    Erel_open Γ (Seq e1' e1) (Seq e2' e2).
+Hint Resolve Erel_Let_comaptible.
+
+Lemma Erel_LetRec_compat_closed :
+  forall n f1 f2 vl1 vl2 (b b' e e' : Exp) m (Hmn : m <= n)
+  (CL1 : EXP S (length vl1) ⊢ b) (CL1 : EXP S (length vl2) ⊢ b')
+  (CL1 : EXP 1 ⊢ e) (CL1 : EXP 1 ⊢ e'),
+  (* length vl1 = length vl2 -> *)
+    (* (forall m (Hmn : m <= n),  *)
+      Erel m e.[ERecFun f1 vl1 b/] e'.[ERecFun f2 vl2 b'/] (* ) *) ->
+    (* (forall m (Hmn : m <= n) vals1 vals2,
+        length vals1 = length vl1 ->
+        list_biforall (Vrel m) vals1 vals2 ->
+        Erel m e.[list_subst (ERecFun f1 vl1 b :: vals1) idsubst] 
+               e'.[list_subst (ERecFun f2 vl2 b' :: vals2) idsubst]) -> *)
+      Erel m (ELetRec f1 vl1 b e) (ELetRec f2 vl2 b' e').
+Proof.
+  (* induction n using lt_wf_ind. intros. *)
+  intros.
+  (* specialize (H0 m Hmn). *)
+  (* specialize (H1 m Hmn). *)
+  unfold Erel, exp_rel. split. 2: split.
+  * constructor. rewrite Nat.add_0_r. auto. auto.
+  * constructor. rewrite Nat.add_0_r. auto. auto.
+  * intros. inversion H1; try inversion_is_value. subst.
+    destruct H0, H2. eapply H in H8. destruct H8. exists (S x). constructor.
+    exact H4. lia. split. 2: split. all: auto.
+    intros. eapply H3 in H7. exact H7. lia. auto.
+Qed.
+
+Hint Resolve Erel_LetRec_compat_closed.
+
+
+Lemma Erel_LetRec_compat :
+  forall Γ f1 f2 vl1 vl2 (e1 e1' e2 e2': Exp), length vl1 = length vl2 ->
+    Erel_open (S (length vl1) + Γ) e1 e1' ->
+    Erel_open (S Γ) e2 e2' ->
+    Erel_open Γ (ELetRec f1 vl1 e1 e2) (ELetRec f2 vl2 e1' e2').
 Proof.
   intros.
   unfold Erel_open.
   intros.
   cbn.
-  eapply Expr_cons; auto.
-  intros.
-  asimpl.
-  eauto.
+  apply Erel_open_scope in H0 as e1CL.
+  apply Erel_open_scope in H1 as e2CL.
+  assert (EXP S (length vl1) ⊢ e1.[upn (S (length vl1)) ξ₁]) as E1SC. {
+    destruct e1CL, e2CL.
+    pose (subst_preserves_scope_exp).
+    pose (i e1 (S (length vl1) + Γ)) as HH. destruct HH. clear H8.
+    apply (H7 H3 (S (length vl1)) (upn (S (length vl1)) ξ₁)).
+    replace (S (length vl1)) with (S (length vl1) + 0) at 2 by lia.
+    apply upn_scope. apply H2.
+  }
+  assert (EXP S (length vl2) ⊢ e1'.[upn (S (length vl2)) ξ₂]) as E1'SC. {
+    destruct e1CL, e2CL.
+    pose (subst_preserves_scope_exp).
+    pose (i e1' (S (length vl2) + Γ)) as HH. destruct HH. clear H8. rewrite H in H4.
+    apply (H7 H4 (S (length vl2)) (upn (S (length vl2)) ξ₂)).
+    replace (S (length vl2)) with (S (length vl2) + 0) at 2 by lia.
+    apply upn_scope. apply H2.
+  }
+  assert (EXP 1 ⊢ e2.[up_subst ξ₁]) as E2SC. {
+    destruct e1CL, e2CL.
+    pose (subst_preserves_scope_exp).
+    pose (i e2 (S Γ)) as HH. destruct HH. clear H8.
+    apply (H7 H5 1 (up_subst ξ₁)). replace 1 with (1 + 0) by lia.
+    apply up_scope. apply H2.
+  }
+  assert (EXP 1 ⊢ e2'.[up_subst ξ₂]) as E2'SC. {
+    destruct e1CL, e2CL.
+    pose (subst_preserves_scope_exp).
+    pose (i e2' (S Γ)) as HH. destruct HH. clear H8.
+    apply (H7 H6 1 (up_subst ξ₂)). replace 1 with (1 + 0) by lia.
+    apply up_scope. apply H2.
+  }
+  eapply Erel_LetRec_compat_closed; auto.
+  * intros. do 2 rewrite subst_comp, substcomp_scons, substcomp_id_r. apply H1.
+    inversion H2. destruct H4. split. 2: split.
+    - intro. intros. destruct v; simpl.
+      + eapply Vrel_RecFun_compat, Erel_Val_compat, Erel_open_closed in H0.
+        2: exact H3. 2: auto.
+        destruct H0. inversion H0. simpl in H8. exact H8.
+      + apply H2. lia.
+    - intro. intros. destruct v; simpl.
+      + rewrite H in H0.
+        eapply Vrel_RecFun_compat, Erel_Val_compat, Erel_open_closed in H0.
+        2: exact H4. 2: auto.
+        destruct H0. inversion H7. simpl in H8. exact H8.
+      + apply H4. lia.
+    - intros. destruct x.
+      + simpl. eapply Vrel_RecFun_compat; eauto. (* eapply Grel_downclosed; eauto. *)
+      + simpl. specialize (H5 x ltac:(lia)).
+        break_match_goal. break_match_goal. all: try lia. eapply Vrel_downclosed; eauto.
+(*   * admit. *)
+Unshelve.
+1-2: exact ("f"%string, 0).
+all: lia.
 Qed.
 
-Hint Resolve Erel_Seq_compatible.
-*)
+Hint Resolve Erel_LetRec_compat.
 
-Theorem Vrel_Fundamental_closed :
-  forall (v : Exp),
-    VALCLOSED v ->
-    forall n, Vrel n v v.
-Proof.
-Admitted.
-
-Theorem exp_rel_trans :
-  forall n vrel e1 e2 e3,
-    exp_rel n vrel e1 e2 -> exp_rel n vrel e2 e3 -> exp_rel n vrel e1 e3.
-Proof.
-  intros. unfold exp_rel in *. destruct H, H0, H1, H2. intuition.
-  specialize (H3 _ Hmn _ H5). destruct H3, H3, H3.
-Abort.
-
-Theorem Vrel_closed_trans :
-  forall n (v1 v2 v3 : Exp),
-    Vrel n v1 v2 -> Vrel n v2 v3 -> Vrel n v1 v3.
-Proof.
-  induction n.
-  {
-  intros.
-  rewrite Vrel_Fix_eq in H. rewrite Vrel_Fix_eq in H0. rewrite Vrel_Fix_eq.
-  destruct v1.
-  2-3, 6-10: inversion H; inversion H2; contradiction.
-  all: destruct v2.
-  all: try inversion H; try inversion H2; try contradiction.
-  all: destruct v3.
-  all: try inversion H0; try inversion H6; try contradiction.
-  all: subst.
-  * unfold Vrel_rec. split. 2: split. all: constructor.
-  * clear H2 H6. break_match_hyp. break_match_hyp. 2-3: contradiction.
-    subst. unfold Vrel_rec. intuition. break_match_goal. 2: contradiction. intros. inversion Hmn.
-  * clear H2 H6. break_match_hyp. break_match_hyp. 2-3: contradiction.
-    subst. unfold Vrel_rec. intuition. break_match_goal. 2: contradiction. intros. inversion Hmn.
-  }
-  {
-  intros.
-  rewrite Vrel_Fix_eq in H. rewrite Vrel_Fix_eq in H0. rewrite Vrel_Fix_eq.
-  destruct v1.
-  2-3, 6-10: inversion H; inversion H2; contradiction.
-  all: destruct v2.
-  all: try inversion H; try inversion H2; try contradiction.
-  all: destruct v3.
-  all: try inversion H0; try inversion H6; try contradiction.
-  all: subst.
-  * unfold Vrel_rec. split. 2: split. all: constructor.
-  * clear H2 H6. break_match_hyp. break_match_hyp. 2-3: contradiction.
-    subst. unfold Vrel_rec. intuition. break_match_goal. 2: contradiction. intros.
-    specialize (H8 m Hmn vals1 vals2 H2 H6 H9).
-    specialize (H4 m Hmn vals1 vals2 H2 H6 H9). admit.
-  * admit.
-  }
-Admitted.
