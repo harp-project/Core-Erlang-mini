@@ -431,3 +431,16 @@ Proof.
   * left. split. now apply list_subst_lt. auto.
   * right. split. apply list_subst_ge. lia. lia.
 Qed.
+
+Lemma substcomp_id_r :
+  forall ξ, ξ >> idsubst = ξ.
+Proof.
+  unfold ">>". intros. extensionality x.
+  break_match_goal; auto. rewrite idsubst_is_id. auto.
+Qed.
+
+Lemma substcomp_id_l :
+  forall ξ, idsubst >> ξ = ξ.
+Proof.
+  unfold ">>", idsubst. intros. extensionality x. auto.
+Qed.

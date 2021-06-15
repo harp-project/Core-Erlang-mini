@@ -384,7 +384,7 @@ Proof.
   intros.
   pose proof (Erel_open_closed H).
   split;
-  eapply (sub_implies_scope_exp); intros; apply H0; auto.
+  eapply (subst_implies_scope_exp); intros; apply H0; auto.
 Qed.
 
 Lemma Erel_open_scope_l : forall {Γ e1 e2},

@@ -276,20 +276,6 @@ Qed.
 Hint Resolve upren_scope.
 Hint Resolve uprenn_scope.
 
-Theorem idren_is_id : forall e,
-  rename id e = e.
-Proof.
-  induction e; intros.
-  (* TODO *)
-Admitted.
-
-Theorem idsubst_is_id : forall e,
-  subst idsubst e = e.
-Proof.
-  induction e; intros.
-  (* TODO *)
-Admitted.
-
 Lemma ren_preserves_scope : forall e Γ,
     (EXP Γ ⊢ e <->
      forall Γ' ξ,
@@ -316,7 +302,7 @@ Proof.
   1-4: constructor. 1-2: constructor.
   1, 5, 7: repeat constructor; try apply H0; try inversion H; try inversion H1; auto.
   all: (* this solves around half the goals *)
-    try (specialize (H Γ id (renscope_id _)); rewrite idren_is_id in H; apply H).
+    try (specialize (H Γ id (renscope_id _)); rewrite idrenaming_is_id in H; apply H).
   all: try (inversion H; inversion H1).
   * constructor. apply H0. inversion H. auto.
   * constructor. constructor. inversion H; inversion H1. subst.
@@ -665,123 +651,137 @@ Module SUB_IMPLIES_SCOPE.
     apply magic_ξ_scope.
   Qed.
 
-(*   Definition magic_ξ_2 Γ' :=
+Print magic_ξ.
+
+  Definition magic_ξ_2 Γ' :=
     fun n =>
-      if lt_dec n Γ'
-      then Var n
+      if Compare_dec.lt_dec n Γ'
+      then idsubst n
       else if Nat.eq_dec n Γ'
-           then Const 0
-           else Var (pred n).
+           then inl (ELit 0)
+           else idsubst (pred n).
 
   Lemma up_magic_2 : forall Γ,
-      up (magic_ξ_2 Γ) = magic_ξ_2 (S Γ).
+      up_subst (magic_ξ_2 Γ) = magic_ξ_2 (S Γ).
   Proof.
     intros.
     unfold magic_ξ_2.
     extensionality x.
-    unfold up.
-    unfold ".:".
+    unfold up_subst, shift, idsubst.
     destruct x; auto.
     simpl.
     unfold Init.Nat.pred.
-    repeat destruct lt_dec;
-      destruct (Nat.eq_dec x Γ);
-      destruct x;
-      subst;
-      cbn;
-      auto.
+    repeat destruct Compare_dec.lt_dec; auto; destruct Nat.eq_dec; auto; try lia.
+    f_equiv. destruct x; lia.
   Qed.
 
-  Lemma magic_const : magic_ξ_2 0 = Const 0 .: ids.
+  Lemma upn_magic_2 : forall n Γ,
+    upn n (magic_ξ_2 Γ) = magic_ξ_2 (n + Γ).
+  Proof.
+    induction n; intros; cbn; auto.
+    * rewrite <- up_magic_2, IHn. auto.
+  Qed.
+
+  Lemma magic_const : magic_ξ_2 0 = ELit 0 .: idsubst.
   Proof.
     unfold magic_ξ_2.
     extensionality x.
-    destruct lt_dec; auto.
+    destruct Compare_dec.lt_dec; unfold idsubst. inversion l.
     destruct Nat.eq_dec; subst; auto.
-    destruct x; cbn; auto.
+    destruct x; cbn; auto. lia.
   Qed.
 
-  Lemma foo : forall e Γ',
+  Lemma magic_ξ_magic_ξ_2 : forall e Γ',
       (EXP Γ' ⊢ e.[magic_ξ_2 Γ'] ->
        e.[magic_ξ (S Γ') Γ'] = e.[magic_ξ_2 Γ']) /\
       (VAL Γ' ⊢ e.[magic_ξ_2 Γ'] ->
        e.[magic_ξ (S Γ') Γ'] = e.[magic_ξ_2 Γ']).
   Proof.
-    induction e;
-      split;
-      intros Hscope;
-      cbn;
-      cbn in Hscope;
-      try invert_scoped Hscope;
-      auto;
-      try rewrite up_magic_2 in *;
-      try rewrite up_magic in *;
-      try solve
-          [repeat
-             match goal with
-             | [ IHe : forall (Γ' : Env), (EXP Γ' ⊢ ?e.[_] -> _) /\ (VAL Γ' ⊢ ?e.[_] -> _),
-                   H : VAL _ ⊢ ?e.[_]
-                   |- _] => apply IHe in H
-             | [ IHe : forall (Γ' : Env), (EXP Γ' ⊢ ?e.[_] -> _) /\ (VAL Γ' ⊢ ?e.[_] -> _),
-                   H : EXP _ ⊢ ?e.[_]
-                   |- _] => apply IHe in H
-             end;
-           f_equal;
-           auto].
-    - unfold magic_ξ, magic_ξ_2 in *;
-        cbn in *;
-        repeat destruct lt_dec; auto;
-          destruct (Nat.eq_dec v Γ'); auto;
-            destruct v, Γ';
-            inversion Hscope;
-            try inversion H;
-            subst;
-            cbn;
-            auto.
-    - asimpl in Hscope.
-      unfold magic_ξ, magic_ξ_2 in *.
-      repeat destruct lt_dec;
-        repeat destruct Nat.eq_dec;
-        inversion Hscope;
-        auto.
+    induction e using Exp_ind2 with
+      (Q := fun l => forall Γ', Forall (fun e =>
+        (EXP Γ' ⊢ e.[magic_ξ_2 Γ'] -> e.[magic_ξ (S Γ') Γ'] = e.[magic_ξ_2 Γ']) /\
+        (VAL Γ' ⊢ e.[magic_ξ_2 Γ'] -> e.[magic_ξ (S Γ') Γ'] = e.[magic_ξ_2 Γ'])
+      ) l); intros; cbn; auto.
+    * unfold magic_ξ_2, magic_ξ, idsubst.
+      repeat destruct Compare_dec.lt_dec; try destruct Nat.eq_dec; auto.
+      lia. lia. lia. split; intros; inversion H. inversion H0. all: subst.
+      all : lia.
+    * unfold magic_ξ_2, magic_ξ, idsubst.
+      repeat destruct Compare_dec.lt_dec; try destruct Nat.eq_dec; auto.
+      lia. lia. lia. split; intros; inversion H. inversion H0. all: subst.
+      all : lia.
+    * rewrite upn_magic, upn_magic_2.
+      replace (length vl + S Γ') with (S (length vl + Γ')) by lia.
+      specialize (IHe (length vl + Γ')). destruct IHe. split; intros.
+      - rewrite H; auto. inversion H1. inversion H2. auto.
+      - rewrite H; auto. inversion H1. subst. auto.
+    * rewrite upn_magic, up_magic, upn_magic_2, up_magic_2.
+      replace (S (length vl + S Γ')) with (S (S (length vl) + Γ')) by lia.
+      specialize (IHe (S (length vl + Γ'))). destruct IHe. split; intros.
+      - rewrite <- H; auto. inversion H1. inversion H2. auto.
+      - rewrite <- H; auto. inversion H1. subst. auto.
+    * specialize (IHe Γ'). specialize (IHe0 Γ'). destruct IHe.
+      split; intros; inversion H1; subst. 2: inversion H2. rewrite H; auto.
+      apply Forall_and_inv in IHe0. destruct IHe0. erewrite map_ext_Forall. reflexivity.
+      rewrite indexed_to_forall in *. intros. apply H2; auto.
+      replace (ELit 0) with ((ELit 0).[magic_ξ_2 Γ']) in H5 by reflexivity.
+      rewrite map_length in H5. specialize (H5 i H6). rewrite map_nth in H5.
+      exact H5.
+    * specialize (IHe1 Γ'). specialize (IHe2 (S Γ')). destruct IHe1, IHe2.
+      split; intros; inversion H3; subst. 2: inversion H4.
+      rewrite H; auto. rewrite up_magic, up_magic_2, H1; auto.
+      now rewrite up_magic_2 in H8.
+    * specialize (IHe1 (length vl + S Γ')). specialize (IHe2 (S Γ')).
+      destruct IHe1, IHe2.
+      split; intros; inversion H3; subst. 2: inversion H4.
+      rewrite upn_magic, upn_magic_2, up_magic, up_magic_2.
+      replace (S (Datatypes.length vl + Γ')) with (Datatypes.length vl + S Γ') by lia.
+      rewrite H; auto. rewrite up_magic, up_magic_2, H1 in *; auto.
+      rewrite upn_magic_2, up_magic_2 in H6. now rewrite <- Nat.add_succ_comm.
+    * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
+      split; intros; inversion H3; subst. 2: inversion H4. now rewrite H, H1.
+    * specialize (IHe1 Γ'). specialize (IHe2 Γ'). specialize (IHe3 Γ').
+      destruct IHe1, IHe2, IHe3.
+      split; intros; inversion H5; subst. 2: inversion H6. now rewrite H, H1, H3.
+  Unshelve. exact (ELit 0).
   Qed.
 
-  Lemma bar : forall e,
-      (ECLOSED e.[Const 0/] ->
-       e.[magic_ξ 1 0] = e.[Const 0 .: ids]) /\
-      (VCLOSED e.[Const 0/] ->
-       e.[magic_ξ 1 0] = e.[Const 0 .: ids]).
+  Lemma magic_ξ_magic_ξ_2_closed : forall e,
+      (EXPCLOSED e.[ELit 0/] ->
+       e.[magic_ξ 1 0] = e.[ELit 0 .: idsubst]) /\
+      (VALCLOSED e.[ELit 0/] ->
+       e.[magic_ξ 1 0] = e.[ELit 0 .: idsubst]).
   Proof.
     intros.
     rewrite <- magic_const.
-    apply foo.
+    apply magic_ξ_magic_ξ_2.
   Qed.
 
   Lemma sub_implies_scope_exp_1 : forall e,
-      ECLOSED e.[Const 0/] ->
+      EXPCLOSED e.[ELit 0/] ->
       EXP 1 ⊢ e.
   Proof.
     intros;
       eapply magic_ξ_implies_scope.
-    destruct (bar e).
+    destruct (magic_ξ_magic_ξ_2_closed e).
     rewrite H0; auto.
   Qed.
 
   Lemma sub_implies_scope_val_1 : forall e,
-      VCLOSED e.[Const 0/] ->
+      VALCLOSED e.[ELit 0/] ->
       VAL 1 ⊢ e.
   Proof.
     intros;
       eapply magic_ξ_implies_scope.
-    destruct (bar e).
+    destruct (magic_ξ_magic_ξ_2_closed e).
     rewrite H1; auto.
-  Qed. *)
+  Qed.
 End SUB_IMPLIES_SCOPE.
 
-Definition sub_implies_scope_exp := SUB_IMPLIES_SCOPE.sub_implies_scope_exp.
-Definition sub_implies_scope_val := SUB_IMPLIES_SCOPE.sub_implies_scope_val.
-(* Definition sub_implies_scope_exp_1 := SUB_IMPLIES_SCOPE.sub_implies_scope_exp_1.
-Definition sub_implies_scope_val_1 := SUB_IMPLIES_SCOPE.sub_implies_scope_val_1. *)
+Definition subst_implies_scope_exp := SUB_IMPLIES_SCOPE.sub_implies_scope_exp.
+Definition subst_implies_scope_val := SUB_IMPLIES_SCOPE.sub_implies_scope_val.
+Definition subst_implies_scope_exp_1 := SUB_IMPLIES_SCOPE.sub_implies_scope_exp_1.
+Definition subst_implies_scope_val_1 := SUB_IMPLIES_SCOPE.sub_implies_scope_val_1.
 
 Lemma upn_Var : forall (Γ : nat) (ξ : Substitution) (v : nat),
     v < Γ -> upn Γ ξ v = inr v.

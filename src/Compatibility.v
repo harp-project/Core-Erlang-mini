@@ -86,7 +86,9 @@ Proof.
 Unshelve. lia.
 Qed.
 
-Fixpoint make_vars (n : nat) (l : list Var) : list Exp :=
+Hint Resolve Vrel_Fun_compat.
+
+(* Fixpoint make_vars (n : nat) (l : list Var) : list Exp :=
 match l with
 | [] => []
 | x::xs => EVar n x :: (make_vars (S n) xs)
@@ -102,15 +104,22 @@ Theorem unwinding_term :
   forall f vl b fs e m, | fs, e.[ERecFun f vl b/] | m ↓ <-> exists n, | fs, e.[unwinding n f vl b/] | m ↓.
 Proof.
   (* TODO *)
-Abort.
+Abort. *)
+
+Import Coq.Arith.Wf_nat.
 
 Lemma Vrel_RecFun_compat :
   forall Γ f1 f2 vl1 vl2 b1 b2, length vl1 = length vl2 ->
   Erel_open (S (length vl1) + Γ) b1 b2 ->
   Vrel_open Γ (ERecFun f1 vl1 b1) (ERecFun f2 vl2 b2).
 Proof.
-  intros. unfold Vrel_open. intros.
-  inversion H1 as [? [? ?] ].
+  intros. unfold Vrel_open. induction n using lt_wf_ind. intros.
+  assert (forall m : nat,
+     m < n ->
+     forall ξ₁ ξ₂ : Substitution,
+     Grel m Γ ξ₁ ξ₂ -> Vrel m (ERecFun f1 vl1 b1).[ξ₁] (ERecFun f2 vl2 b2).[ξ₂]) as IH. auto. clear H1.
+    
+  inversion H2 as [? [? ?] ].
   simpl. rewrite Vrel_Fix_eq. unfold Vrel_rec at 1. intuition idtac.
   - constructor. Search Erel ExpScoped. rewrite Nat.add_0_r. eapply Erel_open_scope in H0.
     destruct H0. eapply subst_preserves_scope_exp in H0. exact H0.
@@ -129,20 +138,40 @@ Proof.
       1: rewrite <- H5. 2: apply Nat.eqb_eq in Heqb; rewrite <- Heqb in H6; rewrite <- H6.
       * replace (S (Datatypes.length vals1)) with (length (ERecFun f1 vl1 b1.[upn (S (Datatypes.length vals1)) ξ₁] :: vals1)) by auto.
         apply scoped_list_subscoped; auto. apply biforall_vrel_closed in H7.
-        constructor. 2: apply H7; auto. admit.
+        constructor. 2: apply H7; auto. simpl.
+        epose (IH m Hmn ξ₁ ξ₂ _). apply Vrel_closed_l in v. simpl in v.
+        rewrite H5. exact v.
       * simpl. lia.
       * apply Nat.eqb_eq in Heqb. repeat rewrite <- H6, <- H5.
         replace (S (Datatypes.length vals1)) with (length (ERecFun f2 vl2 b2.[upn (S (Datatypes.length vals2)) ξ₂] :: vals2)). 2: simpl; lia.
         apply scoped_list_subscoped; auto. apply biforall_vrel_closed in H7.
-        constructor. 2: apply H7; auto. admit.
+        constructor. 2: apply H7; auto. simpl.
+        epose (IH m Hmn ξ₁ ξ₂ _). apply Vrel_closed_r in v. simpl in v.
+        rewrite H6. exact v.
       * simpl. lia.
 
       *
       do 2 fold_upn. rewrite subst_list_extend, subst_list_extend; auto. intros.
       destruct x; simpl.
-      ** constructor.
-      admit.
-Admitted.
+      ** apply IH; auto. eapply Grel_downclosed. eauto.
+      ** pose (list_subst_get_possibilities x vals1 ξ₁).
+         pose (list_subst_get_possibilities x vals2 ξ₂).
+         assert (length vals1 = length vals2). { lia. } rewrite H9 in *.
+         destruct o, o0, H10, H11; try lia.
+         -- rewrite H10, H11. apply indexed_to_biforall. exact H7. lia.
+         -- rewrite H10, H11. specialize (H4 (x - length vals2)).
+         repeat break_match_goal; auto. eapply Vrel_downclosed.
+         all: apply H4; lia.
+      ** simpl. auto.
+      ** simpl. auto.
+  Unshelve.
+  1-2: eapply Grel_downclosed; eauto.
+  1-2: lia.
+  Unshelve.
+  1-2: lia.
+Qed.
+
+Hint Resolve Vrel_RecFun_compat.
 
 Ltac unfold_hyps :=
 match goal with
@@ -150,7 +179,7 @@ match goal with
 | [ H: _ /\ _ |- _] => destruct H
 end.
 
-Lemma Erel_Val_compatible_closed :
+Lemma Erel_Val_compat_closed :
   forall {n v v'},
     Vrel n v v' ->
     Erel n v v'.
@@ -169,9 +198,9 @@ Proof.
 Unshelve. all: auto.
 Qed.
 
-Hint Resolve Erel_Val_compatible_closed.
+Hint Resolve Erel_Val_compat_closed.
 
-Lemma Erel_Val_compatible :
+Lemma Erel_Val_compat :
   forall {Γ v v'},
     Vrel_open Γ v v' ->
     Erel_open Γ v v'.
@@ -181,7 +210,16 @@ Proof.
   auto.
 Qed.
 
-Hint Resolve Erel_Val_compatible.
+Hint Resolve Erel_Val_compat.
+
+Lemma Vrel_open_Erel_open :
+  forall Γ v v',
+    Vrel_open Γ v v' -> Erel_open Γ v v'.
+Proof.
+  eauto.
+Qed.
+
+Hint Resolve Vrel_open_Erel_open.
 
 Ltac inversion_is_value :=
 match goal with
@@ -193,7 +231,7 @@ Proof.
   intros. rewrite Vrel_Fix_eq in H. destruct H, H0, v1, v2; try inversion H; try inversion H0. all: repeat constructor; contradiction.
 Qed.
 
-Lemma Erel_Plus_compatible_closed : forall n e1 e2 e1' e2',
+Lemma Erel_Plus_compat_closed : forall n e1 e2 e1' e2',
     Erel n e1 e1' -> Erel n e2 e2' ->
     Erel n (EPlus e1 e2) (EPlus e1' e2').
 Proof.
@@ -224,7 +262,7 @@ Proof.
 Qed.
 
 
-Lemma Erel_If_compatible_closed : forall n e1 e2 e1' e2' e3 e3',
+Lemma Erel_If_compat_closed : forall n e1 e2 e1' e2' e3 e3',
     Erel n e1 e1' -> Erel n e2 e2' -> Erel n e3 e3' ->
     Erel n (EIf e1 e2 e3) (EIf e1' e2' e3').
 Proof.
@@ -256,59 +294,111 @@ Proof.
   Unshelve. all: lia.
 Qed.
 
-(*
-Lemma Expr_cons :
-  forall n (e1 e2 : Expr),
-    (forall m (Hmn : m <= n) v1 v2,
-        Vrel m v1 v2 -> Erel m e1.[v1/] e2.[v2/]) ->
-    forall m (Hmn : m <= n) e1' e2',
-      Erel m e1' e2' ->
-      Erel m (Seq e1' e1) (Seq e2' e2).
+Lemma Erel_Var_compat :
+  forall Γ n x,
+    n < Γ ->
+    Erel_open Γ (EVar n x) (EVar n x).
+Proof.
+  auto.
+Qed.
+
+Hint Resolve Erel_Var_compat.
+
+Lemma Erel_FunId_compat :
+  forall Γ n x,
+    n < Γ ->
+    Erel_open Γ (EVar n x) (EVar n x).
+Proof.
+  auto.
+Qed.
+
+Hint Resolve Erel_FunId_compat.
+
+Lemma Erel_Lit_compat :
+  forall Γ l,
+    Erel_open Γ (ELit l) (ELit l).
+Proof.
+  auto.
+Qed.
+
+Hint Resolve Erel_Lit_compat.
+
+Lemma Erel_Fun_compat :
+  forall Γ vl vl' b b', length vl = length vl' ->
+    Erel_open (length vl + Γ) b b' ->
+    Erel_open Γ (EFun vl b) (EFun vl' b').
+Proof.
+  auto.
+Qed.
+
+Hint Resolve Erel_Fun_compat.
+
+Lemma Erel_RecFun_compat :
+  forall Γ f f' (vl vl' : list Var) b b', length vl = length vl' ->
+    Erel_open (S (length vl) + Γ) b b' ->
+    Erel_open Γ (ERecFun f vl b) (ERecFun f' vl' b').
+Proof.
+  auto.
+Qed.
+
+Hint Resolve Erel_RecFun_compat.
+
+Lemma Erel_Let_compat_closed :
+  forall n x y (e2 e2' : Exp),
+    (forall m (Hmn : m <= n) v2 v2',
+        Vrel m v2 v2' -> Erel m e2.[v2/] e2'.[v2'/]) ->
+    forall m (Hmn : m <= n) e1 e1',
+      Erel m e1 e1' ->
+      Erel m (ELet x e1 e2) (ELet y e1' e2').
 Proof.
   intros.
   destruct (Erel_closed H0) as [IsClosed_e1 IsClosed_e2].
-  unfold Erel, Erel'.
-  split; [|split];
-    try solve [specialize (H 0 ltac:(auto) _ _ (Vrel_Const_compatible_closed 0 0));
-               constructor; eauto using sub_implies_scope_exp_1].
+  unfold Erel, exp_rel. specialize (H 0 ltac:(lia) (ELit 0) (ELit 0) (Vrel_Lit_compat_closed 0 0)) as H'.
+  split. 2: split.
+  * apply Erel_closed_l in H'. constructor; auto.
+    Search subst ExpScoped. apply subst_implies_scope_exp_1; auto.
+  * apply Erel_closed_r in H'. constructor; auto.
+    Search subst ExpScoped. apply subst_implies_scope_exp_1; auto.
+  * intros. destruct m0; inversion H2; try inversion_is_value. subst.
+    destruct H0, H3. eapply H4 in H5. destruct H5. exists (S x0). constructor. exact H5.
+    lia.
+
+    apply Erel_closed_l in H' as e1H. apply subst_implies_scope_exp_1 in e1H.
+    apply Erel_closed_r, subst_implies_scope_exp_1 in H' as e2H.
+    destruct H1, H6.
+    split. 2: split. 1-2: constructor; auto.
+    intros. apply Vrel_is_value in H8 as v. destruct v.
+    inversion H9; subst. 2-6: inversion H10. eapply H in H17. destruct H17.
+    exists (S x0). constructor. auto. exact H12. 2: exact H8. lia. lia.
+
+    split. 2: split. all: auto. intros. eapply H7. 3: exact H16. lia. auto.
+Qed.
+
+Hint Resolve Erel_Let_compat_closed.
+
+
+Lemma Erel_Let_comaptible :
+  forall Γ x x' (e1 e1' e2 e2': Exp),
+    Erel_open Γ e1 e1' ->
+    Erel_open (S Γ) e2 e2' ->
+    Erel_open Γ (ELet x e1 e2) (ELet x' e1' e2').
+Proof.
   intros.
-  run_μeval_for 1.
-  run_μeval_star_for 1.
-  eapply H0; eauto 6.
+  unfold Erel_open.
+  intros.
+  cbn.
+  eapply Erel_Let_compat_closed; auto.
+  intros. Search scons subst.
+  do 2 rewrite subst_comp, substcomp_scons, substcomp_id_r. apply H0.
+  apply Vrel_closed in H2 as v. destruct v.
+  split. 2: split.
+  1-2: intro; intros; destruct v; cbn; auto; apply H1; lia.
+  intros. destruct x0; auto. simpl. destruct H1, H6. specialize (H7 x0 ltac:(lia)).
+  break_match_goal. break_match_goal; auto. eapply Vrel_downclosed; eauto. lia.
+  Unshelve. lia.
 Qed.
 
-Hint Resolve Expr_cons.
-
-Lemma Erel_Var_compatible :
-  forall Γ x,
-    x < Γ ->
-    Erel_open Γ (Var x) (Var x).
-Proof.
-  auto.
-Qed.
-
-Hint Resolve Erel_Var_compatible.
-
-Lemma Erel_Const_compatibile :
-  forall Γ r,
-    Erel_open Γ (Const r) (Const r).
-Proof.
-  auto.
-Qed.
-
-Hint Resolve Erel_Var_compatible.
-
-(* Lemma 5: compatible under Fun *)
-Lemma Erel_Fun_compatible :
-  forall Γ e e',
-    Erel_open (S Γ) e e' ->
-    Erel_open Γ (Fun e) (Fun e').
-Proof.
-  auto.
-Qed.
-
-Hint Resolve Erel_Fun_compatible.
-
+(*
 Lemma Erel_Seq_compatible :
   forall Γ (e1 e2 e1' e2': Expr),
     Erel_open (S Γ) e1 e2 ->
@@ -326,15 +416,6 @@ Proof.
 Qed.
 
 Hint Resolve Erel_Seq_compatible.
-
-Lemma Vrel_open_Erel_open :
-  forall Γ v v',
-    Vrel_open Γ v v' -> Erel_open Γ v v'.
-Proof.
-  eauto.
-Qed.
-
-Hint Resolve Vrel_open_Erel_open.
 *)
 
 Theorem Vrel_Fundamental_closed :
