@@ -71,6 +71,10 @@ Definition Vrel : nat -> Exp -> Exp -> Prop :=
 Definition Erel (n : nat) (e1 e2 : Exp) : Prop :=
   exp_rel n (fun m _ => Vrel m) e1 e2.
 
+
+Definition Frel (n : nat) (K1 K2 : FrameStack) : Prop :=
+  frame_rel n (fun m _ => Vrel m) K1 K2.
+
 (** ξ and η assigns closed expressions to vars in Γ 
   Basically this says, ξ and η are equivalent pointwise for Γ
 *)
@@ -415,6 +419,138 @@ Proof.
   * left. eexists; split; reflexivity.
   * right. left. repeat eexists.
   * right. right. repeat eexists.
+Qed.
+
+Lemma Vrel_open_closed : forall {Γ e1 e2},
+    Vrel_open Γ e1 e2 ->
+    forall ξ, SUBSCOPE Γ ⊢ ξ ∷ 0 ->
+              VALCLOSED (subst ξ e1) /\ VALCLOSED (subst ξ e2).
+Proof.
+  intros.
+  apply @Vrel_closed with (n:=0).
+  apply H; auto.
+  unfold Grel.
+  intuition idtac. break_match_goal.
+  rewrite Vrel_Fix_eq. unfold Vrel_rec at 1.
+  specialize (H0 x H1) as P'. rewrite Heqs in P'.
+  * destruct P'; intuition; cbn; try constructor; auto. inversion H2. inversion H2.
+    1-2: break_match_goal; intros; try congruence; try inversion Hmn. 1-2: rewrite Nat.eqb_refl in Heqb; congruence.
+  * specialize (H0 x H1). rewrite Heqs in H0. lia.
+Qed.
+
+Lemma Vrel_open_scope : forall {Γ e1 e2},
+    Vrel_open Γ e1 e2 ->
+    VAL Γ ⊢ e1 /\ VAL Γ ⊢ e2.
+Proof.
+  intros.
+  pose proof (Vrel_open_closed H).
+  split;
+  eapply (subst_implies_scope_val); intros; apply H0; auto.
+Qed.
+
+Lemma Vrel_open_scope_l : forall {Γ e1 e2},
+    Vrel_open Γ e1 e2 ->
+    VAL Γ ⊢ e1.
+Proof.
+  intros. eapply Vrel_open_scope in H. destruct H. auto.
+Qed.
+
+Hint Resolve Vrel_open_scope_l.
+
+Lemma Vrel_open_scope_r : forall {Γ e1 e2},
+    Vrel_open Γ e1 e2 ->
+    VAL Γ ⊢ e2.
+Proof.
+  intros. eapply Vrel_open_scope in H. destruct H. auto.
+Qed.
+
+Hint Resolve Vrel_open_scope_r.
+
+Lemma Frel_downclosed :
+  forall {n m : nat} {Hmn : m <= n} {F1 F2 : FrameStack},
+    Frel n F1 F2 ->
+    Frel m F1 F2.
+Proof.
+  unfold Frel, frame_rel.
+  intuition. eapply H2 in H3. exact H3. lia. auto.
+Qed.
+
+Hint Resolve Frel_downclosed.
+
+Lemma Frel_closed : forall {n : nat} {F1 F2 : FrameStack},
+    Frel n F1 F2 ->
+    FCLOSED F1 /\ FCLOSED F2.
+Proof.
+  intros.
+  unfold Frel, frame_rel in H.
+  intuition.
+Qed.
+
+Lemma Frel_closed_l : forall {n : nat} {F1 F2 : FrameStack},
+    Frel n F1 F2 ->
+    FCLOSED F1.
+Proof.
+  intros.
+  apply Frel_closed in H.
+  intuition.
+Qed.
+
+Hint Resolve Frel_closed_l.
+
+Lemma Frel_closed_r : forall {n : nat} {F1 F2 : FrameStack},
+    Frel n F1 F2 ->
+    FCLOSED F2.
+Proof.
+  intros.
+  apply Frel_closed in H.
+  intuition.
+Qed.
+
+Hint Resolve Frel_closed_r.
+
+
+Lemma biforall_vrel_scoped : forall vals1 vals2 Γ,
+  list_biforall (Vrel_open Γ) vals1 vals2 ->
+  Forall (fun e => VAL Γ ⊢ e) vals1 /\ Forall (fun e => VAL Γ ⊢ e) vals2.
+Proof.
+  induction vals1; intros; inversion H; subst; repeat constructor.
+  * eapply Vrel_open_scope_l; eauto.
+  * specialize (IHvals1 _ _ H4); apply IHvals1.
+  * eapply Vrel_open_scope_r; eauto.
+  * eapply IHvals1; eauto.
+Qed.
+
+Lemma biforall_erel_scoped : forall vals1 vals2 Γ,
+  list_biforall (Erel_open Γ) vals1 vals2 ->
+  Forall (fun e => EXP Γ ⊢ e) vals1 /\ Forall (fun e => EXP Γ ⊢ e) vals2.
+Proof.
+  induction vals1; intros; inversion H; subst; split; constructor.
+  * eapply Erel_open_scope_l; eauto.
+  * specialize (IHvals1 _ _ H4); apply IHvals1.
+  * eapply Erel_open_scope_r; eauto.
+  * eapply IHvals1; eauto.
+Qed.
+
+Lemma biforall_vrel_closed : forall vals1 vals2 m,
+  list_biforall (Vrel m) vals1 vals2 ->
+  Forall (fun e => VALCLOSED e) vals1 /\ Forall (fun e => VALCLOSED e) vals2.
+Proof.
+  induction vals1; intros; inversion H; subst; repeat constructor.
+  * eapply Vrel_closed_l; eauto.
+  * specialize (IHvals1 _ _ H4); apply IHvals1.
+  * eapply Vrel_closed_r; eauto.
+  * eapply IHvals1; eauto.
+Qed.
+
+Lemma biforall_erel_closed : forall vals1 vals2 m,
+  list_biforall (Erel m) vals1 vals2 ->
+  Forall (fun e => EXPCLOSED e) vals1 /\ Forall (fun e => EXPCLOSED e) vals2.
+Proof.
+  induction vals1; intros; inversion H; subst; split; constructor.
+  * eapply Erel_closed_l; eauto.
+  * specialize (IHvals1 _ _ H4); apply IHvals1.
+  * eapply Erel_closed_r; eauto.
+  * eapply IHvals1; eauto.
 Qed.
 
 (* Theorem Erel_open_trans :
