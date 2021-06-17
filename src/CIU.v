@@ -86,3 +86,31 @@ Proof.
     specialize (H x ξ ξ (Grel_Fundamental _ _ H0 _)). destruct H, H3.
     eapply H4 in H2; eauto. apply Frel_Fundamental_closed. auto.
 Qed.
+
+Lemma Erel_comp_CIU_implies_Erel : forall {Γ e1 e2 e3},
+    Erel_open Γ e1 e2 ->
+    CIU_open Γ e2 e3 ->
+    Erel_open Γ e1 e3.
+Proof.
+  intros Γ e1 e2 e3 HErel HCIU.
+  unfold Erel_open, Erel, exp_rel.
+  intros.
+  inversion H as [Hξ1 [Hξ2 _]].
+  split. 2: split. 1-2: apply -> subst_preserves_scope_exp; eauto.
+  intros. eapply HErel in H1; eauto. eapply HCIU in H1; eauto.
+Qed.
+
+Lemma CIU_implies_Erel : forall {Γ e1 e2},
+    CIU_open Γ e1 e2 ->
+    Erel_open Γ e1 e2.
+Proof.
+  intros.
+  eapply Erel_comp_CIU_implies_Erel; eauto.
+Qed.
+
+Theorem CIU_iff_Erel : forall {Γ e1 e2},
+    CIU_open Γ e1 e2 <->
+    Erel_open Γ e1 e2.
+Proof.
+  intuition (auto using CIU_implies_Erel, Erel_implies_CIU).
+Qed.
