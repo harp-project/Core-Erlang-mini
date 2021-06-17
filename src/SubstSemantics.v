@@ -344,43 +344,46 @@ Proof.
 Qed.
 
 Theorem step_closedness : forall F e F' e',
-   ⟨ F, e ⟩ --> ⟨ F', e' ⟩ -> FCLOSED F -> EXPCLOSED e
+   ⟨ F, e ⟩ --> ⟨ F', e' ⟩ -> FSCLOSED F -> EXPCLOSED e
 ->
-  FCLOSED F' /\ EXPCLOSED e'.
+  FSCLOSED F' /\ EXPCLOSED e'.
 Proof.
   intros F e F' e' IH. induction IH; intros.
-  * inversion H0. subst. inversion H4. subst. split; auto.
-    constructor; auto. destruct v; inversion H; inversion H1; auto.
+  * inversion H0. subst. inversion H4. inversion H3. subst. split; auto.
+    constructor; auto. constructor; auto. destruct v; inversion H; inversion H1; auto.
   * inversion H. inversion H0. subst. split; auto. inversion H5. exact H2.
   * inversion H. inversion H0. subst. split; auto. inversion H5. subst. cbn in H2.
     apply -> subst_preserves_scope_exp; eauto.
-  * inversion H0. subst. inversion H8. subst. split; auto. constructor; auto.
+  * inversion H0. subst. inversion H5. inversion H9. subst. split; auto. constructor; auto.
+    constructor; auto.
     apply Forall_app. split; auto. constructor; auto. destruct v'; inversion H'; inversion H1; auto.
-  * inversion H3. subst. split; auto. inversion H9.
+  * inversion H3. inversion H7. subst. split; auto. inversion H12.
     apply -> subst_preserves_scope_exp; eauto. subst.
     rewrite Nat.add_0_r. replace (length vl) with (length (vs ++ [v])).
     apply scoped_list_idsubst. apply Forall_app. split; auto. constructor; auto.
     destruct v; inversion H0; inversion H4; auto.
     rewrite app_length. rewrite H1. simpl. lia.
-  * inversion H3. split. auto. subst. inversion H9.
+  * inversion H3. inversion H7. split. auto. subst. inversion H12.
     apply -> subst_preserves_scope_exp; eauto. subst.
     rewrite Nat.add_0_r. replace (S (length vl)) with (length (ERecFun f vl e :: vs ++ [v])).
     apply scoped_list_idsubst. constructor. auto. apply Forall_app. split; auto. constructor; auto.
     destruct v; inversion H0; inversion H4; auto. simpl. rewrite H1, app_length. simpl. lia.
-  * inversion H0. subst. split; auto. apply -> subst_preserves_scope_exp; eauto.
+  * inversion H0. inversion H4. 
+    subst. split; auto. apply -> subst_preserves_scope_exp; eauto.
     apply cons_scope; auto. destruct val; inversion H; inversion H1; auto.
-  * inversion H. subst. split; auto.
-  * inversion H1. subst. split; auto.
-  * inversion H0; subst. split; auto. constructor.
-    destruct v; inversion H; inversion H1; auto. auto.
-  * inversion H. subst. split; auto. constructor. constructor.
+  * inversion H. inversion H3. subst. split; auto.
+  * inversion H1. inversion H5. subst. split; auto.
+  * inversion H0. inversion H4; subst. split; auto. constructor; auto.
+    constructor. destruct v; inversion H; inversion H1; auto.
+  * inversion H. inversion H3. subst. split; auto. constructor. constructor.
   * split; auto. inversion H0. 2: inversion H1. apply -> subst_preserves_scope_exp; eauto.
     subst. apply cons_scope; auto. constructor. auto.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
+    now constructor.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
-    rewrite indexed_to_forall. exact H4.
-  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
-  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
+    constructor. rewrite indexed_to_forall. exact H4.
+  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto. now constructor.
+  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto. now constructor.
 Qed.
 
 Theorem result_is_value_m (fs : FrameStack) (e v : Exp) m :

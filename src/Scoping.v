@@ -97,7 +97,6 @@ Notation "'VALCLOSED' v" := (VAL 0 ⊢ v) (at level 5).
 Scheme ValScoped_ind2 := Induction for ValScoped Sort Prop
   with ExpScoped_ind2 := Induction for ExpScoped Sort Prop.
 Combined Scheme scoped_ind from ValScoped_ind2, ExpScoped_ind2.
-Check scoped_ind.
 
 Definition subst_preserves (Γ : nat) (ξ : Substitution) : Prop :=
   forall v, v < Γ -> ξ v = inr v.
@@ -109,7 +108,7 @@ Proof.
   apply Lt.lt_S_n in H0. apply H in H0. unfold shift. rewrite H0. auto.
 Qed.
 
-Hint Resolve subst_preserves_up.
+Global Hint Resolve subst_preserves_up : core.
 
 Corollary subst_preserves_upn : forall n Γ ξ,
   subst_preserves Γ ξ -> subst_preserves (n + Γ) (upn n ξ).
@@ -119,12 +118,12 @@ Proof.
   * simpl. apply subst_preserves_up, IHn. auto.
 Qed.
 
-Hint Resolve subst_preserves_upn.
+Global Hint Resolve subst_preserves_upn : core.
 
 Theorem subst_preserves_empty ξ : subst_preserves 0 ξ.
 Proof. intro. intros. inversion H. Qed.
 
-Hint Resolve subst_preserves_empty.
+Global Hint Resolve subst_preserves_empty : core.
 
 Theorem scoped_ignores_sub_helper vals : forall l ξ,
   (forall i : nat,
@@ -176,9 +175,9 @@ Proof.
   intros. pose (scoped_ignores_sub 0). destruct a. apply H0; auto.
 Qed.
 
-Hint Resolve eclosed_ignores_sub.
+Global Hint Resolve eclosed_ignores_sub : core.
 
-Hint Resolve vclosed_ignores_sub.
+Global Hint Resolve vclosed_ignores_sub : core.
 
 Theorem scope_ext : forall Γ,
   (forall e, VAL Γ ⊢ e ->  VAL (S Γ) ⊢ e) /\
@@ -239,14 +238,14 @@ Proof.
   firstorder.
 Qed.
 
-Hint Resolve renscope_id.
+Global Hint Resolve renscope_id : core.
 
 Lemma scope_idsubst Γ : SUBSCOPE Γ ⊢ idsubst ∷ Γ.
 Proof.
   firstorder.
 Qed.
 
-Hint Resolve scope_idsubst.
+Global Hint Resolve scope_idsubst : core.
 
 Lemma upren_scope : forall Γ Γ' ξ,
   RENSCOPE Γ ⊢ ξ ∷ Γ' ->
@@ -273,8 +272,8 @@ Proof.
   * repeat rewrite Nat.add_succ_l. apply upren_scope. apply IHΓ''. auto.
 Qed.
 
-Hint Resolve upren_scope.
-Hint Resolve uprenn_scope.
+Global Hint Resolve upren_scope : core.
+Global Hint Resolve uprenn_scope : core.
 
 Lemma ren_preserves_scope : forall e Γ,
     (EXP Γ ⊢ e <->
@@ -315,7 +314,7 @@ Proof.
     eapply IHe; eauto. intros. pose (uprenn_scope (S (length vl)) _ Γ' ξ H0 v H1). auto.
   * subst. constructor.
     - eapply IHe; eauto.
-    - intros. Search Forall. rewrite indexed_to_forall in IHe0.
+    - intros. rewrite indexed_to_forall in IHe0.
       replace (ELit 0) with (rename ξ (ELit 0)) by auto.
       rewrite map_nth. rewrite map_length in H1. eapply IHe0; eauto.
   * subst. constructor.
@@ -391,7 +390,7 @@ Proof.
       + inversion Heqs. subst. epose (H v _). rewrite Heqs0 in y. lia. Unshelve. lia.
 Qed.
 
-Hint Resolve up_scope.
+Global Hint Resolve up_scope : core.
 
 Lemma upn_scope : forall n Γ Γ' ξ,
   SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
@@ -402,7 +401,7 @@ Proof.
   * repeat rewrite Nat.add_succ_l. apply up_scope. apply IHn. auto.
 Qed.
 
-Hint Resolve upn_scope.
+Global Hint Resolve upn_scope : core.
 
 Lemma cons_scope : forall v Γ Γ' ξ,
     VAL Γ' ⊢ v ->
@@ -426,8 +425,8 @@ Proof.
   * simpl. inversion H. apply cons_scope; auto.
 Qed.
 
-Hint Resolve cons_scope.
-Hint Resolve consn_scope.
+Global Hint Resolve cons_scope : core.
+Global Hint Resolve consn_scope : core.
 
 (** Substitution is scope-preserving. *)
 Lemma subst_preserves_scope : forall e Γ,
@@ -651,8 +650,6 @@ Module SUB_IMPLIES_SCOPE.
     apply magic_ξ_scope.
   Qed.
 
-Print magic_ξ.
-
   Definition magic_ξ_2 Γ' :=
     fun n =>
       if Compare_dec.lt_dec n Γ'
@@ -812,7 +809,7 @@ Proof.
   eapply upn_ignores_sub in H.
   eauto.
 Qed.
-Hint Resolve escoped_ignores_sub.
+Global Hint Resolve escoped_ignores_sub : core.
 
 Lemma vscoped_ignores_sub : forall e Γ ξ,
     VAL Γ ⊢ e -> e.[upn Γ ξ] = e.
@@ -821,7 +818,7 @@ Proof.
   eapply upn_ignores_sub in H.
   eauto.
 Qed.
-Hint Resolve vscoped_ignores_sub.
+Global Hint Resolve vscoped_ignores_sub : core.
 
 Lemma eclosed_sub_closed : forall v ξ,
     EXPCLOSED v -> EXPCLOSED v.[ξ].
@@ -830,7 +827,7 @@ Proof.
   rewrite eclosed_ignores_sub;
     auto.
 Qed.
-Hint Resolve eclosed_sub_closed.
+Global Hint Resolve eclosed_sub_closed : core.
 
 Lemma vclosed_sub_closed : forall v ξ,
     VALCLOSED v -> VALCLOSED v.[ξ].
@@ -839,7 +836,7 @@ Proof.
   rewrite vclosed_ignores_sub;
     auto.
 Qed.
-Hint Resolve vclosed_sub_closed.
+Global Hint Resolve vclosed_sub_closed : core.
 
 (* FrameStack *)
 (** Based on Pitts' work: https://www.cl.cam.ac.uk/~amp12/papers/opespe/opespe-lncs.pdf *)
@@ -865,39 +862,33 @@ Proof.
   * firstorder. subst. auto.
 Qed.
 
-Inductive FCLOSED : FrameStack -> Prop :=
-| fclosed_nil : FCLOSED []
-| fclosed_app1 l xs:
-  Forall (fun e => EXPCLOSED e) l ->
-  FCLOSED xs
+Inductive FCLOSED : Frame -> Prop :=
+| fclosed_app1 l:
+  Forall (fun e => EXPCLOSED e) l
 ->
-  FCLOSED (FApp1 l::xs)
-| fclosed_app2 v p l1 l2 p2 xs:
-  VALCLOSED v -> Forall (fun e => EXPCLOSED e) l1 -> Forall (fun e => VALCLOSED e) l2 ->
-  FCLOSED xs
+  FCLOSED (FApp1 l)
+| fclosed_app2 v p l1 l2 p2:
+  VALCLOSED v -> Forall (fun e => EXPCLOSED e) l1 -> Forall (fun e => VALCLOSED e) l2
 ->
-  FCLOSED (FApp2 v p l1 l2 p2::xs)
-| fclosed_let e2 xs :
-  EXP 1 ⊢ e2 ->
-  FCLOSED xs
+  FCLOSED (FApp2 v p l1 l2 p2)
+| fclosed_let e2 :
+  EXP 1 ⊢ e2
 ->
-  FCLOSED (FLet e2 :: xs)
-| fclosed_plus1 e2 xs:
-  EXPCLOSED e2 ->
-  FCLOSED xs
+  FCLOSED (FLet e2)
+| fclosed_plus1 e2:
+  EXPCLOSED e2
 ->
-  FCLOSED (FPlus1 e2 :: xs)
-| fclosed_plus2 v1 p xs:
-  VALCLOSED v1 ->
-  FCLOSED xs
+  FCLOSED (FPlus1 e2)
+| fclosed_plus2 v1 p:
+  VALCLOSED v1
 ->
-  FCLOSED (FPlus2 v1 p :: xs)
-| fclosed_if e2 e3 xs:
-  EXPCLOSED e2 -> EXPCLOSED e3 ->
-  FCLOSED xs
+  FCLOSED (FPlus2 v1 p)
+| fclosed_if e2 e3:
+  EXPCLOSED e2 -> EXPCLOSED e3
 ->
-  FCLOSED (FIf e2 e3 :: xs).
+  FCLOSED (FIf e2 e3).
 
+Definition FSCLOSED (fs : FrameStack) := Forall FCLOSED fs.
 
 Lemma scoped_list_subscoped :
   forall vals Γ ξ Γ', Forall (fun v => VAL Γ ⊢ v) vals -> SUBSCOPE Γ' ⊢ ξ ∷ Γ ->

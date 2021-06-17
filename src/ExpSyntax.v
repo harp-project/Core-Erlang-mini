@@ -146,7 +146,7 @@ Proof.
   * subst. destruct f'. simpl. rewrite eqb_refl, Nat.eqb_refl. auto.
 Qed.
 
-Hint Resolve funid_eqb_eq.
+Global Hint Resolve funid_eqb_eq : core.
 
 Proposition funid_eqb_neq (f f0 : FunctionIdentifier):
   funid_eqb f f0 = false <-> f <> f0.
@@ -161,7 +161,7 @@ Proof.
       - left. reflexivity.
 Qed.
 
-Hint Resolve funid_eqb_neq.
+Global Hint Resolve funid_eqb_neq : core.
 
 Proposition var_funid_eqb_eq (v0 v : Var + FunctionIdentifier):
   var_funid_eqb v0 v = true <-> v0 = v.
@@ -181,7 +181,7 @@ Proof.
   }
 Qed.
 
-Hint Resolve var_funid_eqb_eq.
+Global Hint Resolve var_funid_eqb_eq : core.
 
 Proposition var_funid_eqb_neq (v0 v : Var + FunctionIdentifier):
   var_funid_eqb v0 v = false <-> v0 <> v.
@@ -201,7 +201,7 @@ Proof.
   }
 Qed.
 
-Hint Resolve var_funid_eqb_neq.
+Global Hint Resolve var_funid_eqb_neq : core.
 
 Proposition funid_eqb_refl (f : FunctionIdentifier) :
   funid_eqb f f = true.
@@ -209,7 +209,7 @@ Proof.
   destruct f. simpl. simpl. rewrite eqb_refl, Nat.eqb_refl. simpl. reflexivity.
 Qed.
 
-Hint Resolve funid_eqb_refl.
+Global Hint Resolve funid_eqb_refl : core.
 
 Proposition var_funid_eqb_refl (var : Var + FunctionIdentifier) :
   var_funid_eqb var var = true.
@@ -219,7 +219,7 @@ Proof.
   * destruct f. simpl. rewrite eqb_refl, Nat.eqb_refl. simpl. reflexivity.
 Qed.
 
-Hint Resolve var_funid_eqb_refl.
+Global Hint Resolve var_funid_eqb_refl : core.
 
 Fixpoint in_list (v : VarFunId) (l : list VarFunId) : bool :=
 match l with
@@ -256,6 +256,6 @@ Proof.
       apply var_funid_eqb_neq in Heqb. eapply IHl. apply not_in_cons in H. destruct H. auto.
 Qed.
 
-Hint Resolve in_list_sound.
-Hint Resolve not_in_list_sound.
+Global Hint Resolve in_list_sound : core.
+Global Hint Resolve not_in_list_sound : core.
 

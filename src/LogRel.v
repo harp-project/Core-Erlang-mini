@@ -17,11 +17,11 @@ Qed.
 
 Definition frame_rel (n : nat)
                      (Vrel : forall m, m <= n -> Exp -> Exp -> Prop)
-                     (K1 K2 : FrameStack) : Prop :=
-  FCLOSED K1 /\ FCLOSED K2 /\
+                     (F1 F2 : FrameStack) : Prop :=
+  FSCLOSED F1 /\ FSCLOSED F2 /\
   forall m (Hmn : m <= n) v1 v2,
     Vrel m Hmn v1 v2 ->
-    | K1, v1 | m ↓ -> | K2, v2 | ↓.
+    | F1, v1 | m ↓ -> | F2, v2 | ↓.
 
 Definition exp_rel (n : nat)
                    (Vrel : forall m, m <= n -> Exp -> Exp -> Prop)
@@ -32,8 +32,6 @@ Definition exp_rel (n : nat)
      frame_rel m (fun m' H => Vrel m' (Nat.le_trans _ _ _ H Hmn)) F1 F2 ->
      | F1, e1 | m ↓ -> | F2, e2 | ↓
 .
-
-Check list_eq_dec. Print sumbool.
 
 Definition Vrel_rec (n : nat)
                     (Vrel : forall m, m < n -> Exp -> Exp -> Prop)
@@ -158,7 +156,7 @@ Section Tests.
     apply length_zero_iff_nil in H3. apply length_zero_iff_nil in H4. subst. intros. cbn. cbn in H4.
     destruct H3, H6. eapply H7; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
   Qed.
-  
+
   Goal Erel 3 e2 e3.
   Proof.
     split. 2: split.
@@ -174,7 +172,6 @@ Section Tests.
 End Tests.
 
 Scheme le_dep_ind := Induction for le Sort Prop.
-Check le_dep_ind. 
 
 Lemma Vrel_downclosed :
   forall {n m : nat} {Hmn : m <= n} {v1 v2 : Exp},
@@ -224,7 +221,7 @@ Proof.
   intuition.
 Qed.
 
-Hint Resolve Vrel_closed_l.
+Global Hint Resolve Vrel_closed_l : core.
 
 Lemma Vrel_closed_r : forall {n : nat} {v1 v2 : Exp},
     Vrel n v1 v2 ->
@@ -235,7 +232,7 @@ Proof.
   intuition.
 Qed.
 
-Hint Resolve Vrel_closed_r.
+Global Hint Resolve Vrel_closed_r : core.
 
 Lemma Erel_closed : forall {n : nat} {e1 e2 : Exp},
     Erel n e1 e2 ->
@@ -255,7 +252,7 @@ Proof.
   intuition.
 Qed.
 
-Hint Resolve Erel_closed_l.
+Global Hint Resolve Erel_closed_l : core.
 
 Lemma Erel_closed_r : forall {n : nat} {e1 e2 : Exp},
     Erel n e1 e2 ->
@@ -266,7 +263,7 @@ Proof.
   intuition.
 Qed.
 
-Hint Resolve Erel_closed_r.
+Global Hint Resolve Erel_closed_r : core.
 
 (* Def: closed values are related *)
 Definition Grel (n : nat) (Γ : nat) (ξ₁ ξ₂ : Substitution) : Prop :=
@@ -398,7 +395,7 @@ Proof.
   intros. eapply Erel_open_scope in H. destruct H. auto.
 Qed.
 
-Hint Resolve Erel_open_scope_l.
+Global Hint Resolve Erel_open_scope_l : core.
 
 Lemma Erel_open_scope_r : forall {Γ e1 e2},
     Erel_open Γ e1 e2 ->
@@ -407,7 +404,7 @@ Proof.
   intros. eapply Erel_open_scope in H. destruct H. auto.
 Qed.
 
-Hint Resolve Erel_open_scope_r.
+Global Hint Resolve Erel_open_scope_r : core.
 
 Lemma Vrel_possibilities : forall {n v1 v2},
   Vrel n v1 v2 ->
@@ -455,7 +452,7 @@ Proof.
   intros. eapply Vrel_open_scope in H. destruct H. auto.
 Qed.
 
-Hint Resolve Vrel_open_scope_l.
+Global Hint Resolve Vrel_open_scope_l : core.
 
 Lemma Vrel_open_scope_r : forall {Γ e1 e2},
     Vrel_open Γ e1 e2 ->
@@ -464,7 +461,7 @@ Proof.
   intros. eapply Vrel_open_scope in H. destruct H. auto.
 Qed.
 
-Hint Resolve Vrel_open_scope_r.
+Global Hint Resolve Vrel_open_scope_r : core.
 
 Lemma Frel_downclosed :
   forall {n m : nat} {Hmn : m <= n} {F1 F2 : FrameStack},
@@ -475,11 +472,11 @@ Proof.
   intuition. eapply H2 in H3. exact H3. lia. auto.
 Qed.
 
-Hint Resolve Frel_downclosed.
+Global Hint Resolve Frel_downclosed : core.
 
 Lemma Frel_closed : forall {n : nat} {F1 F2 : FrameStack},
     Frel n F1 F2 ->
-    FCLOSED F1 /\ FCLOSED F2.
+    FSCLOSED F1 /\ FSCLOSED F2.
 Proof.
   intros.
   unfold Frel, frame_rel in H.
@@ -488,25 +485,25 @@ Qed.
 
 Lemma Frel_closed_l : forall {n : nat} {F1 F2 : FrameStack},
     Frel n F1 F2 ->
-    FCLOSED F1.
+    FSCLOSED F1.
 Proof.
   intros.
   apply Frel_closed in H.
   intuition.
 Qed.
 
-Hint Resolve Frel_closed_l.
+Global Hint Resolve Frel_closed_l : core.
 
 Lemma Frel_closed_r : forall {n : nat} {F1 F2 : FrameStack},
     Frel n F1 F2 ->
-    FCLOSED F2.
+    FSCLOSED F2.
 Proof.
   intros.
   apply Frel_closed in H.
   intuition.
 Qed.
 
-Hint Resolve Frel_closed_r.
+Global Hint Resolve Frel_closed_r : core.
 
 
 Lemma biforall_vrel_scoped : forall vals1 vals2 Γ,
