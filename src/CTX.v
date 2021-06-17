@@ -75,50 +75,7 @@ Definition IsCtxRel (R : nat -> Exp -> Exp -> Prop) :=
   forall R', IsPreCtxRel R' ->
     forall Γ e1 e2, R' Γ e1 e2 -> R Γ e1 e2.
 
-Definition equiv_subst (R : Exp -> Exp -> Prop) (n : nat) (ξ η : Substitution) : Prop :=
-  forall v, v < n -> match (ξ v), (η v) with
-                     | inl exp1, inl exp2 => VALCLOSED exp1 /\ VALCLOSED exp2 /\ R exp1 exp2
-                     | _, _ => False
-                     end.
 
-Fixpoint equivalent_values (n : nat) (v1 v2 : Exp) : Prop :=
-match n with
-| 0 => True
-| S n' =>
-  match v1, v2 with
-  | ELit l1, ELit l2 => l1 = l2
-  | EFun vl1 b1, EFun vl2 b2 => if length vl1 =? length vl2 then (*TODO: wrong, b1.[ξ] should be evaluated first!*)
-    forall ξ η, equiv_subst (equivalent_values n') (length vl1) ξ η -> equivalent_values n' (b1.[ξ]) (b2.[ξ])
-                                else False
-  | _, _ => False
-  end
-end.
-
-Definition inf : Exp := EApp (ERecFun ("f"%string, 0) [] (EApp (EFunId 0 ("f"%string, 0)) [])) [].
-Lemma inf_diverges : forall fs v, ~⟨fs, inf⟩ -->* v.
-Admitted.
-
-Lemma alma :
-  forall R, IsPreCtxRel R -> forall e1 e2 v1 v2,
-  ⟨ [], e1 ⟩ -->* v1 -> ⟨[], e2⟩ -->* v2 -> R 0 v1 v2.
-Proof.
-  intros.
-Admitted.
-
-Theorem det_implies_equiv :
-  forall R e1 e2, IsPreCtxRel R -> R 0 e1 e2 ->
-    forall v1 v2, ⟨ [], e1 ⟩ -->* v1 -> ⟨[], e2⟩ -->* v2
-  ->
-    forall n, equivalent_values n v1 v2.
-Proof.
-  intros. generalize dependent e1. generalize dependent R. generalize dependent n. destruct H, H3, H4, H5, H6, H7, H8, H9, H10, H11.
-  assert (| [], e1 | ↓). { eexists. eauto. } assert (| [], e2 | ↓). { eexists. eauto. }
-  destruct v1, v2.
-  * destruct (Z.eq_dec l l0).
-    - exists 1. simpl. auto.
-    - epose (H11 ).
-      epose (H12 0). 
-Qed.
 (* Lemma CTX_closed_under_substitution : forall {Γ e1 e2 vals CTX},
     IsCtxRel CTX ->
     Forall (fun v => VAL Γ ⊢ v) vals ->
@@ -224,71 +181,71 @@ Proof.
     auto.
 Qed.
 
-Reserved Notation "'EECTX' Γh ⊢ C ;; Γ" (at level 60).
-Reserved Notation "'VECTX' Γh ⊢ C ;; Γ" (at level 60).
+Reserved Notation "'EECTX' Γh ⊢ C ∷ Γ" (at level 60).
+Reserved Notation "'VECTX' Γh ⊢ C ∷ Γ" (at level 60).
 
-Inductive EECtxScope (Γh : list VarFunId) : list VarFunId -> Ctx -> Prop :=
-| CEScope_hole : (EECTX Γh ⊢ CHole ;; Γh)
+Inductive EECtxScope (Γh : nat) : nat -> Ctx -> Prop :=
+| CEScope_hole : (EECTX Γh ⊢ CHole ∷ Γh)
 | CEScope_App_f : forall Γ C exps,
-    EECTX Γh ⊢ C ;; Γ -> 
+    EECTX Γh ⊢ C ∷ Γ -> 
     (Forall (fun v => EXP Γ ⊢ v) exps) ->
-    EECTX Γh ⊢ CAppFun C exps ;; Γ
+    EECTX Γh ⊢ CAppFun C exps ∷ Γ
 | CEScope_App_v : forall Γ f l1 l2 C,
     EXP Γ ⊢ f ->
     (Forall (fun v => EXP Γ ⊢ v) l1) -> (Forall (fun v => EXP Γ ⊢ v) l2) ->
-    EECTX Γh ⊢ C ;; Γ -> 
-    EECTX Γh ⊢ CAppParam f l1 C l2 ;; Γ
+    EECTX Γh ⊢ C ∷ Γ -> 
+    EECTX Γh ⊢ CAppParam f l1 C l2 ∷ Γ
 | CEScope_Let1 : forall Γ x C e2,
-    EECTX Γh ⊢ C ;; Γ -> 
-    EXP (Γ ++ [inl x]) ⊢ e2 ->
-    EECTX Γh ⊢ CLet1 x C e2 ;; Γ
+    EECTX Γh ⊢ C ∷ Γ -> 
+    EXP (S Γ) ⊢ e2 ->
+    EECTX Γh ⊢ CLet1 x C e2 ∷ Γ
 | CEScope_Let2 : forall Γ x e1 C,
     EXP Γ ⊢ e1 ->
-    EECTX Γh ⊢ C ;; (Γ ++ [inl x]) ->
-    EECTX Γh ⊢ CLet2 x e1 C ;; Γ
+    EECTX Γh ⊢ C ∷ (S Γ) ->
+    EECTX Γh ⊢ CLet2 x e1 C ∷ Γ
 | CEScope_LetRec1 : forall Γ f vl C e2,
-    EECTX Γh ⊢ C ;; (Γ ++ (inr f :: map inl vl)) -> 
-    EXP (Γ ++ [inr f]) ⊢ e2 ->
-    EECTX Γh ⊢ CLetRec1 f vl C e2 ;; Γ
+    EECTX Γh ⊢ C ∷ (S (length vl) + Γ) -> 
+    EXP (S Γ) ⊢ e2 ->
+    EECTX Γh ⊢ CLetRec1 f vl C e2 ∷ Γ
 | CEScope_LetRec2 : forall Γ f vl e1 C,
-    EXP Γ ++ (inr f :: map inl vl) ⊢ e1 ->
-    EECTX Γh ⊢ C ;; (Γ ++ [inr f]) ->
-    EECTX Γh ⊢ CLetRec2 f vl e1 C ;; Γ
+    EXP S (length vl) + Γ ⊢ e1 ->
+    EECTX Γh ⊢ C ∷ (S Γ) ->
+    EECTX Γh ⊢ CLetRec2 f vl e1 C ∷ Γ
 | CEScope_Plus1 : forall Γ C e2,
-    EECTX Γh ⊢ C ;; Γ -> 
+    EECTX Γh ⊢ C ∷ Γ -> 
     EXP Γ ⊢ e2 ->
-    EECTX Γh ⊢ CPlus1 C e2 ;; Γ
+    EECTX Γh ⊢ CPlus1 C e2 ∷ Γ
 | CEScope_Plus2 : forall Γ e1 C,
     EXP Γ ⊢ e1 ->
-    EECTX Γh ⊢ C ;; Γ -> 
-    EECTX Γh ⊢ CPlus2 e1 C ;; Γ
+    EECTX Γh ⊢ C ∷ Γ -> 
+    EECTX Γh ⊢ CPlus2 e1 C ∷ Γ
 | CEScope_If1 : forall Γ C e2 e3,
-    EECTX Γh ⊢ C ;; Γ -> 
+    EECTX Γh ⊢ C ∷ Γ -> 
     EXP Γ ⊢ e2 ->
     EXP Γ ⊢ e3 ->
-    EECTX Γh ⊢ CIf1 C e2 e3 ;; Γ
+    EECTX Γh ⊢ CIf1 C e2 e3 ∷ Γ
 | CEScope_If2 : forall Γ C e1 e3,
-    EECTX Γh ⊢ C ;; Γ -> 
+    EECTX Γh ⊢ C ∷ Γ -> 
     EXP Γ ⊢ e1 ->
     EXP Γ ⊢ e3 ->
-    EECTX Γh ⊢ CIf2 e1 C e3 ;; Γ
+    EECTX Γh ⊢ CIf2 e1 C e3 ∷ Γ
 | CEScope_If3 : forall Γ C e1 e2,
-    EECTX Γh ⊢ C ;; Γ -> 
+    EECTX Γh ⊢ C ∷ Γ -> 
     EXP Γ ⊢ e1 ->
     EXP Γ ⊢ e2 ->
-    EECTX Γh ⊢ CIf3 e1 e2 C ;; Γ
-| CEScope_val : forall C Γ, VECTX Γh ⊢ C ;; Γ -> EECTX Γh ⊢ C ;; Γ
-with VECtxScope (Γh : list VarFunId) : list VarFunId -> Ctx -> Prop :=
+    EECTX Γh ⊢ CIf3 e1 e2 C ∷ Γ
+| CEScope_val : forall C Γ, VECTX Γh ⊢ C ∷ Γ -> EECTX Γh ⊢ C ∷ Γ
+with VECtxScope (Γh : nat) : nat -> Ctx -> Prop :=
 | CEScope_Fun : forall Γ vl C,
-    EECTX Γh ⊢ C ;; (Γ ++ map inl vl) ->
-    VECTX Γh ⊢ CFun vl C ;; Γ
+    EECTX Γh ⊢ C ∷ (length vl + Γ) ->
+    VECTX Γh ⊢ CFun vl C ∷ Γ
 | CEScope_RecFun : forall Γ f vl C,
-    EECTX Γh ⊢ C ;; (Γ ++ (inr f :: map inl vl)) ->
-    VECTX Γh ⊢ CRecFun f vl C ;; Γ
+    EECTX Γh ⊢ C ∷ (S (length vl) + Γ) ->
+    VECTX Γh ⊢ CRecFun f vl C ∷ Γ
 where
-"'EECTX' Γh ⊢ C ;; Γ" := (EECtxScope Γh Γ C)
+"'EECTX' Γh ⊢ C ∷ Γ" := (EECtxScope Γh Γ C)
 and
-"'VECTX' Γh ⊢ C ;; Γ" := (VECtxScope Γh Γ C).
+"'VECTX' Γh ⊢ C ∷ Γ" := (VECtxScope Γh Γ C).
 
 Ltac solve_inversion :=
   match goal with
@@ -316,10 +273,10 @@ Proof.
 Qed.
 
 Lemma plug_preserves_scope_exp : forall {Γh C Γ e},
-    (EECTX Γh ⊢ C ;; Γ ->
+    (EECTX Γh ⊢ C ∷ Γ ->
      EXP Γh ⊢ e ->
      EXP Γ ⊢ plug C e) /\
-    (VECTX Γh ⊢ C ;; Γ ->
+    (VECTX Γh ⊢ C ∷ Γ ->
      EXP Γh ⊢ e ->
      VAL Γ ⊢ plug C e).
 Proof.
@@ -343,12 +300,12 @@ Proof.
 Qed.
 
 Lemma plugc_preserves_scope_exp : forall {Γh Couter Γ Cinner Γ'},
-    (EECTX Γ' ⊢ Couter ;; Γ ->
-     EECTX Γh ⊢ Cinner ;; Γ' ->
-     EECTX Γh ⊢ plugc Couter Cinner ;; Γ) /\
-    (VECTX Γ' ⊢ Couter ;; Γ ->
-     EECTX Γh ⊢ Cinner ;; Γ' ->
-     VECTX Γh ⊢ plugc Couter Cinner ;; Γ).
+    (EECTX Γ' ⊢ Couter ∷ Γ ->
+     EECTX Γh ⊢ Cinner ∷ Γ' ->
+     EECTX Γh ⊢ plugc Couter Cinner ∷ Γ) /\
+    (VECTX Γ' ⊢ Couter ∷ Γ ->
+     EECTX Γh ⊢ Cinner ∷ Γ' ->
+     VECTX Γh ⊢ plugc Couter Cinner ∷ Γ).
 Proof.
   induction Couter;
     split;
@@ -363,12 +320,10 @@ Proof.
   * constructor. eapply IHCouter; eauto. inversion H. inversion H2. subst. auto.
 Qed.
 
-Definition CTX (Γ : list VarFunId) (e1 e2 : Exp) :=
+Definition CTX (Γ : nat) (e1 e2 : Exp) :=
   (EXP Γ ⊢ e1 /\ EXP Γ ⊢ e2) /\
   (forall (C : Ctx),
-      EECTX Γ ⊢ C ;; [] -> forall v1,
-      (exists clock, eval clock (plug C e1) = Res v1) -> 
-      exists v2, (exists clock, eval clock (plug C e2) = Res v2) /\ equivalent_values v1 v2).
+      EECTX Γ ⊢ C ∷ 0 -> | [], plug C e1 | ↓ -> | [], plug C e2| ↓).
 
 Lemma IsReflexiveList : forall R' l Γ',
   IsReflexive R' -> Forall (fun v : Exp => EXP Γ' ⊢ v) l ->
@@ -379,18 +334,16 @@ Proof.
   * inversion H0. apply IHl; auto.
 Qed.
 
-Lemma CTX_bigger : forall R' : list VarFunId -> Exp -> Exp -> Prop,
-    IsPreCtxRel R' -> forall (Γ : list VarFunId) (e1 e2 : Exp), R' Γ e1 e2 -> CTX Γ e1 e2.
+Lemma CTX_bigger : forall R' : nat -> Exp -> Exp -> Prop,
+    IsPreCtxRel R' -> forall (Γ : nat) (e1 e2 : Exp), R' Γ e1 e2 -> CTX Γ e1 e2.
 Proof.
   intros R' HR.
   destruct HR as [Rscope [Radequate [Rrefl [Rtrans [RFun [RRecFun [RApp [RLet [RLetRec [RPlus  RIf ] ] ] ] ] ] ] ] ] ].
   unfold CTX.
   intros.
   destruct (Rscope _ _ _ H) as [Hscope_e1 Hscope_e2].
-  intuition idtac;
-    try solve [apply Rscope in H; intuition idtac];
-    apply Radequate.
-  assert (forall Γ', EECTX Γ ⊢ C ;; Γ' -> 
+  intuition idtac. eapply Radequate; eauto.
+  assert (forall Γ', EECTX Γ ⊢ C ∷ Γ' -> 
                      R' Γ' (plug C e1) (plug C e2)).
   { clear H0.
     induction C;
@@ -400,9 +353,9 @@ Proof.
       cbn;
       try solve_inversion;
       auto.
-    - apply RFun.
-      apply IHC.
-      inversion H1; auto.
+    - apply RFun. inversion H2. subst.
+      apply IHC; auto. 
+      inversion H1. simpl in H3. inversion H3; subst.
     - apply RRecFun.
       apply IHC.
       inversion H1; auto.
@@ -589,3 +542,48 @@ Unshelve.
   all: eapply plugc_preserves_scope_exp; eauto; constructor; auto; constructor.
 Qed.
 
+
+Definition equiv_subst (R : Exp -> Exp -> Prop) (n : nat) (ξ η : Substitution) : Prop :=
+  forall v, v < n -> match (ξ v), (η v) with
+                     | inl exp1, inl exp2 => VALCLOSED exp1 /\ VALCLOSED exp2 /\ R exp1 exp2
+                     | _, _ => False
+                     end.
+
+Fixpoint equivalent_values (n : nat) (v1 v2 : Exp) : Prop :=
+match n with
+| 0 => True
+| S n' =>
+  match v1, v2 with
+  | ELit l1, ELit l2 => l1 = l2
+  | EFun vl1 b1, EFun vl2 b2 => if length vl1 =? length vl2 then (*TODO: wrong, b1.[ξ] should be evaluated first!*)
+    forall ξ η, equiv_subst (equivalent_values n') (length vl1) ξ η -> equivalent_values n' (b1.[ξ]) (b2.[ξ])
+                                else False
+  | _, _ => False
+  end
+end.
+
+Definition inf : Exp := EApp (ERecFun ("f"%string, 0) [] (EApp (EFunId 0 ("f"%string, 0)) [])) [].
+Lemma inf_diverges : forall fs v, ~⟨fs, inf⟩ -->* v.
+Admitted.
+
+Lemma alma :
+  forall R, IsPreCtxRel R -> forall e1 e2 v1 v2,
+  ⟨ [], e1 ⟩ -->* v1 -> ⟨[], e2⟩ -->* v2 -> R 0 v1 v2.
+Proof.
+  intros.
+Admitted.
+
+Theorem det_implies_equiv :
+  forall R e1 e2, IsPreCtxRel R -> R 0 e1 e2 ->
+    forall v1 v2, ⟨ [], e1 ⟩ -->* v1 -> ⟨[], e2⟩ -->* v2
+  ->
+    forall n, equivalent_values n v1 v2.
+Proof.
+  intros. generalize dependent e1. generalize dependent R. generalize dependent n. destruct H, H3, H4, H5, H6, H7, H8, H9, H10, H11.
+  assert (| [], e1 | ↓). { eexists. eauto. } assert (| [], e2 | ↓). { eexists. eauto. }
+  destruct v1, v2.
+  * destruct (Z.eq_dec l l0).
+    - exists 1. simpl. auto.
+    - epose (H11 ).
+      epose (H12 0). 
+Qed.
