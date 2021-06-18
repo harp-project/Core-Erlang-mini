@@ -4,7 +4,7 @@ Import ListNotations.
 
 Definition CIU (e1 e2 : Exp) : Prop :=
   EXPCLOSED e1 /\ EXPCLOSED e2 /\
-  forall F, FCLOSED F -> | F, e1 | ↓ -> | F, e2 | ↓.
+  forall F, FSCLOSED F -> | F, e1 | ↓ -> | F, e2 | ↓.
 
 Definition CIU_open (Γ : nat) (e1 e2 : Exp) :=
   forall ξ, SUBSCOPE Γ ⊢ ξ ∷ 0 ->

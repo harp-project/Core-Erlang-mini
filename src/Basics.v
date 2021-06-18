@@ -1,5 +1,6 @@
 Require Export Coq.micromega.Lia
-               Coq.Lists.List.
+               Coq.Lists.List
+               Coq.Arith.PeanoNat.
 Import ListNotations.
 
 Theorem indexed_to_forall {A : Type} (l : list A) : forall P def,
@@ -106,4 +107,24 @@ Qed.
 Lemma forall_biforall_refl : forall {T} (l: list T) P, Forall (fun x => P x x) l -> list_biforall P l l.
 Proof.
   induction l; constructor; inversion H; subst; auto.
+Qed.
+
+Lemma nth_possibilities {T : Type}:
+  forall (l1 l2 : list T) (def : T) i, i < length (l1 ++ l2) ->
+    (nth i (l1 ++ l2) def = nth i l1 def) /\ i < length l1 \/
+    nth i (l1 ++ l2) def = nth (i - length l1) l2 def /\ (i - length l1) < length l2.
+Proof.
+  intros. destruct (i <? length l1) eqn:P.
+  * apply Nat.ltb_lt in P. left. split; [ apply app_nth1 | ]; auto.
+  * apply Nat.ltb_nlt in P. right. split; [ apply app_nth2 | rewrite app_length in H ]; lia.
+Qed.
+
+Lemma nth_possibilities_alt {T : Type}:
+  forall (l1 l2 : list T) (def : T) i, i < length (l1 ++ l2) ->
+    (nth i (l1 ++ l2) def = nth i l1 def) /\ i < length l1 \/
+    nth i (l1 ++ l2) def = nth (i - length l1) l2 def /\ (i - length l1) < length l2 /\ i >= length l1.
+Proof.
+  intros. destruct (i <? length l1) eqn:P.
+  * apply Nat.ltb_lt in P. left. split; [ apply app_nth1 | ]; auto.
+  * apply Nat.ltb_nlt in P. right. split; [ apply app_nth2 | rewrite app_length in H ]; lia.
 Qed.

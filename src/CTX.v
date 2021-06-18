@@ -1,4 +1,4 @@
-Require Export SubstSemantics.
+Require Export CIU.
 
 Import ListNotations.
 
@@ -35,21 +35,22 @@ Definition CompatibleApp (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ f1 f2 vals1 vals2,
   Forall (fun e => EXP Γ ⊢ e) vals1 -> Forall (fun e => EXP Γ ⊢ e) vals2 ->
   EXP Γ ⊢ f1 -> EXP Γ ⊢ f2 ->
-  R Γ f1 f2 -> Forall (fun '(e1, e2) => R Γ e1 e2) (combine vals1 vals2) ->
+  R Γ f1 f2 -> 
+  list_biforall (fun e1 e2 => R Γ e1 e2) vals1 vals2 ->
   R Γ (EApp f1 vals1) (EApp f2 vals2).
 
 Definition CompatibleLet (R : nat -> Exp -> Exp -> Prop) :=
-  forall Γ e1 e1' x e2 e2',
+  forall Γ e1 e1' x y e2 e2',
   EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP (S Γ) ⊢ e2 -> EXP (S Γ) ⊢ e2' ->
   R Γ e1 e1' -> R (S Γ) e2 e2' ->
-  R Γ (ELet x e1 e2) (ELet x e1' e2').
+  R Γ (ELet x e1 e2) (ELet y e1' e2').
 
 Definition CompatibleLetRec (R : nat -> Exp -> Exp -> Prop) :=
-  forall Γ f vl b1 b1' e2 e2',
+  forall Γ f f' vl vl' b1 b1' e2 e2', length vl = length vl' ->
   EXP S (length vl) + Γ ⊢ b1 -> EXP S (length vl) + Γ ⊢ b1' -> 
   EXP S Γ ⊢ e2 -> EXP S Γ ⊢ e2' ->
   R (S (length vl) + Γ) b1 b1' -> R (S Γ) e2 e2' ->
-  R Γ (ELetRec f vl b1 e2) (ELetRec f vl b1' e2').
+  R Γ (ELetRec f vl b1 e2) (ELetRec f' vl' b1' e2').
 
 Definition CompatiblePlus (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ e1 e1' e2 e2',
@@ -115,6 +116,103 @@ Proof.
   eapply H4.
   - exact H2.
   - auto.
+Qed.
+
+Theorem Erel_IsPreCtxRel : IsPreCtxRel Erel_open.
+Proof.
+  unfold IsPreCtxRel.
+  intuition idtac.
+  * eapply Erel_open_scope in H.
+    intuition idtac.
+  * eapply Erel_open_scope in H.
+    intuition idtac.
+  * unfold Adequate.
+    intros.
+    apply CIU_iff_Erel in H.
+    unfold CIU_open, CIU in H.
+    specialize (H idsubst (scope_idsubst 0)).
+    destruct H, H1. do 2 rewrite idsubst_is_id in H2.
+    apply H2.
+    now constructor. auto.
+  * unfold IsReflexive.
+    intros.
+    apply Erel_Fundamental.
+    auto.
+  * unfold Transitive.
+    intros.
+    apply CIU_iff_Erel.
+    apply CIU_iff_Erel in H.
+    apply CIU_iff_Erel in H0.
+    unfold CIU_open in *.
+    intros.
+    specialize (H ξ H1).
+    specialize (H0 ξ H1).
+    unfold CIU in *.
+    intuition idtac.
+    specialize (H5 F H4).
+    specialize (H6 F H4).
+    auto.
+  * unfold CompatibleFun.
+    intros.
+    eauto.
+  * unfold CompatibleRecFun.
+    intros.
+    eauto.
+  * unfold CompatibleApp.
+    intros.
+    now apply Erel_App_compat.
+  * unfold CompatibleLet.
+    intros.
+    apply Erel_Let_compat; auto.
+  * unfold CompatibleLetRec.
+    intros. now apply Erel_LetRec_compat.
+  * unfold CompatiblePlus.
+    intros. now apply Erel_Plus_compat.
+  * unfold CompatibleIf.
+    intros. now apply Erel_If_compat.
+Qed.
+
+Corollary CIU_IsPreCtxRel : IsPreCtxRel CIU_open.
+Proof.
+  pose proof Erel_IsPreCtxRel.
+  unfold IsPreCtxRel in *.
+  intuition idtac.
+  all: unfold Adequate, Transitive, IsReflexive, CompatibleFun, CompatibleRecFun,
+    CompatibleApp, CompatibleLet, CompatibleLetRec, CompatiblePlus, CompatibleIf; intros.
+  all: try apply CIU_iff_Erel.
+  * apply CIU_iff_Erel in H9.
+    apply H0 in H9.
+    intuition.
+  * apply CIU_iff_Erel in H9.
+    apply H0 in H9.
+    intuition.
+  * apply CIU_iff_Erel in H9.
+    apply H in H9. auto.
+  * now apply H1.
+  * apply CIU_iff_Erel in H9.
+    apply CIU_iff_Erel in H11.
+    eapply H2; eauto.
+  * apply CIU_iff_Erel in H9.
+    now eapply H3.
+  * apply CIU_iff_Erel in H9.
+    now eapply H4.
+  * apply CIU_iff_Erel in H14.
+    eapply biforall_impl in H15.
+    eapply H5; eauto.
+    intros. now apply CIU_iff_Erel.
+  * apply CIU_iff_Erel in H14.
+    apply CIU_iff_Erel in H15.
+    now eapply H6.
+  * apply CIU_iff_Erel in H15.
+    apply CIU_iff_Erel in H16.
+    now eapply H7.
+  * apply CIU_iff_Erel in H14.
+    apply CIU_iff_Erel in H15.
+    now apply H8.
+  * apply CIU_iff_Erel in H16.
+    apply CIU_iff_Erel in H17.
+    apply CIU_iff_Erel in H18.
+    eapply H10; eauto.
 Qed.
 
 Inductive Ctx :=
@@ -252,26 +350,6 @@ Ltac solve_inversion :=
   | [ H : _ |- _ ] => solve [inversion H]
   end.
 
-Lemma nth_possibilities {T : Type}:
-  forall (l1 l2 : list T) (def : T) i, i < length (l1 ++ l2) ->
-    (nth i (l1 ++ l2) def = nth i l1 def) /\ i < length l1 \/
-    nth i (l1 ++ l2) def = nth (i - length l1) l2 def /\ (i - length l1) < length l2.
-Proof.
-  intros. destruct (i <? length l1) eqn:P.
-  * apply Nat.ltb_lt in P. left. split; [ apply app_nth1 | ]; auto.
-  * apply Nat.ltb_nlt in P. right. split; [ apply app_nth2 | rewrite app_length in H ]; lia.
-Qed.
-
-Lemma nth_possibilities_alt {T : Type}:
-  forall (l1 l2 : list T) (def : T) i, i < length (l1 ++ l2) ->
-    (nth i (l1 ++ l2) def = nth i l1 def) /\ i < length l1 \/
-    nth i (l1 ++ l2) def = nth (i - length l1) l2 def /\ (i - length l1) < length l2 /\ i >= length l1.
-Proof.
-  intros. destruct (i <? length l1) eqn:P.
-  * apply Nat.ltb_lt in P. left. split; [ apply app_nth1 | ]; auto.
-  * apply Nat.ltb_nlt in P. right. split; [ apply app_nth2 | rewrite app_length in H ]; lia.
-Qed.
-
 Lemma plug_preserves_scope_exp : forall {Γh C Γ e},
     (EECTX Γh ⊢ C ∷ Γ ->
      EXP Γh ⊢ e ->
@@ -364,7 +442,8 @@ Proof.
         simpl in H0. inversion H0. subst. auto. inversion H1.
       + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
         simpl in H0. inversion H0. subst. auto. inversion H1.
-      + apply IsReflexiveList; auto.
+      + apply forall_biforall_refl.
+        apply Forall_forall. rewrite Forall_forall in H5. intros. apply Rrefl. auto.
     - apply RApp; auto.
       + rewrite indexed_to_forall. intros.
         epose (nth_possibilities _ _ _ _ H1). destruct o.
@@ -386,19 +465,10 @@ Proof.
              epose (H11 (length l1) _). rewrite nth_middle in e. auto.
              Unshelve. 1-2: exact (ELit 0). rewrite app_length. lia.
           -- simpl. apply H8. simpl in H3. lia.
-      + rewrite indexed_to_forall. intros.
-        rewrite combine_nth. 2: repeat rewrite app_length; simpl; lia.
-        rewrite combine_length in H1.
-        assert ((length (l1 ++ plug C e1 :: l2)) = length (l1 ++ plug C e2 :: l2)).
-        { repeat rewrite app_length. simpl. lia. }
-        rewrite H2 in H1. rewrite Nat.min_id in H1.
-        epose (nth_possibilities_alt _ _ _ _ H1). destruct o.
-        ** destruct H3. rewrite H3. rewrite app_nth1; auto.
-           apply Rrefl. rewrite Forall_nth in H7. apply H7; auto.
-        ** destruct H3. destruct H4. rewrite H3. rewrite app_nth2; auto.
-           remember (i - length l1) as i'. destruct i'.
-           -- simpl. apply IHC. auto.
-           -- simpl. apply Rrefl. rewrite Forall_nth in H8. apply H8. rewrite Heqi' in *. simpl in H4. lia.
+      + apply biforall_app. 2: constructor.
+        ** apply forall_biforall_refl, Forall_forall. rewrite Forall_forall in H7. auto.
+        ** simpl. apply IHC. auto.
+        ** apply forall_biforall_refl, Forall_forall. rewrite Forall_forall in H8. auto.
     - apply RLet; auto.
       + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
         simpl in H0. inversion H0. auto. inversion H1.
@@ -445,14 +515,26 @@ Proof.
       + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
         simpl in H0. inversion H0. auto. inversion H1.
   }
-  apply H2.
-  auto. Unshelve. exact (ELit 0).
+  now apply H2.
 Qed.
 
 Theorem CTX_refl Γ e : EXP Γ ⊢ e -> CTX Γ e e.
 Proof.
   unfold CTX. intros. split; auto.
 Qed.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Lemma equivalent_values_trans v1 v2 v3 :
   equivalent_values v1 v2 -> equivalent_values v2 v3 -> equivalent_values v1 v3.
