@@ -22,14 +22,14 @@ Definition IsReflexive (R : nat -> Exp -> Exp -> Prop) :=
   EXP Γ ⊢ e -> R Γ e e.
 
 Definition CompatibleFun (R : nat -> Exp -> Exp -> Prop) :=
-  forall Γ vl e1 e2,
+  forall Γ vl vl' e1 e2, length vl = length vl' ->
     R (length vl + Γ) e1 e2 ->
-    R Γ (EFun vl e1) (EFun vl e2).
+    R Γ (EFun vl e1) (EFun vl' e2).
 
 Definition CompatibleRecFun (R : nat -> Exp -> Exp -> Prop) :=
-  forall Γ f vl e1 e2,
+  forall Γ f f' vl vl' e1 e2, length vl = length vl' ->
     R (S (length vl) + Γ) e1 e2 ->
-    R Γ (ERecFun f vl e1) (ERecFun f vl e2).
+    R Γ (ERecFun f vl e1) (ERecFun f' vl' e2).
 
 Definition CompatibleApp (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ f1 f2 vals1 vals2,
@@ -154,10 +154,9 @@ Proof.
     auto.
   * unfold CompatibleFun.
     intros.
-    eauto.
+    auto.
   * unfold CompatibleRecFun.
-    intros.
-    eauto.
+    intros. auto.
   * unfold CompatibleApp.
     intros.
     now apply Erel_App_compat.
@@ -192,9 +191,9 @@ Proof.
   * apply CIU_iff_Erel in H9.
     apply CIU_iff_Erel in H11.
     eapply H2; eauto.
-  * apply CIU_iff_Erel in H9.
+  * apply CIU_iff_Erel in H11.
     now eapply H3.
-  * apply CIU_iff_Erel in H9.
+  * apply CIU_iff_Erel in H11.
     now eapply H4.
   * apply CIU_iff_Erel in H14.
     eapply biforall_impl in H15.
@@ -431,10 +430,10 @@ Proof.
       cbn;
       try solve_inversion;
       auto.
-    - apply RFun.
+    - apply RFun. reflexivity.
       apply IHC; auto.
       now inversion H1.
-    - apply RRecFun.
+    - apply RRecFun. reflexivity.
       apply IHC.
       inversion H1; auto.
     - apply RApp; auto.
@@ -523,7 +522,83 @@ Proof.
   unfold CTX. intros. split; auto.
 Qed.
 
-
+Lemma CTX_IsPreCtxRel : IsPreCtxRel CTX.
+Proof.
+  unfold IsPreCtxRel.
+  intuition idtac;
+    try solve
+        [unfold CTX in H; intuition idtac
+        |inversion H; [|constructor]; apply H0].
+  - unfold Adequate.
+    intros.
+    unfold CTX in H.
+    intuition idtac.
+    + apply (H2 CHole); auto.
+      constructor.
+  - unfold IsReflexive.
+    intros.
+    unfold CTX.
+    intuition (auto using Rbar_le_refl).
+  - unfold Transitive.
+    intros.
+    unfold CTX in *.
+    intuition idtac.
+    auto.
+  - unfold CompatibleFun.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: do 2 constructor; now try rewrite <- H.
+    specialize (H2 (plugc C (CFun vl' CHole))).
+    repeat rewrite <- plug_assoc in H2.
+    cbn in H2.
+    apply H2.
+    eapply plugc_preserves_scope_exp; eauto.
+    do 2 constructor. rewrite H. constructor.
+    admit. (** Provable: at this point, names should not matter for the termination *)
+  - unfold CompatibleRecFun.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: do 2 constructor; now try rewrite <- H.
+    specialize (H2 (plugc C (CRecFun f' vl' CHole))).
+    repeat rewrite <- plug_assoc in H2.
+    cbn in H2.
+    apply H2.
+    eapply plugc_preserves_scope_exp; eauto.
+    do 2 constructor. rewrite H. constructor.
+    admit. (** Provable: at this point, names should not matter for the termination *)
+  - unfold CompatibleApp.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: rewrite indexed_to_forall in H, H0; constructor; auto.
+    admit.
+  - unfold CompatibleLet.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: constructor; auto.
+    admit.
+  - unfold CompatibleLetRec.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: rewrite H in H1; constructor; auto.
+    admit.
+  - unfold CompatiblePlus.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: constructor; auto.
+    admit.
+  - unfold CompatibleIf.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: constructor; auto.
+    admit.
+Admitted.
 
 
 
