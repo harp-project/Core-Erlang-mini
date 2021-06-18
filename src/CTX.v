@@ -345,7 +345,7 @@ Proof.
   intuition idtac. eapply Radequate; eauto.
   assert (forall Γ', EECTX Γ ⊢ C ∷ Γ' -> 
                      R' Γ' (plug C e1) (plug C e2)).
-  { clear H0.
+  { clear H0 H1.
     induction C;
       intros;
       inversion H0;
@@ -353,9 +353,9 @@ Proof.
       cbn;
       try solve_inversion;
       auto.
-    - apply RFun. inversion H2. subst.
-      apply IHC; auto. 
-      inversion H1. simpl in H3. inversion H3; subst.
+    - apply RFun.
+      apply IHC; auto.
+      now inversion H1.
     - apply RRecFun.
       apply IHC.
       inversion H1; auto.
@@ -445,17 +445,13 @@ Proof.
       + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
         simpl in H0. inversion H0. auto. inversion H1.
   }
-  apply H1.
-  auto. Grab Existential Variables. exact (ELit 0).
+  apply H2.
+  auto. Unshelve. exact (ELit 0).
 Qed.
 
 Theorem CTX_refl Γ e : EXP Γ ⊢ e -> CTX Γ e e.
 Proof.
   unfold CTX. intros. split; auto.
-  intros. intuition. destruct H1. exists v1. split. eexists. eauto.
-  exists 0. eapply Vrel_Fundamental_closed.
-  eapply plug_preserves_scope_exp in H0; eauto.
-  apply eval_scoped_exp with (Γ := []) in H1; eauto.
 Qed.
 
 Lemma equivalent_values_trans v1 v2 v3 :
