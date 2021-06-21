@@ -522,115 +522,255 @@ Proof.
   unfold CTX. intros. split; auto.
 Qed.
 
-Lemma CTX_IsPreCtxRel : IsPreCtxRel CTX.
+Lemma PreCTX_app_helper : forall vals1 vals1' C Γ x f2 vals2 (HC: EECTX Γ ⊢ C ∷ 0) (f2S : EXP Γ ⊢ f2),
+  | [], plug C (plug (CAppParam f2 vals2 CHole vals1) x) | ↓ ->
+  list_biforall
+  (fun e1 e2 : Exp =>
+   (EXP Γ ⊢ e1 /\ EXP Γ ⊢ e2) /\
+   (forall C : Ctx, EECTX Γ ⊢ C ∷ 0 -> | [], plug C e1 | ↓ -> | [], plug C e2 | ↓)) vals1 vals1' ->
+   Forall (fun e : Exp => EXP Γ ⊢ e) vals1 ->
+   Forall (fun e : Exp => EXP Γ ⊢ e) vals2 ->
+   EXP Γ ⊢ x
+->
+  | [], plug C (EApp f2 (vals2 ++ [x] ++ vals1')) | ↓.
 Proof.
-  unfold IsPreCtxRel.
-  intuition idtac;
-    try solve
-        [unfold CTX in H; intuition idtac
-        |inversion H; [|constructor]; apply H0].
-  - unfold Adequate.
-    intros.
-    unfold CTX in H.
-    intuition idtac.
-    + apply (H2 CHole); auto.
-      constructor.
-  - unfold IsReflexive.
-    intros.
-    unfold CTX.
-    intuition (auto using Rbar_le_refl).
-  - unfold Transitive.
-    intros.
-    unfold CTX in *.
-    intuition idtac.
-    auto.
-  - unfold CompatibleFun.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    1-2: do 2 constructor; now try rewrite <- H.
-    specialize (H2 (plugc C (CFun vl' CHole))).
-    repeat rewrite <- plug_assoc in H2.
-    cbn in H2.
-    apply H2.
-    eapply plugc_preserves_scope_exp; eauto.
-    do 2 constructor. rewrite H. constructor.
-    admit. (** Provable: at this point, names should not matter for the termination *)
-  - unfold CompatibleRecFun.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    1-2: do 2 constructor; now try rewrite <- H.
-    specialize (H2 (plugc C (CRecFun f' vl' CHole))).
-    repeat rewrite <- plug_assoc in H2.
-    cbn in H2.
-    apply H2.
-    eapply plugc_preserves_scope_exp; eauto.
-    do 2 constructor. rewrite H. constructor.
-    admit. (** Provable: at this point, names should not matter for the termination *)
-  - unfold CompatibleApp.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    1-2: rewrite indexed_to_forall in H, H0; constructor; auto.
-    admit.
-  - unfold CompatibleLet.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    1-2: constructor; auto.
-    admit.
-  - unfold CompatibleLetRec.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    1-2: rewrite H in H1; constructor; auto.
-    admit.
-  - unfold CompatiblePlus.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    1-2: constructor; auto.
-    admit.
-  - unfold CompatibleIf.
-    intros.
-    unfold CTX in *.
-    intuition auto.
-    1-2: constructor; auto.
-    admit.
+  induction vals1; intros.
+  * inversion H0. subst. rewrite app_nil_r. simpl in H. auto.
+  * inversion H0. inversion H1. subst. destruct H6, H4.
+    rewrite app_cons_swap. rewrite app_assoc. eapply IHvals1; eauto.
+    simpl in H.
+    assert (EECTX Γ ⊢ plugc C (CAppParam f2 (vals2 ++ [x]) CHole vals1) ∷ 0) as HC2. {
+      eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto. apply Forall_app. split; auto. constructor.
+    }
+    apply H5 in HC2.
+    2: { rewrite <- plug_assoc. simpl. now rewrite app_cons_swap, app_assoc in H. }
+    simpl. rewrite <- plug_assoc in HC2. now simpl in HC2.
+    apply Forall_app. split; auto.
+Qed.
+
+Local Definition dummyv := "foo"%string.
+Local Definition dummyf := ("foo"%string, 0).
+
+Fixpoint default_names (e : Exp) : Exp :=
+match e with
+ | ELit l => e
+ | EVar n v => EVar n dummyv
+ | EFunId n f => EFunId n dummyf
+ | EFun vl e => EFun (map (fun _ => dummyv) vl) (default_names e)
+ | ERecFun f vl e => ERecFun dummyf (map (fun _ => dummyv) vl) (default_names e)
+ | EApp exp l => EApp (default_names exp) (map default_names l)
+ | ELet v e1 e2 => ELet dummyv (default_names e1) (default_names e2)
+ | ELetRec f vl b e => ELetRec dummyf (map (fun _ => dummyv) vl) (default_names b) (default_names e)
+ | EPlus e1 e2 => EPlus (default_names e1) (default_names e2)
+ | EIf e1 e2 e3 => EIf (default_names e1) (default_names e2) (default_names e3)
+end.
+
+Lemma default_value : forall v,
+  is_value v <-> is_value (default_names v).
+Proof.
+  split; intros; destruct v; simpl in H; try inversion_is_value; try constructor.
+  all: inversion H.
+Qed.
+
+Lemma default_value_impl : forall v,
+  is_value v -> is_value (default_names v).
+Proof.
+  apply default_value.
+Qed.
+
+Global Hint Resolve default_value_impl : core.
+
+Lemma default_value_rev : forall v,
+  is_value (default_names v) -> is_value v.
+Proof.
+  apply default_value.
+Qed.
+
+Lemma default_names_helper l:
+  (forall e : Exp, In e l -> is_value e)
+->
+  (forall e : Exp, In e (map default_names l) -> is_value e).
+Proof.
+  induction l; intros; subst. inversion H0.
+  destruct (In_dec Exp_eq_dec e (map default_names l)) eqn:P.
+  * apply IHl. intros. apply H. now constructor 2. clear P. auto.
+  * inversion H0. 2: congruence. subst.
+    epose proof (H a _). now apply -> default_value. Unshelve. constructor. auto.
+Qed.
+
+Definition default_name_frame (f : Frame) : Frame :=
+match f with
+ | FApp1 l => FApp1 (map default_names l)
+ | FApp2 v l1 l2 => 
+          FApp2 (default_names v) (map default_names l1) (map default_names l2)
+ | FLet v e2 => FLet dummyv (default_names e2)
+ | FPlus1 e2 => FPlus1 (default_names e2)
+ | FPlus2 v => FPlus2 (default_names v)
+ | FIf e2 e3 => FIf (default_names e2) (default_names e3)
+end.
+
+Lemma double_default e :
+  default_names e = default_names (default_names e).
+Proof.
+  induction e using Exp_ind2 with (Q := fun l => Forall (fun e => default_names e = default_names (default_names e)) l); auto.
+  * simpl. rewrite map_map, <- IHe. auto.
+  * simpl. rewrite map_map, <- IHe. auto.
+  * simpl. erewrite map_map, <- IHe. erewrite map_ext_Forall. 2: exact IHe0. auto.
+  * simpl. rewrite <- IHe1, <- IHe2. auto.
+  * simpl. rewrite <- IHe1, <- IHe2, map_map. auto.
+  * simpl. rewrite <- IHe1, <- IHe2. auto.
+  * simpl. rewrite <- IHe1, <- IHe2, <- IHe3. auto.
+Qed.
+
+Definition default_names_sub (ξ : Substitution) : Substitution :=
+  fun n => match (ξ n) with
+           | inl exp => inl (default_names exp)
+           | inr n' => inr n'
+           end.
+
+Lemma rename_id_default :
+  forall e ρ, rename ρ (default_names e) = default_names (rename ρ e).
+Proof.
+  induction e using Exp_ind2 with (Q := fun l => forall ρ, Forall (fun e => rename ρ (default_names e) = default_names (rename ρ e)) l); intros; auto; simpl.
+  * f_equiv. now rewrite IHe, map_length.
+  * f_equiv. now rewrite IHe, map_length.
+  * rewrite IHe, map_map, map_map. erewrite map_ext_Forall. 2: apply IHe0. reflexivity.
+  * now rewrite IHe1, IHe2.
+  * now rewrite map_length, IHe1, IHe2.
+  * now rewrite IHe1, IHe2.
+  * now rewrite IHe1, IHe2, IHe3.
+Qed.
+
+Lemma default_names_up :
+  forall ξ, up_subst (default_names_sub ξ) = default_names_sub (up_subst ξ).
+Proof.
+  intros. unfold up_subst, default_names_sub, shift. extensionality x. destruct x; auto.
+  destruct (ξ x); auto. rewrite rename_id_default. auto.
+Qed.
+
+Corollary default_names_upn :
+  forall n ξ, upn n (default_names_sub ξ) = default_names_sub (upn n ξ).
+Proof.
+  induction n; auto.
+  intros. simpl. rewrite <- default_names_up, IHn. auto.
+Qed.
+
+Lemma alpha_helper : forall e2 ξ,
+  default_names e2.[ξ] = (default_names e2).[default_names_sub ξ].
+Proof.
+  induction e2 using Exp_ind2 with (Q := fun l => forall ξ, Forall (fun e2 => default_names e2.[ξ] = (default_names e2).[default_names_sub ξ]) l); intros; simpl; auto.
+  * unfold default_names_sub; destruct (ξ n); auto; apply double_default.
+  * unfold default_names_sub; destruct (ξ n); auto; apply double_default.
+  * simpl. f_equiv. rewrite default_names_upn, IHe2. rewrite map_length. auto.
+  * simpl. f_equiv. rewrite default_names_upn, default_names_up, IHe2. rewrite map_length. auto.
+  * simpl. rewrite IHe2, map_map, map_map. erewrite map_ext_Forall. reflexivity. apply IHe0.
+  * now rewrite IHe2_1, default_names_up, IHe2_2.
+  * rewrite map_length. now rewrite default_names_upn, default_names_up, IHe2_1, default_names_up, IHe2_2.
+  * now rewrite IHe2_1, IHe2_2.
+  * now rewrite IHe2_1, IHe2_2, IHe2_3.
+Qed.
+
+Theorem alpha_eval_k :
+  forall k e fs, | fs, e | k ↓ <-> | map default_name_frame fs, default_names e | k ↓.
+Proof.
+  split.
+  { generalize dependent e. generalize dependent fs.
+    induction k; intros; simpl; inversion H; subst.
+    * constructor. now apply -> default_value.
+    * constructor. auto.
+    * constructor; auto. destruct e; try inversion_is_value; simpl; try congruence.
+    * simpl. econstructor; auto.
+      replace (FPlus2 (default_names e) :: map default_name_frame fs0) with
+                (map default_name_frame (FPlus2 e ::fs0)) by auto.
+      apply IHk. auto.
+    * simpl. constructor. eapply IHk in H3. exact H3.
+    * simpl. constructor; auto. apply IHk in H4. rewrite alpha_helper in H4.
+      replace (default_names e .: idsubst) with (default_names_sub (e .: idsubst)). auto.
+      unfold idsubst, default_names_sub. extensionality n. destruct n; auto.
+    * simpl. constructor; auto. apply IHk in H3. rewrite alpha_helper in H3.
+      replace (ERecFun dummyf (map (fun _ : Var => dummyv) vl)
+                      (default_names b) .: idsubst) with (default_names_sub (ERecFun f vl b .: idsubst)). auto.
+      unfold idsubst, default_names_sub. extensionality n. destruct n; auto.
+    * simpl. constructor; auto. now apply IHk in H4.
+    * simpl. constructor; auto.
+    * simpl. constructor; auto. apply IHk in H3. rewrite alpha_helper in H3.
+      replace (ERecFun dummyf [] (default_names e0) .: idsubst) with (default_names_sub (ERecFun f [] e0 .: idsubst)). auto.
+      unfold idsubst, default_names_sub. extensionality n. destruct n; auto.
+    * simpl. constructor; auto.
+      - admit. (* Provable, technical *)
+      - apply IHk in H5. simpl in H5. rewrite map_app in H5. auto.
+    * simpl. constructor; auto.
+      - admit. (* Provable, technical *)
+      - do 2 rewrite map_length. lia.
+      - apply IHk in H6. rewrite alpha_helper in H6.
+        replace (list_subst
+                      (map default_names vs ++ [default_names e])
+                      idsubst) with (default_names_sub
+                           (list_subst (vs ++ [e]) idsubst)). auto.
+        admit.
+    * simpl. constructor; auto.
+      - admit. (* Provable, technical *)
+      - do 2 rewrite map_length. lia.
+      - apply IHk in H6. rewrite alpha_helper in H6.
+        replace (list_subst
+                      (ERecFun dummyf (map (fun _ : Var => dummyv) vl)
+                         (default_names e0)
+                       :: map default_names vs ++ [default_names e])
+                      idsubst) with (default_names_sub
+                           (list_subst (ERecFun f vl e0 :: vs ++ [e])
+                              idsubst)). auto.
+        admit.
+    * simpl. constructor; auto. apply IHk in H3. exact H3.
+    * simpl. constructor; auto. apply IHk in H3. exact H3.
+    * simpl. constructor; auto. apply IHk in H3. exact H3.
+    * simpl. constructor; auto. apply IHk in H3. exact H3.
+  }
+  { generalize dependent e. generalize dependent fs.
+    induction k; intros; simpl; inversion H; subst.
+    * apply eq_sym, map_eq_nil in H0. subst. constructor. now apply default_value.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+    * admit.
+  }
 Admitted.
 
-
-
-
-
-
-
-
-
-
-
-
-Lemma equivalent_values_trans v1 v2 v3 :
-  equivalent_values v1 v2 -> equivalent_values v2 v3 -> equivalent_values v1 v3.
+Corollary alpha_eval :
+  forall e fs, | fs, e | ↓ <-> | map default_name_frame fs, default_names e | ↓.
 Proof.
-  intros. destruct H, H0.
-  exists (Nat.min x x0).
-  apply @Vrel_downclosed with (m := (Nat.min x x0)) in H.
-  apply @Vrel_downclosed with (m := (Nat.min x x0)) in H0. 2-3: lia.
-  eapply Vrel_closed_trans; eauto.
+  intros. split; intros; destruct H; apply alpha_eval_k in H; exists x; auto.
 Qed.
 
-Theorem CTX_trans Γ e1 e2 e3 : CTX Γ e1 e2 -> CTX Γ e2 e3 -> CTX Γ e1 e3.
+Theorem default_context C : forall e,
+  default_names (plug C e) = default_names (plug C (default_names e)).
 Proof.
-  unfold CTX. intros. destruct H, H0, H, H0; split; auto.
-  intros.
-  specialize (H1 C H5 _ H6). destruct H1, H1.
-  specialize (H2 C H5 _ H1). destruct H2, H2.
-  exists x0. split; auto. eapply equivalent_values_trans; eauto.
+  induction C; intros; simpl; auto; try now rewrite IHC.
+  * apply double_default.
+  * do 2 rewrite map_app. simpl. now rewrite IHC.
 Qed.
 
-Theorem CTX_IsPreCtxRel : IsPreCtxRel CTX.
+Theorem map_const :
+  forall {T T2} (l : list T) (a : T2), map (fun _ => a) l = repeat a (length l).
+Proof.
+  induction l; intros.
+  auto.
+  simpl. rewrite IHl. auto.
+Qed.
+
+Lemma CTX_IsPreCtxRel : IsPreCtxRel CTX.
 Proof.
   unfold IsPreCtxRel.
   intuition idtac;
@@ -641,66 +781,351 @@ Proof.
     intros.
     unfold CTX in H.
     intuition idtac.
-    + eapply (H2 CHole); eauto.
+    - apply (H2 CHole); auto.
       constructor.
-  * intro. intros. apply CTX_refl; auto.
-  * intro. intros. eapply CTX_trans; eauto.
+  * unfold IsReflexive.
+    intros.
+    unfold CTX.
+    intuition (auto using Rbar_le_refl).
+  * unfold Transitive.
+    intros.
+    unfold CTX in *.
+    intuition idtac.
+    auto.
   * unfold CompatibleFun.
     intros.
     unfold CTX in *.
-    intuition auto. 1-2: constructor; constructor; auto.
-    epose (H1 (plugc C (CFun vl CHole)) _ _).
-    repeat rewrite <- plug_assoc in e.
-    cbn in e.
-    apply e. auto. Unshelve.
+    intuition auto.
+    1-2: do 2 constructor; now try rewrite <- H.
+    specialize (H2 (plugc C (CFun vl' CHole))).
+    repeat rewrite <- plug_assoc in H2.
+    cbn in H2.
+    apply H2.
     eapply plugc_preserves_scope_exp; eauto.
-    repeat constructor.
+    do 2 constructor. rewrite H. constructor.
+    shelve.
   * unfold CompatibleRecFun.
     intros.
     unfold CTX in *.
-    intuition auto. 1-2: constructor; constructor; auto.
-    epose (H1 (plugc C (CRecFun f vl CHole)) _ _).
-    repeat rewrite <- plug_assoc in e.
-    cbn in e.
-    apply e. auto. Unshelve.
+    intuition auto.
+    1-2: do 2 constructor; now try rewrite <- H.
+    specialize (H2 (plugc C (CRecFun f' vl' CHole))).
+    repeat rewrite <- plug_assoc in H2.
+    cbn in H2.
+    apply H2.
     eapply plugc_preserves_scope_exp; eauto.
-    repeat constructor.
-  * admit.
-  * admit.
-  * admit.
+    do 2 constructor. rewrite H. constructor.
+    shelve.
+  * unfold CompatibleApp.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: rewrite indexed_to_forall in H, H0; constructor; auto.
+    clear H3 H7.
+    assert (EECTX Γ ⊢ plugc C (CAppFun CHole vals1) ∷ 0) as HC_e1.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H6 in HC_e1. 2: rewrite <- plug_assoc in *; simpl; auto.
+    apply biforall_length in H4 as LL. rewrite <- plug_assoc in HC_e1.
+    destruct vals1; intros.
+    - inversion H4. now subst.
+    - inversion H4. subst. destruct H9, H3. inversion H. inversion H0. subst.
+      assert (EECTX Γ ⊢ plugc C (CAppParam f2 [] CHole vals1) ∷ 0). {
+        eapply plugc_preserves_scope_exp; eauto.
+        constructor; auto.
+        constructor.
+      }
+      apply H7 in H10. 2: now rewrite <- plug_assoc.
+      replace (hd' :: tl') with ([] ++ [hd'] ++ tl') by auto.
+      eapply PreCTX_app_helper; eauto.
+      now rewrite plug_assoc.
+  * unfold CompatibleLet.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: constructor; auto.
+    clear H5 H9 H4 H8.
+    assert (EECTX Γ ⊢ plugc C (CLet1 x CHole e2) ∷ 0) as HC_e1.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    assert (EECTX S Γ ⊢ plugc C (CLet2 x e1' CHole) ∷ 0) as HC_e2.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H6 in HC_e1. 2: rewrite <- plug_assoc in *; simpl; auto.
+    apply H7 in HC_e2. 2: rewrite <- plug_assoc in *; simpl; auto.
+    rewrite <- plug_assoc in HC_e2. simpl in HC_e2.
+    shelve.
+  * unfold CompatibleLetRec.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: rewrite H in H1; constructor; auto.
+    clear H5 H9 H6 H10.
+    assert (EECTX S (length vl) + Γ ⊢ plugc C (CLetRec1 f vl CHole e2) ∷ 0) as HC_e1.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    assert (EECTX S Γ ⊢ plugc C (CLetRec2 f vl b1' CHole) ∷ 0) as HC_e2.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H7 in HC_e1. 2: rewrite <- plug_assoc in *; simpl; auto.
+    apply H8 in HC_e2. 2: rewrite <- plug_assoc in *; simpl; auto.
+    rewrite <- plug_assoc in HC_e2. simpl in HC_e2.
+    shelve.
   * unfold CompatiblePlus.
     intros.
     unfold CTX in *.
-    intuition auto. 1-2: constructor; auto.
-    epose (H6 (plugc C (CPlus1 CHole e2)) _ _). repeat rewrite <- plug_assoc in e. cbn in e.
-    specialize (e H10). destruct e. destruct H11.
-    epose (H7 (plugc C (CPlus2 e1' CHole)) _ _).
-    repeat rewrite <- plug_assoc in e. cbn in e. specialize (e H11).
-    destruct e. destruct H13. exists x0; intuition. eapply equivalent_values_trans; eauto.
+    intuition auto.
+    1-2: constructor; auto.
+    clear H4 H8 H5 H9.
+    assert (EECTX Γ ⊢ plugc C (CPlus1 CHole e2) ∷ 0) as HC_e1.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H6 in HC_e1. 2: rewrite <- plug_assoc; simpl; auto.
+    assert (EECTX Γ ⊢ plugc C (CPlus2 e1' CHole) ∷ 0) as HC_e2.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H7 in HC_e2. 2: rewrite <- plug_assoc in *; simpl; auto.
+    rewrite <- plug_assoc in HC_e2. now simpl.
   * unfold CompatibleIf.
     intros.
     unfold CTX in *.
-    intuition auto. 1-2: constructor; auto.
-    epose (H9 (plugc C (CIf1 CHole e2 e3)) _ _).
-    repeat rewrite <- plug_assoc in e. cbn in e.
-    specialize (e H15). destruct e. destruct H16.
-    epose (H10 (plugc C (CIf2 e1' CHole e3)) _ _).
-    repeat rewrite <- plug_assoc in e. cbn in e. specialize (e H16).
-    destruct e. destruct H18.
-    epose (H11 (plugc C (CIf3 e1' e2' CHole)) _ _).
-    repeat rewrite <- plug_assoc in e. cbn in e. specialize (e H18).
-    destruct e. destruct H20.
-    exists x1; intuition. eapply equivalent_values_trans, equivalent_values_trans; eauto.
+    intuition auto.
+    1-2: constructor; auto.
+    clear H7 H12 H8 H13 H5 H14.
+    assert (EECTX Γ ⊢ plugc C (CIf1 CHole e2 e3) ∷ 0) as HC_e1.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H9 in HC_e1. 2: rewrite <- plug_assoc; simpl; auto.
+    assert (EECTX Γ ⊢ plugc C (CIf2 e1' CHole e3) ∷ 0) as HC_e2.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H10 in HC_e2. 2: { rewrite <- plug_assoc in *; simpl in *; auto. }
+    assert (EECTX Γ ⊢ plugc C (CIf3 e1' e2' CHole) ∷ 0) as HC_e3.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H11 in HC_e3. 2: { rewrite <- plug_assoc in *; simpl in *; auto. }
+    rewrite <- plug_assoc in HC_e3. simpl in HC_e3. auto.
 Unshelve.
-  all: eapply plugc_preserves_scope_exp; eauto; constructor; auto; constructor.
+  3-4: exact (ELit 0).
+  1-2: apply alpha_eval in H4; apply alpha_eval; rewrite default_context in *;
+       simpl in *; rewrite map_const in *; rewrite <- H; auto.
+  apply alpha_eval. apply alpha_eval in HC_e2. rewrite default_context in *. exact HC_e2.
+  apply alpha_eval. apply alpha_eval in HC_e2. rewrite default_context in *.
+  simpl in *; rewrite map_const in *; rewrite <- H; auto.
 Qed.
 
+Lemma CTX_IsCtxRel : IsCtxRel CTX.
+Proof.
+  unfold IsCtxRel.
+  split.
+  - apply CTX_IsPreCtxRel.
+  - intros.
+    eapply CTX_bigger; eauto.
+Qed.
 
-Definition equiv_subst (R : Exp -> Exp -> Prop) (n : nat) (ξ η : Substitution) : Prop :=
-  forall v, v < n -> match (ξ v), (η v) with
-                     | inl exp1, inl exp2 => VALCLOSED exp1 /\ VALCLOSED exp2 /\ R exp1 exp2
-                     | _, _ => False
-                     end.
+Global Hint Resolve CTX_IsCtxRel : core.
+Global Hint Resolve CTX_IsPreCtxRel : core.
+
+Lemma exists_CTX : exists R, IsCtxRel R.
+Proof.
+  exists CTX.
+  apply CTX_IsCtxRel.
+Qed.
+
+Lemma CIU_beta_value : forall {Γ b vals} vl,
+    length vl = length vals ->
+    EXP (length vl) + Γ ⊢ b ->
+    Forall (fun v => VAL Γ ⊢ v) vals ->
+    (CIU_open Γ b.[list_subst vals idsubst] (EApp (EFun vl b) vals) /\ 
+     CIU_open Γ (EApp (EFun vl b) vals) b.[list_subst vals idsubst]).
+Proof.
+  unfold CIU_open.
+  intros.
+  unfold CIU.
+  intuition idtac.
+  - apply -> subst_preserves_scope_exp; try eassumption.
+    apply -> subst_preserves_scope_exp; eauto.
+    Search idsubst. intro. intros. Search list_subst.
+    pose (list_subst_get_possibilities v vals idsubst). intuition; rewrite H5.
+    rewrite indexed_to_forall in H1. apply H1. auto.
+    unfold idsubst. lia.
+  - simpl. constructor.
+    + constructor. constructor.
+      apply -> subst_preserves_scope_exp; eauto.
+    + intros. replace (ELit 0) with ((ELit 0).[ξ]) by auto. rewrite map_nth.
+      apply -> subst_preserves_scope_exp; eauto. rewrite indexed_to_forall in H1.
+      constructor. apply H1. rewrite map_length in H3. auto.
+  - simpl. admit.
+  - admit.
+  - admit.
+  - admit.
+Admitted.
+
+Lemma CTX_closed_under_substitution : forall {Γ e1 e2 v CTX},
+    IsCtxRel CTX ->
+    VAL Γ ⊢ v ->
+    CTX (S Γ) e1 e2 ->
+    CTX Γ e1.[v/] e2.[v/].
+Proof.
+  intros Γ e1 e2 v CTX HCtx Hscope_v HCtx_e1e2.
+  destruct HCtx as [HCtx Hbiggest].
+  destruct HCtx as [Rscope [Radequate [Rrefl [Rtrans [RFun [RRecFun [RApp [RLet [RLetRec [RPlus RIf]]]]]]]]]].
+  destruct (Rscope _ _ _ HCtx_e1e2) as [Hscope_e1 Hscope_e2].
+  epose proof (@CIU_beta_value Γ e1 [v] ["X"%string] (eq_refl _) Hscope_e1 _).
+  epose proof (@CIU_beta_value Γ e2 [v] ["X"%string] (eq_refl _) Hscope_e2 _).
+  destruct H as [? _].
+  destruct H0 as [_ ?].
+  apply CIU_iff_Erel in H.
+  apply CIU_iff_Erel in H0.
+  apply Hbiggest in H; auto using Erel_IsPreCtxRel.
+  apply Hbiggest in H0; auto using Erel_IsPreCtxRel.
+  eapply Rtrans in H.
+  eapply H.
+  eapply Rtrans; revgoals.
+  eapply H0.
+  apply RApp.
+  1-4: constructor; constructor; auto.
+  2: constructor; [ apply Rrefl; now constructor | constructor ].
+  apply RFun; auto.
+Unshelve.
+  1-2: constructor; auto.
+Qed.
+
+Definition mk_exp (v : Exp + nat) :=
+match v with
+| inl e => e
+| inr n => EVar n "x"%string
+end.
+
+Fixpoint make_Ctx (fs : FrameStack) : Ctx :=
+match fs with
+| [] => CHole
+| x::xs => plugc (make_Ctx xs) 
+           match x with
+           | FApp1 l => CAppFun CHole l
+           | FApp2 v p l1 l2 p2 => CAppParam v l1 CHole l2
+           | FLet x e2 => CLet1 x CHole e2
+           | FPlus1 e2 => CPlus1 CHole e2
+           | FPlus2 v p => CPlus2 v CHole
+           | FIf e2 e3 => CIf1 CHole e2 e3
+          end
+end.
+
+(* Theorem make_Ctx_eval_equiv :
+  forall fs e, | fs , e | ↓ -> | [], plug (make_Ctx fs) e | ↓.
+Proof.
+
+Admitted. *)
+
+Theorem CIU_IsCtxRel : IsCtxRel CIU_open.
+Proof.
+  destruct exists_CTX as [R' HR'].
+  eapply bigger_implies_IsCtxRel. 2: eauto using CIU_IsPreCtxRel. apply CTX_IsCtxRel.
+  induction Γ; revgoals.
+  - unfold CIU_open.
+    intros.
+    replace e1.[ξ] with e1.[mk_exp (ξ 0) /].[(fun n => n + 1) >>> ξ]; revgoals.
+    { simpl.
+      (* replace (ξ 0).[_] with (ξ 0).
+      autosubst. *)
+      replace ((fun n => n + 1) >>> ξ) with (upn 0 ((fun n => n + 1) >>> ξ)) by auto.
+      rewrite escoped_ignores_sub.
+        auto.
+        1-2: admit.
+    }
+    replace e2.[ξ] with e2.[mk_exp (ξ 0) /].[(fun n => n + 1) >>> ξ]; revgoals.
+    {
+      admit.
+    }
+    apply IHΓ.
+    apply CTX_closed_under_substitution; auto; revgoals.
+    + specialize (H0 0 ltac:(lia)). destruct (ξ 0); auto.
+      ** simpl. replace e with (e.[idsubst]) by auto.
+         apply -> subst_preserves_scope_val; eauto. intro. intros. inversion H1.
+      ** inversion H0.
+    + unfold subscoped.
+      intros. apply H0. lia.
+  - unfold CIU_open.
+    intros.
+    unfold CIU.
+    intuition idtac.
+    + apply -> subst_preserves_scope_exp; eauto. destruct HR'.
+      eapply H1 with (e1:=e1) (e2:=e2). apply H2 in H; auto.
+    + apply -> subst_preserves_scope_exp; eauto 3. destruct HR'.
+      eapply H1 with (e1:=e1) (e2:=e2); eauto 3.
+    + replace e1.[ξ] with e1 in H2; revgoals.
+      { replace ξ with (upn 0 ξ) by auto.
+        rewrite escoped_ignores_sub; auto. destruct HR'.
+        eapply H3 with (e1:=e1) (e2:=e2); eauto.
+      }
+      replace e2.[ξ] with e2; revgoals.
+      { replace ξ with (upn 0 ξ) by auto.
+        rewrite escoped_ignores_sub; auto. destruct HR'.
+        eapply H3 with (e1:=e1) (e2:=e2); eauto.
+      }
+      clear H0.
+      generalize dependent e2. generalize dependent e1. generalize dependent F.
+      induction F; intros.
+      * destruct HR'. destruct H, H. apply (H4 CHole); auto. constructor.
+      * inversion H1. subst. destruct H2.
+        
+       
+       
+       
+(*         replace (μeval_star e1 _ _)
+          with (μeval_star (Seq e1 e) K A);
+          revgoals.
+        {
+          run_μeval_star_for 1.
+          auto.
+        }
+        replace (μeval_star e2 _ A)
+          with (μeval_star (Seq e2 e) K A);
+          revgoals.
+        { run_μeval_star_for 1.
+          auto.
+        }
+        inversion H1; subst.
+        apply IHK; auto.
+        apply HR'; auto.
+        apply HR'; auto. *)
+Admitted.
+
+Theorem Erel_IsCtxRel : IsCtxRel Erel_open.
+Proof.
+  unfold IsCtxRel.
+  split.
+  apply Erel_IsPreCtxRel.
+  intros.
+  apply CIU_iff_Erel.
+  pose proof CIU_IsCtxRel.
+  unfold IsCtxRel in H1.
+  destruct H1.
+  eapply H2; eauto.
+Qed.
+
+Definition equivalent_exps (e1 e2 : Exp) (R : Exp -> Exp -> Prop) : Prop :=
+  forall v1, ⟨ [], e1 ⟩ -->* v1 -> (exists v2, ⟨ [], e2 ⟩ -->* v2 /\ R v1 v2).
 
 Fixpoint equivalent_values (n : nat) (v1 v2 : Exp) : Prop :=
 match n with
@@ -708,35 +1133,26 @@ match n with
 | S n' =>
   match v1, v2 with
   | ELit l1, ELit l2 => l1 = l2
-  | EFun vl1 b1, EFun vl2 b2 => if length vl1 =? length vl2 then (*TODO: wrong, b1.[ξ] should be evaluated first!*)
-    forall ξ η, equiv_subst (equivalent_values n') (length vl1) ξ η -> equivalent_values n' (b1.[ξ]) (b2.[ξ])
-                                else False
+  | EFun vl1 b1, EFun vl2 b2 => forall vals,
+    length vals = length vl1 -> length vals = length vl2 ->
+    equivalent_exps (b1.[list_subst vals idsubst]) (b2.[list_subst vals idsubst])
+                    (equivalent_values n')
   | _, _ => False
   end
 end.
 
-Definition inf : Exp := EApp (ERecFun ("f"%string, 0) [] (EApp (EFunId 0 ("f"%string, 0)) [])) [].
-Lemma inf_diverges : forall fs v, ~⟨fs, inf⟩ -->* v.
-Admitted.
+Definition eq_exps (e1 e2 : Exp) := forall n, equivalent_exps e1 e2 (equivalent_values n).
 
-Lemma alma :
-  forall R, IsPreCtxRel R -> forall e1 e2 v1 v2,
-  ⟨ [], e1 ⟩ -->* v1 -> ⟨[], e2⟩ -->* v2 -> R 0 v1 v2.
+Goal
+  forall e1 e2, CTX 0 e1 e2 -> eq_exps e1 e2.
 Proof.
-  intros.
-Admitted.
-
-Theorem det_implies_equiv :
-  forall R e1 e2, IsPreCtxRel R -> R 0 e1 e2 ->
-    forall v1 v2, ⟨ [], e1 ⟩ -->* v1 -> ⟨[], e2⟩ -->* v2
-  ->
-    forall n, equivalent_values n v1 v2.
-Proof.
-  intros. generalize dependent e1. generalize dependent R. generalize dependent n. destruct H, H3, H4, H5, H6, H7, H8, H9, H10, H11.
-  assert (| [], e1 | ↓). { eexists. eauto. } assert (| [], e2 | ↓). { eexists. eauto. }
-  destruct v1, v2.
-  * destruct (Z.eq_dec l l0).
-    - exists 1. simpl. auto.
-    - epose (H11 ).
-      epose (H12 0). 
+  intros. intro. revert H. generalize dependent e2. generalize dependent e1.
+  induction n; intros.
+  * unfold equivalent_exps. intros. cbn. destruct H, H.
+    apply ex_intro in H0. apply -> terminates_eq_terminates_sem in H0.
+    apply (H1 CHole ltac:(constructor)) in H0. apply terminates_eq_terminates_sem in H0.
+    destruct H0. exists x. split; auto.
+  * unfold equivalent_exps. intros. cbn. destruct H, H.
+    apply ex_intro in H0. apply -> terminates_eq_terminates_sem in H0.
 Qed.
+

@@ -192,7 +192,7 @@ Reserved Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" (at level 50).
 Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 (**  Reduction rules *)
 | red_app_start v hd tl xs (H : is_value v):
-  ⟨ (FApp1 (hd::tl))::xs, v ⟩ --> ⟨ (FApp2 v H tl [] empty_is_value)::xs, hd⟩
+  ⟨ (FApp1 (hd::tl))::xs, v ⟩ --> ⟨ (FApp2 v (* H *) tl [] (* empty_is_value *))::xs, hd⟩
 
 | red_app_fin xs e :
   ⟨ (FApp1 [])::xs, EFun [] e ⟩ --> ⟨ xs, e ⟩
@@ -200,18 +200,18 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 | red_rec_app_fin xs e f :
   ⟨ (FApp1 [])::xs, ERecFun f [] e ⟩ --> ⟨ xs, e.[ERecFun f [] e/] ⟩
 
-| app2_step v H hd tl vs H2 xs v' (H' : is_value v') :
-  ⟨ (FApp2 v H (hd::tl) vs H2) :: xs, v' ⟩ --> ⟨ (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H')) :: xs, hd ⟩
+| app2_step v (H : is_value v) hd tl vs (H2 : Forall is_value vs) xs v' (H' : is_value v') :
+  ⟨ (FApp2 v (* H *) (hd::tl) vs (* H2 *)) :: xs, v' ⟩ --> ⟨ (FApp2 v (* H *) tl (vs ++ [v']) (* (step_value vs v' H2 H') *)) :: xs, hd ⟩
 
-| red_app2 vl e vs v xs H H2 : 
+| red_app2 vl e vs v xs (H2 : Forall is_value vs) : 
   is_value v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (EFun vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs, e.[list_subst (vs ++ [v]) idsubst] ⟩
+  ⟨ (FApp2 (EFun vl e) (* H *) [] vs (* H2 *)) :: xs, v ⟩ --> ⟨ xs, e.[list_subst (vs ++ [v]) idsubst] ⟩
 
-| red_rec_app2 vl f e vs v xs H H2 : 
+| red_rec_app2 vl f e vs v xs (H2 : Forall is_value vs) : 
   is_value v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (ERecFun f vl e) H [] vs H2) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (ERecFun f vl e :: (vs ++ [v])) idsubst] ⟩
+  ⟨ (FApp2 (ERecFun f vl e) (* H *) [] vs (* H2 *)) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (ERecFun f vl e :: (vs ++ [v])) idsubst] ⟩
 
-| red_let val e2 xs (H : is_value val) : ⟨ (FLet e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
+| red_let val e2 xs v (H : is_value val) : ⟨ (FLet v e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
 
 | red_if_true e2 e3 xs : ⟨ (FIf e2 e3)::xs, ELit 0 ⟩ --> ⟨ xs, e2 ⟩
 
@@ -219,16 +219,16 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
   v <> ELit 0 ->
   ⟨ (FIf e2 e3)::xs, v ⟩ --> ⟨ xs, e3 ⟩
 
-| red_plus_left e2 xs v (H : is_value v): ⟨ (FPlus1 e2)::xs, v ⟩ --> ⟨ (FPlus2 v H)::xs, e2 ⟩
+| red_plus_left e2 xs v (H : is_value v): ⟨ (FPlus1 e2)::xs, v ⟩ --> ⟨ (FPlus2 v (* H *))::xs, e2 ⟩
 
-| red_plus_right xs n m P :
-   ⟨ (FPlus2 (ELit n) P)::xs, (ELit m) ⟩ --> ⟨ xs, ELit (n + m) ⟩ 
+| red_plus_right xs n m :
+   ⟨ (FPlus2 (ELit n) (* P *))::xs, (ELit m) ⟩ --> ⟨ xs, ELit (n + m) ⟩ 
 
 | red_letrec xs f vl b e:
   ⟨ xs, ELetRec f vl b e ⟩ --> ⟨ xs, e.[ERecFun f vl b/] ⟩
 
 (** Steps *)
-| step_let xs v e1 e2 : ⟨ xs, ELet v e1 e2 ⟩ --> ⟨ (FLet e2)::xs, e1 ⟩
+| step_let xs v e1 e2 : ⟨ xs, ELet v e1 e2 ⟩ --> ⟨ (FLet v e2)::xs, e1 ⟩
 | step_app xs e el: ⟨ xs, EApp e el ⟩ --> ⟨ (FApp1 el)::xs, e ⟩
 | step_plus xs e1 e2 : ⟨ xs, EPlus e1 e2⟩ --> ⟨ (FPlus1 e2)::xs, e1⟩
 | step_if xs e1 e2 e3 : ⟨ xs, EIf e1 e2 e3⟩ --> ⟨ (FIf e2 e3)::xs, e1⟩
@@ -251,7 +251,7 @@ Notation "⟨ fs , e ⟩ -->* v" := (eval_star fs e v) (at level 50).
 Goal ⟨ [], inc 1 ⟩ -->* ELit 2.
 Proof.
   repeat econstructor.
-  Unshelve. cbn. constructor.
+(*   Unshelve. cbn. constructor. *)
 Qed.
 
 Goal ⟨ [], simplefun 10 ⟩ -->* ELit 10.
@@ -274,21 +274,21 @@ Proof.
   econstructor.
   econstructor.
   econstructor.
-  econstructor. constructor. cbn. econstructor. constructor. econstructor.
+  econstructor. constructor. cbn. econstructor. constructor. econstructor. econstructor.
   eapply red_rec_app2. constructor.
-  simpl. econstructor. econstructor. eapply step_if.
+  simpl. econstructor. econstructor. econstructor. eapply step_if.
   econstructor. eapply red_if_false. constructor. cbn. congruence.
   econstructor. eapply step_plus.
   econstructor. eapply red_plus_left.
-  econstructor. eapply step_app.
+  econstructor. cbn. econstructor. eapply step_app.
   econstructor. eapply red_app_start.
-  econstructor. (* At this point we could say that eapply red_rec_app2 !!! (However, 1 + -1 is NOT a value) <- smarter tactics are needed ! *)
+  econstructor. econstructor.
   eapply step_plus.
 (* repeat   econstructor. *)
   econstructor. eapply red_plus_left.
-  econstructor. eapply red_plus_right. simpl Z.add.
+  econstructor. econstructor. eapply red_plus_right. simpl Z.add.
   econstructor. eapply red_rec_app2. constructor.
-  simpl. econstructor. econstructor. eapply step_if.
+  simpl. econstructor. econstructor. econstructor. eapply step_if.
   econstructor. eapply red_if_true.
   econstructor. eapply red_plus_right.
   econstructor.
@@ -313,8 +313,8 @@ Proof.
   * inversion H; subst. auto.
   * inversion H; subst. auto.
   * inversion H0; subst; try inversion H'; try (proof_irr_many; auto).
-  * inversion H3; subst; try inversion H0; auto.
-  * inversion H3; subst; auto; try inversion H0.
+  * inversion H1; subst; try inversion H; auto.
+  * inversion H1; subst; auto; try inversion H.
   * inversion H0; subst; auto; try inversion H.
   * inversion H; subst; auto. congruence.
   * inversion H1; subst; auto; try congruence; try inversion H.
@@ -357,17 +357,17 @@ Proof.
   * inversion H0. subst. inversion H5. inversion H9. subst. split; auto. constructor; auto.
     constructor; auto.
     apply Forall_app. split; auto. constructor; auto. destruct v'; inversion H'; inversion H1; auto.
-  * inversion H3. inversion H7. subst. split; auto. inversion H12.
+  * inversion H1. inversion H6. subst. split; auto. inversion H11.
     apply -> subst_preserves_scope_exp; eauto. subst.
     rewrite Nat.add_0_r. replace (length vl) with (length (vs ++ [v])).
     apply scoped_list_idsubst. apply Forall_app. split; auto. constructor; auto.
-    destruct v; inversion H0; inversion H4; auto.
-    rewrite app_length. rewrite H1. simpl. lia.
-  * inversion H3. inversion H7. split. auto. subst. inversion H12.
+    destruct v; inversion H; inversion H3; auto.
+    rewrite app_length. rewrite H0. simpl. lia.
+  * inversion H1. inversion H6. split. auto. subst. inversion H11.
     apply -> subst_preserves_scope_exp; eauto. subst.
     rewrite Nat.add_0_r. replace (S (length vl)) with (length (ERecFun f vl e :: vs ++ [v])).
     apply scoped_list_idsubst. constructor. auto. apply Forall_app. split; auto. constructor; auto.
-    destruct v; inversion H0; inversion H4; auto. simpl. rewrite H1, app_length. simpl. lia.
+    destruct v; inversion H; inversion H3; auto. simpl. rewrite H0, app_length. simpl. lia.
   * inversion H0. inversion H4. 
     subst. split; auto. apply -> subst_preserves_scope_exp; eauto.
     apply cons_scope; auto. destruct val; inversion H; inversion H1; auto.
@@ -412,27 +412,27 @@ Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
 | term_value v : is_value v -> | [] , v | 0 ↓ (** TODO: empty stack + 0 steps? *)
 | term_if_true fs e1 e2 k : | fs , e1 | k ↓ -> | (FIf e1 e2)::fs , ELit 0 | S k ↓
 | term_if_false fs e1 e2 v k : is_value v -> v <> ELit 0 -> | fs , e2 | k ↓ -> | (FIf e1 e2)::fs , v | S k ↓
-| term_plus_left e2 v fs (H : is_value v) k : | (FPlus2 v H)::fs , e2 | k ↓ -> | (FPlus1 e2)::fs, v | S k ↓
-| term_plus_right n m fs H k : | fs , ELit (n + m) | k ↓ -> | (FPlus2 (ELit n) H )::fs, ELit m | S k ↓
-| term_let_subst v e2 fs k : is_value v -> | fs, e2.[v/] | k ↓ -> | (FLet e2)::fs, v | S k ↓
+| term_plus_left e2 v fs (H : is_value v) k : | (FPlus2 v (* H *))::fs , e2 | k ↓ -> | (FPlus1 e2)::fs, v | S k ↓
+| term_plus_right n m fs k : | fs , ELit (n + m) | k ↓ -> | (FPlus2 (ELit n) (* H *) )::fs, ELit m | S k ↓
+| term_let_subst v e2 fs k x : is_value v -> | fs, e2.[v/] | k ↓ -> | (FLet x e2)::fs, v | S k ↓
 | term_letrec_subst f vl b e fs k : | fs, e.[ERecFun f vl b/] | k ↓ -> | fs, ELetRec f vl b e | S k ↓
 | term_app_start v hd tl (H : is_value v) fs k : 
-  | (FApp2 v H tl [] empty_is_value)::fs, hd| k ↓ -> | (FApp1 (hd::tl))::fs, v | S k ↓
+  | (FApp2 v (* H  *) tl [] (* empty_is_value *))::fs, hd| k ↓ -> | (FApp1 (hd::tl))::fs, v | S k ↓
 | term_app1 fs e k :  | fs, e | k ↓ -> | (FApp1 [])::fs, EFun [] e | S k ↓
 | term_app1_rec f e fs k : | fs, e.[ERecFun f [] e/] | k ↓ -> | (FApp1 [])::fs, ERecFun f [] e | S k ↓
-| term_app_step v v' H hd tl vs H2 (H' : is_value v') fs k :
-  | (FApp2 v H tl (vs ++ [v']) (step_value vs v' H2 H'))::fs, hd | k ↓ -> | (FApp2 v H (hd::tl) vs H2)::fs , v' | S k ↓
-| term_app2 v vl e vs fs H H2 k : 
-  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (vs ++ [v]) idsubst] | k ↓ -> | (FApp2 (EFun vl e) H [] vs H2)::fs, v | S k ↓
-| term_app2_rec v f vl e vs fs H H2 k :
+| term_app_step v v' (H : is_value v) hd tl vs (H2 : Forall is_value vs) (H' : is_value v') fs k :
+  | (FApp2 v (* H *) tl (vs ++ [v']) (* (step_value vs v' H2 H') *))::fs, hd | k ↓ -> | (FApp2 v (* H *) (hd::tl) vs (* H2 *))::fs , v' | S k ↓
+| term_app2 v vl e vs fs (H2 : Forall is_value vs) k : 
+  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (vs ++ [v]) idsubst] | k ↓ -> | (FApp2 (EFun vl e) (* H *) [] vs (* H2 *))::fs, v | S k ↓
+| term_app2_rec v f vl e vs fs (* H *) (H2 : Forall is_value vs) k :
   length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (ERecFun f vl e  :: (vs ++ [v])) idsubst] | k ↓ 
--> | (FApp2 (ERecFun f vl e) H [] vs H2)::fs, v | S k ↓
+-> | (FApp2 (ERecFun f vl e) (* H *) [] vs (* H2 *))::fs, v | S k ↓
 
 
 | term_if e e1 e2 fs k : | (FIf e1 e2)::fs, e | k ↓ -> | fs, EIf e e1 e2 | S k ↓
 | term_plus e1 e2 fs k : | (FPlus1 e2)::fs, e1 | k ↓ -> | fs, EPlus e1 e2 | S k ↓
 | term_app e vs fs k : | (FApp1 vs)::fs, e | k ↓ -> | fs, EApp e vs | S k ↓
-| term_let v e1 e2 fs k : | (FLet e2)::fs, e1 | k ↓ -> | fs, ELet v e1 e2 | S k ↓
+| term_let v e1 e2 fs k : | (FLet v e2)::fs, e1 | k ↓ -> | fs, ELet v e1 e2 | S k ↓
 
 where "| fs , e | k ↓" := (terminates_in_k fs e k).
 
@@ -480,4 +480,13 @@ Proof.
     assert (terminates_sem fs' e'). { eexists. eexists. eauto. } apply terminates_eq_terminates_sem in H1.
     auto.
 Qed.
+
+Ltac inversion_is_value :=
+match goal with
+| [ H: is_value (ELet _ _ _) |- _ ] => inversion H
+| [ H: is_value (ELetRec _ _ _ _) |- _ ] => inversion H
+| [ H: is_value (EPlus _ _) |- _ ] => inversion H
+| [ H: is_value (EIf _ _ _) |- _ ] => inversion H
+| [ H: is_value (EApp _ _) |- _ ] => inversion H
+end.
 

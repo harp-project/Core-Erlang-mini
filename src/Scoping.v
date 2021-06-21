@@ -843,10 +843,10 @@ Global Hint Resolve vclosed_sub_closed : core.
 (* Section stack_machine_semantics. *)
 Inductive Frame : Set :=
 | FApp1 (l : list Exp) (* apply □(e₁, e₂, ..., eₙ) *)
-| FApp2 (v : Exp) (p : is_value v) (l1 l2 : list Exp) (p2 : forall e, In e l2 -> is_value e) (** Can be problematic *)
-| FLet (e2 : Exp) (* let v = □ in e2 *)
+| FApp2 (v : Exp) (* (p : is_value v)  *) (l1 l2 : list Exp) (* (p2 : forall e, In e l2 -> is_value e) *) (** Can be problematic *)
+| FLet (v : Var) (e2 : Exp) (* let v = □ in e2 *)
 | FPlus1 (e2 : Exp) (* □ + e2 *)
-| FPlus2 (v : Exp) (p : is_value v) (* v + □ *)
+| FPlus2 (v : Exp) (* (p : is_value v) *) (* v + □ *)
 | FIf (e2 e3 : Exp) (* if □ then e2 else e3 *).
 
 Definition FrameStack := list Frame.
@@ -867,22 +867,22 @@ Inductive FCLOSED : Frame -> Prop :=
   Forall (fun e => EXPCLOSED e) l
 ->
   FCLOSED (FApp1 l)
-| fclosed_app2 v p l1 l2 p2:
+| fclosed_app2 v (* p *) l1 l2 (* p2 *):
   VALCLOSED v -> Forall (fun e => EXPCLOSED e) l1 -> Forall (fun e => VALCLOSED e) l2
 ->
-  FCLOSED (FApp2 v p l1 l2 p2)
-| fclosed_let e2 :
+  FCLOSED (FApp2 v (* p *) l1 l2 (* p2 *))
+| fclosed_let e2 v :
   EXP 1 ⊢ e2
 ->
-  FCLOSED (FLet e2)
+  FCLOSED (FLet v e2)
 | fclosed_plus1 e2:
   EXPCLOSED e2
 ->
   FCLOSED (FPlus1 e2)
-| fclosed_plus2 v1 p:
+| fclosed_plus2 v1 (* p *):
   VALCLOSED v1
 ->
-  FCLOSED (FPlus2 v1 p)
+  FCLOSED (FPlus2 v1 (* p *))
 | fclosed_if e2 e3:
   EXPCLOSED e2 -> EXPCLOSED e3
 ->
