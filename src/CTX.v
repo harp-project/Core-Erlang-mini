@@ -946,6 +946,12 @@ Qed.
 Global Hint Resolve CTX_IsCtxRel : core.
 Global Hint Resolve CTX_IsPreCtxRel : core.
 
+Corollary CIU_implies_CTX :
+  forall Γ e1 e2, CIU_open Γ e1 e2 -> CTX Γ e1 e2.
+Proof.
+  intros. eapply CTX_bigger. 2: exact H. apply CIU_IsPreCtxRel.
+Qed.
+
 Lemma exists_CTX : exists R, IsCtxRel R.
 Proof.
   exists CTX.
