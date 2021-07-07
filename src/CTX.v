@@ -671,6 +671,54 @@ Proof.
   * now rewrite IHe2_1, IHe2_2, IHe2_3.
 Qed.
 
+Lemma is_value_alpha :
+  forall v, is_value v <-> is_value (default_names v).
+Proof.
+  split; intros. induction H; constructor.
+  induction v; try constructor; inversion H.
+Qed.
+
+Lemma Forall_map T (l : list T) : forall (P : T -> Prop) (f : T -> T),
+  (forall x, P x -> P (f x))
+->
+  Forall P l -> Forall P (map f l).
+Proof.
+  induction l; intros; constructor;
+  inversion H0; subst. auto.
+  apply IHl; auto.
+Qed.
+
+Lemma map_Forall T (l : list T) : forall (P : T -> Prop) (f : T -> T),
+  (forall x, P (f x) -> P x)
+->
+  Forall P (map f l) -> Forall P l.
+Proof.
+  induction l; intros; constructor;
+  inversion H0; subst. auto.
+  eapply IHl; eauto.
+Qed.
+
+Lemma alpha_list_subst :
+  forall l ξ, default_names_sub (list_subst l ξ) =
+              list_subst (map default_names l) (default_names_sub ξ).
+Proof.
+  induction l; intros; auto.
+  cbn. unfold list_subst in IHl at 2. rewrite <- IHl.
+  extensionality n. unfold default_names_sub, list_subst. destruct n; auto.
+Qed.
+
+Lemma alpha_id :
+  idsubst = default_names_sub idsubst.
+Proof.
+  unfold idsubst, default_names_sub. auto.
+Qed.
+
+Lemma scons_alpha : forall e,
+  default_names e .: idsubst = default_names_sub (e .: idsubst).
+Proof.
+  intros. extensionality n; destruct n; auto.
+Qed.
+
 Theorem alpha_eval_k :
   forall k e fs, | fs, e | k ↓ <-> | map default_name_frame fs, default_names e | k ↓.
 Proof.
@@ -698,19 +746,20 @@ Proof.
       replace (ERecFun dummyf [] (default_names e0) .: idsubst) with (default_names_sub (ERecFun f [] e0 .: idsubst)). auto.
       unfold idsubst, default_names_sub. extensionality n. destruct n; auto.
     * simpl. constructor; auto.
-      - admit. (* Provable, technical *)
+      - apply Forall_map; auto.
       - apply IHk in H5. simpl in H5. rewrite map_app in H5. auto.
     * simpl. constructor; auto.
-      - admit. (* Provable, technical *)
+      - apply Forall_map; auto.
       - do 2 rewrite map_length. lia.
       - apply IHk in H6. rewrite alpha_helper in H6.
         replace (list_subst
                       (map default_names vs ++ [default_names e])
                       idsubst) with (default_names_sub
                            (list_subst (vs ++ [e]) idsubst)). auto.
-        admit.
+        replace [default_names e] with (map default_names [e]) by auto.
+        rewrite <- map_app, alpha_list_subst. auto.
     * simpl. constructor; auto.
-      - admit. (* Provable, technical *)
+      - apply Forall_map; auto.
       - do 2 rewrite map_length. lia.
       - apply IHk in H6. rewrite alpha_helper in H6.
         replace (list_subst
@@ -720,7 +769,8 @@ Proof.
                       idsubst) with (default_names_sub
                            (list_subst (ERecFun f vl e0 :: vs ++ [e])
                               idsubst)). auto.
-        admit.
+        replace [default_names e] with (map default_names [e]) by auto.
+        rewrite <- map_app, alpha_list_subst. auto.
     * simpl. constructor; auto. apply IHk in H3. exact H3.
     * simpl. constructor; auto. apply IHk in H3. exact H3.
     * simpl. constructor; auto. apply IHk in H3. exact H3.
@@ -729,24 +779,53 @@ Proof.
   { generalize dependent e. generalize dependent fs.
     induction k; intros; simpl; inversion H; subst.
     * apply eq_sym, map_eq_nil in H0. subst. constructor. now apply default_value.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
-    * admit.
+    * destruct e; inversion H1. destruct fs; inversion H0.
+      destruct f; inversion H5. constructor. subst. apply IHk. auto.
+    * destruct fs; inversion H0. destruct f; inversion H4. subst.
+      apply IHk in H5. destruct e. destruct l.
+      simpl in H3. congruence.
+      all: constructor; try congruence; try inversion H2.
+      all: constructor.
+    * destruct fs; inversion H0. destruct f; inversion H3. subst.
+      replace (FPlus2 (default_names e) :: map default_name_frame fs) with
+              (map default_name_frame (FPlus2 e::fs)) in H4 by auto. apply IHk in H4.
+      constructor; auto. now apply default_value.
+    * destruct e; inversion H1. destruct fs; inversion H0.
+      destruct f; inversion H5. subst. destruct v; inversion H7. subst.
+      constructor. now apply IHk.
+    * destruct fs; inversion H0. destruct f; inversion H3; subst.
+      apply default_value in H2. constructor; auto. apply IHk.
+      now rewrite alpha_helper, <- scons_alpha.
+    * destruct e; inversion H0; subst. constructor. apply IHk.
+      now rewrite alpha_helper, <- scons_alpha.
+    * destruct fs; inversion H0. destruct f; inversion H3. destruct l; inversion H6.
+      subst. apply term_app_start; auto. now apply default_value.
+    * destruct e; inversion H1. destruct fs; inversion H0. destruct f; inversion H6.
+      subst. destruct l; inversion H8. inversion H1. destruct vl; inversion H5.
+      constructor. now apply IHk.
+    * destruct e; inversion H1. destruct fs; inversion H0. destruct f1; inversion H7.
+      subst. destruct l; inversion H9. inversion H1. destruct vl; inversion H4.
+      constructor. apply IHk. now rewrite alpha_helper, <- scons_alpha.
+    * destruct fs; inversion H0. destruct f; inversion H4. destruct l1; inversion H8.
+      subst. apply default_value in H2. apply default_value in H'.
+      constructor; auto. eapply map_Forall; eauto. apply default_value.
+      apply IHk. simpl. rewrite map_app. auto.
+    * destruct fs; inversion H0. destruct f; inversion H5. destruct l1; inversion H9.
+      destruct v; inversion H8. subst. apply default_value in H4. constructor; auto.
+      eapply map_Forall. 2: exact H2. apply default_value.
+      do 2 rewrite map_length in H3. auto.
+      apply IHk. cbn. now rewrite alpha_helper, alpha_list_subst, map_app.
+    * destruct fs; inversion H0. destruct f0; inversion H5. destruct l1; inversion H9.
+      destruct v; inversion H8. subst. apply default_value in H4. constructor; auto.
+      eapply map_Forall. 2: exact H2. apply default_value.
+      do 2 rewrite map_length in H3. auto.
+      apply IHk. rewrite alpha_helper, alpha_list_subst. simpl. now rewrite map_app.
+    * destruct e; inversion H0. constructor. subst. now apply IHk.
+    * destruct e; inversion H0. constructor. subst. now apply IHk.
+    * destruct e; inversion H0. constructor. subst. now apply IHk.
+    * destruct e; inversion H0. constructor. subst. now apply IHk.
   }
-Admitted.
+Qed.
 
 Corollary alpha_eval :
   forall e fs, | fs, e | ↓ <-> | map default_name_frame fs, default_names e | ↓.
