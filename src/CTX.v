@@ -1061,8 +1061,19 @@ Proof.
       apply -> subst_preserves_scope_exp; eauto. rewrite indexed_to_forall in H1.
       constructor. apply H1. rewrite map_length in H3. auto.
   - simpl. admit.
-  - admit.
-  - admit.
+  - simpl. constructor.
+    + do 2 constructor. apply upn_scope with (n := length vl) in H2.
+      apply -> subst_preserves_scope_exp; eauto.
+    + intros. rewrite indexed_to_forall in H1. rewrite map_length in H3.
+      specialize (H1 i H3). eapply subst_preserves_scope_val in H1; eauto.
+      apply scoped_val in H1. replace (ELit 0) with ((ELit 0).[ξ]) by auto.
+      rewrite map_nth. exact H1.
+  - apply -> subst_preserves_scope_exp; eauto.
+    apply -> subst_preserves_scope_exp. exact H0.
+    intro. intros.
+    destruct (list_subst_get_possibilities v vals idsubst); destruct H4.
+    + rewrite H4. rewrite indexed_to_forall in H1. apply H1. auto.
+    + rewrite H4. unfold idsubst. lia.
   - admit.
 Admitted.
 
@@ -1102,7 +1113,7 @@ match v with
 | inr n => EVar n "x"%string
 end.
 
-Fixpoint make_Ctx (fs : FrameStack) : Ctx :=
+(* Fixpoint make_Ctx (fs : FrameStack) : Ctx :=
 match fs with
 | [] => CHole
 | x::xs => plugc (make_Ctx xs) 
@@ -1114,13 +1125,65 @@ match fs with
            | FPlus2 v p => CPlus2 v CHole
            | FIf e2 e3 => CIf1 CHole e2 e3
           end
-end.
+end. *)
 
 (* Theorem make_Ctx_eval_equiv :
   forall fs e, | fs , e | ↓ -> | [], plug (make_Ctx fs) e | ↓.
 Proof.
 
 Admitted. *)
+
+
+Local Definition inf : Exp := EApp (ERecFun ("f"%string, 0) [] (EApp (EFunId 0 ("f"%string, 0)) [])) [].
+
+Local Theorem inf_diverges :
+  forall n Fs, ~|Fs, inf| n↓.
+Proof.
+  unfold inf.
+  intros. intro. inversion H; try inversion_is_value. subst.
+  inversion H4; subst.
+  clear H4 H. simpl in H5.
+  induction k0 using lt_wf_ind.
+  inversion H5; subst; try inversion_is_value. inversion H4. subst.
+  simpl in H6. eapply H. 2: exact H6. lia.
+Qed.
+
+Lemma lit_ctx :
+  forall e l, CTX 0 (ELit l) e -> ⟨ [] , e ⟩-->* ELit l.
+Proof.
+  
+  intros.
+  assert (EECTX 0 ⊢ CIf1 (CPlus1 CHole (ELit (- l))) (ELit 0) inf ∷ 0). {
+    repeat constructor. inversion H0. inversion H0.
+  }
+  assert (| [], plug (CIf1 (CPlus1 CHole (ELit (- l))) (ELit 0) inf) (ELit l) | ↓). {
+    simpl. exists 5.
+    constructor. apply term_plus. apply term_plus_left. constructor.
+    apply term_plus_right. Locate "-". assert (Z.add l (Z.opp l) = 0%Z) by lia.
+    rewrite H1. constructor. constructor. constructor. 
+  }
+  destruct H, H.
+  specialize (H2 (CIf1 (CPlus1 CHole (ELit (-l))) (ELit 0) inf) H0 H1). clear H H0 H1 H3.
+  simpl in H2. 
+  inversion H2. inversion H. inversion H0. subst.
+  inversion H6. inversion H4. subst.
+  clear H H6 H2. exists (pred (pred k0)).
+  
+  
+  (* destruct e.
+  * simpl in H2. inversion H2. inversion H. inversion H0. subst.
+    inversion H7. inversion H5. subst. inversion H6; subst. inversion H9. subst.
+    inversion H10.
+    + subst. exists 0. assert (l = l0) by lia. subst. do 2 constructor.
+    + subst. apply inf_diverges in H14. inversion H14.
+  * inversion H3. inversion H. inversion H4.
+  * inversion H3. inversion H. inversion H4.
+  * inversion H2. inversion H. inversion H0. subst.
+    inversion H7. inversion H5. subst. inversion H6; subst. inversion H9.
+  * inversion H2. inversion H. inversion H0. subst.
+    inversion H7. inversion H5. subst. inversion H6; subst. inversion H9.
+  * simpl in H2. *)
+Admitted.
 
 Theorem CIU_IsCtxRel : IsCtxRel CIU_open.
 Proof.
@@ -1172,9 +1235,9 @@ Proof.
       generalize dependent e2. generalize dependent e1. generalize dependent F.
       induction F; intros.
       * destruct HR'. destruct H, H. apply (H4 CHole); auto. constructor.
-      * inversion H1. subst. destruct H2.
+      * inversion H1. subst. destruct H2. inversion H0; subst.
+        --
         
-       
        
        
 (*         replace (μeval_star e1 _ _)
@@ -1222,11 +1285,16 @@ match n with
     length vals = length vl1 -> length vals = length vl2 ->
     equivalent_exps (b1.[list_subst vals idsubst]) (b2.[list_subst vals idsubst])
                     (equivalent_values n')
+  | ERecFun f1 vl1 b1, ERecFun f2 vl2 b2 => forall vals,
+    length vals = length vl1 -> length vals = length vl2 ->
+    equivalent_exps (b1.[list_subst (ERecFun f1 vl1 b1::vals) idsubst]) (b2.[list_subst (ERecFun f2 vl2 b2::vals) idsubst])
+                    (equivalent_values n')
   | _, _ => False
   end
 end.
 
 Definition eq_exps (e1 e2 : Exp) := forall n, equivalent_exps e1 e2 (equivalent_values n).
+
 
 Goal
   forall e1 e2, CTX 0 e1 e2 -> eq_exps e1 e2.
@@ -1238,6 +1306,60 @@ Proof.
     apply (H1 CHole ltac:(constructor)) in H0. apply terminates_eq_terminates_sem in H0.
     destruct H0. exists x. split; auto.
   * unfold equivalent_exps. intros. cbn. destruct H, H.
-    apply ex_intro in H0. apply -> terminates_eq_terminates_sem in H0.
+    apply ex_intro in H0 as H0'. apply -> terminates_eq_terminates_sem in H0'.
+    pose proof (H1 CHole ltac:(constructor) H0'). simpl in H3.
+    apply terminates_eq_terminates_sem in H3. destruct H3. exists x. split; auto.
+    clear H0'.
+    apply result_is_value_star in H0 as Hv. apply result_is_value_star in H3 as Hv'.
+    destruct v1; try inversion_is_value.
+    - destruct x; try inversion_is_value.
+      + epose proof (H1 (CIf1 (CPlus1 CHole (ELit (-l))) (ELit 0) inf) _ _).
+        Unshelve.
+        
+        simpl in H4.
+      + inversion Hv'.
+      + inversion Hv'.
+      + admit.
+      + admit.
+    - inversion Hv.
+    - inversion Hv.
+    - destruct x; try inversion_is_value.
+      + admit.
+      + inversion Hv'.
+      + inversion Hv'.
+      + admit.
+      + admit.
+    - destruct x; try inversion_is_value.
+      + admit.
+      + inversion Hv'.
+      + inversion Hv'.
+      + admit.
+      + admit.
 Qed.
+
+
+
+Theorem functional_iff_frame_stack :
+  forall e v,
+  (exists d, eval d e = Res v) <-> ⟨ [], e ⟩ -->* v.
+Proof.
+  split; revert e v.
+  { intros. destruct H. revert H. generalize dependent e.
+    generalize dependent v. induction x; intros.
+    * inversion H.
+    * destruct e; simpl in H.
+      - inversion H. exists 0. do 2 constructor.
+      - inversion H.
+      - inversion H.
+      - inversion H. exists 0. do 2 constructor.
+      - inversion H. exists 0. do 2 constructor.
+      - break_match_hyp. 1-2 : inversion H. destruct v0; try inversion H.
+        admit. admit.
+      - break_match_hyp. 1-2: inversion H. apply IHx in Heqr. apply IHx in H.
+        destruct Heqr. destruct H. exists (S (x1 + x0)). econstructor. constructor.
+        
+Admitted.
+
+
+
 

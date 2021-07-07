@@ -95,7 +95,7 @@ Proof.
   (* TODO *)
 Abort. *)
 
-Import Coq.Arith.Wf_nat.
+Export Coq.Arith.Wf_nat.
 
 Lemma Vrel_RecFun_compat :
   forall Γ f1 f2 vl1 vl2 b1 b2, length vl1 = length vl2 ->
