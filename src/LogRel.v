@@ -39,25 +39,15 @@ Definition Vrel_rec (n : nat)
   VALCLOSED v1 /\ VALCLOSED v2 /\
   match v1, v2 with
   | ELit l1, ELit l2 => l1 = l2
-  | EFun vl1 b1, EFun vl2 b2 => 
+  | EFun vl1 b1, EFun vl2 b2 =>
     if length vl1 =? length vl2 then
      forall m (Hmn : m < n), forall (vals1 vals2 : list Exp),
        length vals1 = length vl1 -> length vals2 = length vl2 ->
        list_biforall (Vrel m Hmn) vals1 vals2 
      ->
        exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
-                 (b1.[list_subst vals1 idsubst])
-                 (b2.[list_subst vals2 idsubst])
-    else False
-  | ERecFun f1 vl1 b1, ERecFun f2 vl2 b2 =>
-    if length vl1 =? length vl2 then
-     forall m (Hmn : m < n), forall (vals1 vals2 : list Exp),
-       length vals1 = length vl1 -> length vals2 = length vl2 ->
-       list_biforall (Vrel m Hmn) vals1 vals2 
-     ->
-       exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
-                 (b1.[list_subst (ERecFun f1 vl1 b1 :: vals1) idsubst])
-                 (b2.[list_subst (ERecFun f2 vl2 b2 :: vals2) idsubst])
+                 (b1.[list_subst (EFun vl1 b1 :: vals1) idsubst])
+                 (b2.[list_subst (EFun vl2 b2 :: vals2) idsubst])
      else False
   | _, _ => False
   end
@@ -99,19 +89,6 @@ Proof.
   extensionality m'.
   extensionality H0.
   trivial.
-  
-  f_equal. f_equal.
-  break_match_goal; auto. extensionality m.
-  extensionality Hmn.
-  extensionality v1'.
-  extensionality v2'.
-  rewrite H.
-  extensionality l1. extensionality l2.
-  extensionality x.
-  f_equal.
-  extensionality m'.
-  extensionality H0.
-  trivial.
 Qed.
 
 Lemma Vrel_Fix_eq : forall {n : nat} {v1 v2 : Exp},
@@ -130,9 +107,9 @@ Section Tests.
   Local Definition e1 := ELit 0.
   Local Definition e2 := EFun [] e1.
   Local Definition e3 := EFun [] (EPlus e1 e1).
-  Local Definition inf f := EApp (ERecFun f [] (EApp (EFunId 0 f) [])) [].
+  Local Definition inf := EApp (EFun [] (EApp (EFunId 0) [])) [].
 
-  Axiom inf_diverges : forall f clock, eval clock (inf f) = Timeout.
+  Axiom inf_diverges : forall clock, eval clock (inf) = Timeout.
 
   Goal Erel 0 e1 e1.
   Proof.
@@ -188,7 +165,6 @@ Proof.
   unfold Vrel_rec at 1.
   unfold Vrel_rec at 1 in H.
   destruct v1, v2; intuition; break_match_hyp; intros.
-  epose (H2 m1 _ vals1 vals2 H1 H3 H4). apply e. contradiction.
   epose (H2 m1 _ vals1 vals2 H1 H3 H4). apply e. contradiction.
   Unshelve. all: lia.
 Qed.
@@ -376,7 +352,7 @@ Proof.
   rewrite Vrel_Fix_eq. unfold Vrel_rec at 1.
   specialize (H0 x H1) as P'. rewrite Heqs in P'.
   * destruct P'; intuition; cbn; try constructor; auto. inversion H2. inversion H2.
-    1-2: break_match_goal; intros; try congruence; try inversion Hmn. 1-2: rewrite Nat.eqb_refl in Heqb; congruence.
+    break_match_goal; intros; try congruence; try inversion Hmn. rewrite Nat.eqb_refl in Heqb; congruence.
   * specialize (H0 x H1). rewrite Heqs in H0. lia.
 Qed.
 
@@ -411,13 +387,11 @@ Global Hint Resolve Erel_open_scope_r : core.
 Lemma Vrel_possibilities : forall {n v1 v2},
   Vrel n v1 v2 ->
   (exists n, v1 = ELit n /\ v2 = ELit n) \/
-  (exists vl1 vl2 b1 b2, v1 = EFun vl1 b1 /\ v2 = EFun vl2 b2) \/
-  (exists f1 f2 vl1 vl2 b1 b2, v1 = ERecFun f1 vl1 b1 /\ v2 = ERecFun f2 vl2 b2).
+  (exists vl1 vl2 b1 b2, v1 = EFun vl1 b1 /\ v2 = EFun vl2 b2).
 Proof.
   intros; destruct v1, v2; destruct H as [? [? ?] ]; subst; try contradiction.
   * left. eexists; split; reflexivity.
-  * right. left. repeat eexists.
-  * right. right. repeat eexists.
+  * right. repeat eexists.
 Qed.
 
 Lemma Vrel_open_closed : forall {Γ e1 e2},
@@ -433,7 +407,7 @@ Proof.
   rewrite Vrel_Fix_eq. unfold Vrel_rec at 1.
   specialize (H0 x H1) as P'. rewrite Heqs in P'.
   * destruct P'; intuition; cbn; try constructor; auto. inversion H2. inversion H2.
-    1-2: break_match_goal; intros; try congruence; try inversion Hmn. 1-2: rewrite Nat.eqb_refl in Heqb; congruence.
+    break_match_goal; intros; try congruence; try inversion Hmn. rewrite Nat.eqb_refl in Heqb; congruence.
   * specialize (H0 x H1). rewrite Heqs in H0. lia.
 Qed.
 

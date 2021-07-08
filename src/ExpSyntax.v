@@ -17,10 +17,13 @@ Definition FunctionIdentifier : Set := string * nat.
 
 Inductive Exp : Set :=
 | ELit    (l : Z)
-| EVar    (n : nat) (v : Var)
-| EFunId  (n : nat) (f : FunctionIdentifier)
+| EVar    (n : nat) (** (v : Var) <- these will be assigned by a naming function *)
+| EFunId  (n : nat) (** (f : FunctionIdentifier) <- these will be assigned by a naming function *)
+(* 
+| ERecFun (f : FunctionIdentifier) (vl : list Var) (e : Exp) (** This is not a valid expression, letrec reduces to this *) *)
+(** Instead of multiple fun-s, we use only recursive funs, which use the 0 DB-index
+    as the recursive fun-exp *)
 | EFun    (vl : list Var) (e : Exp)
-| ERecFun (f : FunctionIdentifier) (vl : list Var) (e : Exp) (** This is not a valid expression, letrec reduces to this *)
 | EApp    (exp : Exp)     (l : list Exp)
 | ELet    (v : Var) (e1 e2 : Exp)
 | ELetRec (f : FunctionIdentifier) (vl : list Var) (b e : Exp)
@@ -35,10 +38,10 @@ Section correct_exp_ind.
 
   Hypotheses
    (H0 : forall (l : Z), P (ELit l))
-   (H1 : forall (n : nat) (v : Var), P (EVar n v))
-   (H2 : forall (n : nat) (f : FunctionIdentifier), P (EFunId n f))
+   (H1 : forall (n : nat) (* (v : Var) *), P (EVar n (* v *)))
+   (H2 : forall (n : nat) (* (f : FunctionIdentifier) *), P (EFunId n (* f *)))
    (H3 : forall (vl : list Var) (e : Exp), P e -> P (EFun vl e))
-   (H4 : forall (f : FunctionIdentifier) (vl : list Var) (e : Exp), P e -> P (ERecFun f vl e))
+(*    (H4 : forall (f : FunctionIdentifier) (vl : list Var) (e : Exp), P e -> P (ERecFun f vl e)) *)
    (H5 : forall (e : Exp), P e -> forall (el : list Exp), Q el 
        -> P (EApp e el))
    (H6 : forall (v : Var) (e1 : Exp), P e1 -> forall e2 : Exp, P e2 
@@ -55,10 +58,10 @@ Section correct_exp_ind.
   Fixpoint Exp_ind2 (e : Exp) : P e :=
   match e as x return P x with
   | ELit l => H0 l
-  | EVar n s => H1 n s
-  | EFunId n f => H2 n f
+  | EVar n => H1 n
+  | EFunId n => H2 n
   | EFun vl e => H3 vl e (Exp_ind2 e)
-  | ERecFun f vl e => H4 f vl e (Exp_ind2 e)
+(*   | ERecFun f vl e => H4 f vl e (Exp_ind2 e) *)
   | EApp e el => H5 e (Exp_ind2 e) el ((fix l_ind (l':list Exp) : Q l' :=
                                          match l' as x return Q x with
                                          | [] => H1'
@@ -82,13 +85,13 @@ Definition ZVar : Var := "Z"%string.
 Definition F0 : FunctionIdentifier := ("f"%string, 0).
 Definition F1 : FunctionIdentifier := ("f"%string, 1).
 
-Definition inc (n : Z) := ELet XVar (ELit n) (EPlus (EVar 0 XVar) (ELit 1)).
-Definition sum (n : Z) := ELetRec F1 [XVar] (EIf (EVar 1 XVar) (EVar 1 XVar) (
-                                            (EPlus (EVar 1 XVar)
-                                            (EApp (EFunId 0 F1) [EPlus (EVar 1 XVar) (ELit (-1))]))))
-                        (EApp (EFunId 0 F1) [ELit n]).
-Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar 0 XVar) []).
-Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar 0 XVar) (EVar 1 YVar))) [ELit n; ELit m].
+Definition inc (n : Z) := ELet XVar (ELit n) (EPlus (EVar 0) (ELit 1)).
+Definition sum (n : Z) := ELetRec F1 [XVar] (EIf (EVar 1) (EVar 1) (
+                                            (EPlus (EVar 1)
+                                            (EApp (EFunId 0) [EPlus (EVar 1) (ELit (-1))]))))
+                        (EApp (EFunId 0) [ELit n]).
+Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar 0) []).
+Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar 1) (EVar 2))) [ELit n; ELit m].
 
 Ltac break_match_hyp :=
 match goal with

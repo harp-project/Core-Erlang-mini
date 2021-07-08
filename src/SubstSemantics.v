@@ -32,29 +32,17 @@ match clock with
 | 0 => Timeout
 | S n => match e with
          | ELit l => Res (ELit l)
-         | EVar n v => Fail
-         | EFunId n f => Fail
+         | EVar n => Fail
+         | EFunId n => Fail
          | EFun vl e => Res (EFun vl e)
-         | ERecFun f vl e => Res (ERecFun f vl e)
          | EApp exp l => match eval n exp with
                          (** In Core Erlang this check only happens later *)
                          | Res (EFun vl e) =>
-                            (* This would be better with Monads *)
                             let vres := eval_list (eval n) l in
                                match vres with
                                | Res vals => 
                                  if length vals =? length vl
-                                 then eval n e.[list_subst vals idsubst]
-                                 else Fail
-                               | Fail => Fail
-                               | Timeout => Timeout
-                               end
-                         | Res (ERecFun f vl e) =>
-                            let vres := eval_list (eval n) l in
-                               match vres with
-                               | Res vals => 
-                                 if length vals =? length vl
-                                 then eval n e.[list_subst (ERecFun f vl e::vals) idsubst]
+                                 then eval n e.[list_subst (EFun vl e::vals) idsubst]
                                  else Fail
                                | Fail => Fail
                                | Timeout => Timeout
@@ -66,7 +54,7 @@ match clock with
                            | Res val => eval n e2.[val/]
                            | r      => r
                            end
-         | ELetRec f vl b e => eval n e.[ERecFun f vl b/]
+         | ELetRec f vl b e => eval n e.[EFun vl b/]
          | EPlus e1 e2 => 
             match eval n e1, eval n e2 with
             | Res (ELit n), Res (ELit m) => Res (ELit (n + m))
@@ -149,9 +137,7 @@ Proof.
   * destruct e; inversion H.
     - constructor.
     - constructor.
-    - constructor.
     - break_match_hyp; inversion H1. break_match_hyp; try congruence.
-      + break_match_hyp; try congruence. break_match_hyp. 2: congruence. apply IHclock in H1. auto.
       + break_match_hyp; try congruence. break_match_hyp. 2: congruence. apply IHclock in H1. auto.
     - break_match_hyp; try congruence. apply IHclock in H1. auto.
     - apply IHclock in H1. auto.
@@ -196,21 +182,14 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
   ⟨ (FApp1 (hd::tl))::xs, v ⟩ --> ⟨ (FApp2 v (* H *) tl [] (* empty_is_value *))::xs, hd⟩
 
 | red_app_fin xs e :
-  ⟨ (FApp1 [])::xs, EFun [] e ⟩ --> ⟨ xs, e ⟩
-
-| red_rec_app_fin xs e f :
-  ⟨ (FApp1 [])::xs, ERecFun f [] e ⟩ --> ⟨ xs, e.[ERecFun f [] e/] ⟩
+  ⟨ (FApp1 [])::xs, EFun [] e ⟩ --> ⟨ xs, e.[EFun [] e/] ⟩
 
 | app2_step v (H : is_value v) hd tl vs (H2 : Forall is_value vs) xs v' (H' : is_value v') :
   ⟨ (FApp2 v (* H *) (hd::tl) vs (* H2 *)) :: xs, v' ⟩ --> ⟨ (FApp2 v (* H *) tl (vs ++ [v']) (* (step_value vs v' H2 H') *)) :: xs, hd ⟩
 
 | red_app2 vl e vs v xs (H2 : Forall is_value vs) : 
   is_value v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (EFun vl e) (* H *) [] vs (* H2 *)) :: xs, v ⟩ --> ⟨ xs, e.[list_subst (vs ++ [v]) idsubst] ⟩
-
-| red_rec_app2 vl f e vs v xs (H2 : Forall is_value vs) : 
-  is_value v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (ERecFun f vl e) (* H *) [] vs (* H2 *)) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (ERecFun f vl e :: (vs ++ [v])) idsubst] ⟩
+  ⟨ (FApp2 (EFun vl e) (* H *) [] vs (* H2 *)) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (EFun vl e :: (vs ++ [v])) idsubst] ⟩
 
 | red_let val e2 xs v (H : is_value val) : ⟨ (FLet v e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
 
@@ -226,7 +205,7 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
    ⟨ (FPlus2 (ELit n) (* P *))::xs, (ELit m) ⟩ --> ⟨ xs, ELit (n + m) ⟩ 
 
 | red_letrec xs f vl b e:
-  ⟨ xs, ELetRec f vl b e ⟩ --> ⟨ xs, e.[ERecFun f vl b/] ⟩
+  ⟨ xs, ELetRec f vl b e ⟩ --> ⟨ xs, e.[EFun vl b/] ⟩
 
 (** Steps *)
 | step_let xs v e1 e2 : ⟨ xs, ELet v e1 e2 ⟩ --> ⟨ (FLet v e2)::xs, e1 ⟩
@@ -276,7 +255,7 @@ Proof.
   econstructor.
   econstructor.
   econstructor. constructor. cbn. econstructor. constructor. econstructor. econstructor.
-  eapply red_rec_app2. constructor.
+  eapply red_app2. constructor.
   simpl. econstructor. econstructor. econstructor. eapply step_if.
   econstructor. eapply red_if_false. constructor. cbn. congruence.
   econstructor. eapply step_plus.
@@ -288,7 +267,7 @@ Proof.
 (* repeat   econstructor. *)
   econstructor. eapply red_plus_left.
   econstructor. econstructor. eapply red_plus_right. simpl Z.add.
-  econstructor. eapply red_rec_app2. constructor.
+  econstructor. eapply red_app2. constructor.
   simpl. econstructor. econstructor. econstructor. eapply step_if.
   econstructor. eapply red_if_true.
   econstructor. eapply red_plus_right.
@@ -312,10 +291,8 @@ Proof.
   intro H. induction H; intros.
   * inversion H0; subst; try inversion H; try (proof_irr; auto).
   * inversion H; subst. auto.
-  * inversion H; subst. auto.
   * inversion H0; subst; try inversion H'; try (proof_irr_many; auto).
   * inversion H1; subst; try inversion H; auto.
-  * inversion H1; subst; auto; try inversion H.
   * inversion H0; subst; auto; try inversion H.
   * inversion H; subst; auto. congruence.
   * inversion H1; subst; auto; try congruence; try inversion H.
@@ -352,21 +329,14 @@ Proof.
   intros F e F' e' IH. induction IH; intros.
   * inversion H0. subst. inversion H4. inversion H3. subst. split; auto.
     constructor; auto. constructor; auto. destruct v; inversion H; inversion H1; auto.
-  * inversion H. inversion H0. subst. split; auto. inversion H5. exact H2.
   * inversion H. inversion H0. subst. split; auto. inversion H5. subst. cbn in H2.
     apply -> subst_preserves_scope_exp; eauto.
   * inversion H0. subst. inversion H5. inversion H9. subst. split; auto. constructor; auto.
     constructor; auto.
     apply Forall_app. split; auto. constructor; auto. destruct v'; inversion H'; inversion H1; auto.
-  * inversion H1. inversion H6. subst. split; auto. inversion H11.
-    apply -> subst_preserves_scope_exp; eauto. subst.
-    rewrite Nat.add_0_r. replace (length vl) with (length (vs ++ [v])).
-    apply scoped_list_idsubst. apply Forall_app. split; auto. constructor; auto.
-    destruct v; inversion H; inversion H3; auto.
-    rewrite app_length. rewrite H0. simpl. lia.
   * inversion H1. inversion H6. split. auto. subst. inversion H11.
     apply -> subst_preserves_scope_exp; eauto. subst.
-    rewrite Nat.add_0_r. replace (S (length vl)) with (length (ERecFun f vl e :: vs ++ [v])).
+    rewrite Nat.add_0_r. replace (S (length vl)) with (length (EFun vl e :: vs ++ [v])).
     apply scoped_list_idsubst. constructor. auto. apply Forall_app. split; auto. constructor; auto.
     destruct v; inversion H; inversion H3; auto. simpl. rewrite H0, app_length. simpl. lia.
   * inversion H0. inversion H4. 
@@ -416,18 +386,16 @@ Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
 | term_plus_left e2 v fs (H : is_value v) k : | (FPlus2 v (* H *))::fs , e2 | k ↓ -> | (FPlus1 e2)::fs, v | S k ↓
 | term_plus_right n m fs k : | fs , ELit (n + m) | k ↓ -> | (FPlus2 (ELit n) (* H *) )::fs, ELit m | S k ↓
 | term_let_subst v e2 fs k x : is_value v -> | fs, e2.[v/] | k ↓ -> | (FLet x e2)::fs, v | S k ↓
-| term_letrec_subst f vl b e fs k : | fs, e.[ERecFun f vl b/] | k ↓ -> | fs, ELetRec f vl b e | S k ↓
+| term_letrec_subst vl b e fs f k : | fs, e.[EFun vl b/] | k ↓ -> | fs, ELetRec f vl b e | S k ↓
 | term_app_start v hd tl (H : is_value v) fs k : 
   | (FApp2 v (* H  *) tl [] (* empty_is_value *))::fs, hd| k ↓ -> | (FApp1 (hd::tl))::fs, v | S k ↓
-| term_app1 fs e k :  | fs, e | k ↓ -> | (FApp1 [])::fs, EFun [] e | S k ↓
-| term_app1_rec f e fs k : | fs, e.[ERecFun f [] e/] | k ↓ -> | (FApp1 [])::fs, ERecFun f [] e | S k ↓
+| term_app1 e fs k : | fs, e.[EFun [] e/] | k ↓ -> | (FApp1 [])::fs, EFun [] e | S k ↓
 | term_app_step v v' (H : is_value v) hd tl vs (H2 : Forall is_value vs) (H' : is_value v') fs k :
   | (FApp2 v (* H *) tl (vs ++ [v']) (* (step_value vs v' H2 H') *))::fs, hd | k ↓ -> | (FApp2 v (* H *) (hd::tl) vs (* H2 *))::fs , v' | S k ↓
-| term_app2 v vl e vs fs (H2 : Forall is_value vs) k : 
-  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (vs ++ [v]) idsubst] | k ↓ -> | (FApp2 (EFun vl e) (* H *) [] vs (* H2 *))::fs, v | S k ↓
-| term_app2_rec v f vl e vs fs (* H *) (H2 : Forall is_value vs) k :
-  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (ERecFun f vl e  :: (vs ++ [v])) idsubst] | k ↓ 
--> | (FApp2 (ERecFun f vl e) (* H *) [] vs (* H2 *))::fs, v | S k ↓
+
+| term_app2 v vl e vs fs (* H *) (H2 : Forall is_value vs) k :
+  length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (EFun vl e  :: (vs ++ [v])) idsubst] | k ↓ 
+-> | (FApp2 (EFun vl e) (* H *) [] vs (* H2 *))::fs, v | S k ↓
 
 
 | term_if e e1 e2 fs k : | (FIf e1 e2)::fs, e | k ↓ -> | fs, EIf e e1 e2 | S k ↓
@@ -499,7 +467,7 @@ Proof.
   induction k using lt_wf_ind. intros.
   destruct k.
   * destruct Fs.
-    - destruct e. 1, 4, 5: left; do 2 constructor.
+    - destruct e. 1, 4: left; do 2 constructor.
       all: right; intro; inversion H0; inversion H1.
     - right. intro. inversion H0.
   * destruct e.

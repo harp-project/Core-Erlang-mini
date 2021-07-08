@@ -4,54 +4,11 @@ Export Classes.RelationClasses.
 
 Import ListNotations.
 
-Definition is_value_b (e : Exp) : bool :=
-match e with
-| ELit _ | EFun _ _ | ERecFun _ _ _ => true
-| _ => false
-end.
 
 Inductive is_value : Exp -> Prop :=
 | ELit_val : forall l, is_value (ELit l)
 | EFun_val : forall vl e, is_value (EFun vl e)
-| ERecFun_val : forall f vl e, is_value (ERecFun f vl e).
-
-Theorem is_value_equiv :
-  forall v, is_value v <-> is_value_b v = true.
-Proof.
-  split.
-  {
-    destruct v; intros; inversion H; auto.
-  }
-  {
-    destruct v; intros; simpl in H; try congruence; constructor.
-  }
-Qed.
-
-Theorem is_value_nequiv :
-  forall v, ~ is_value v <-> is_value_b v = false.
-Proof.
-  split.
-  {
-    intros; destruct v; auto; exfalso; apply H; constructor.
-  }
-  {
-    intros; destruct v; simpl in H; try congruence; intro; inversion H0.
-  }
-Qed.
-
-Definition Injective {A B} (f : A->B) :=
- forall x y, f x = f y -> x = y.
-
-Theorem map_not_in {T T' : Type} : forall (l : list T) (x: T) (f : T -> T'),
-  Injective f -> ~In x l -> ~In (f x) (map f l).
-Proof.
-  induction l; intros; intro.
-  * inversion H1.
-  * inversion H1.
-    - apply H in H2. subst. apply H0. intuition.
-    - eapply IHl; eauto. apply not_in_cons in H0. destruct H0. auto.
-Qed.
-
+.
 
 Reserved Notation "'EXP' Γ ⊢ e"
          (at level 69, no associativity).
@@ -84,10 +41,9 @@ Inductive ExpScoped (Γ : nat) : Exp -> Prop :=
   VAL Γ ⊢ v -> EXP Γ ⊢ v
 with ValScoped (Γ : nat) : Exp -> Prop :=
 | scoped_lit lit : VAL Γ ⊢ ELit lit
-| scoped_var n v : n < Γ -> VAL Γ ⊢ EVar n v
-| scoped_funid n f : n < Γ -> VAL Γ ⊢ EFunId n f
-| scoped_fun vl e : EXP (length vl + Γ) ⊢ e -> VAL Γ ⊢ EFun vl e
-| scoped_recfun f vl e : EXP (S (length vl) + Γ) ⊢ e -> VAL Γ ⊢ ERecFun f vl e
+| scoped_var n : n < Γ -> VAL Γ ⊢ EVar n
+| scoped_funid n : n < Γ -> VAL Γ ⊢ EFunId n
+| scoped_fun vl e : EXP (S (length vl) + Γ) ⊢ e -> VAL Γ ⊢ EFun vl e
 where "'EXP' Γ ⊢ e" := (ExpScoped Γ e)
 and "'VAL' Γ ⊢ e" := (ValScoped Γ e).
 
@@ -148,8 +104,6 @@ Proof.
   * intros. reflexivity.
   * intros. specialize (H n l). simpl. rewrite H. auto.
   * intros. specialize (H n l). simpl. rewrite H. auto.
-  * intros. simpl. epose (H _ _). rewrite e1. reflexivity.
-    Unshelve. apply subst_preserves_upn. auto.
   * intros. simpl. epose (H _ _). rewrite e1. reflexivity.
     Unshelve. apply subst_preserves_up, subst_preserves_upn. auto.
   * intros. simpl. rewrite H; auto. erewrite scoped_ignores_sub_helper; eauto.
@@ -304,10 +258,6 @@ Proof.
     try (specialize (H Γ id (renscope_id _)); rewrite idrenaming_is_id in H; apply H).
   all: try (inversion H; inversion H1).
   * constructor. apply H0. inversion H. auto.
-  * constructor. constructor. inversion H; inversion H1. subst.
-    eapply IHe; eauto. intros. pose (uprenn_scope (length vl) _ Γ' ξ H0 v H2). auto.
-  * constructor. inversion H. subst.
-    eapply IHe; eauto. intros. pose (uprenn_scope (length vl) _ Γ' ξ H0 v H1). auto.
   * constructor. constructor. inversion H; inversion H1. subst.
     eapply IHe; eauto. intros. pose (uprenn_scope (S (length vl)) _ Γ' ξ H0 v H2). auto.
   * constructor. inversion H. subst.
@@ -472,10 +422,6 @@ Proof.
     - auto.
     - constructor. auto.
   * constructor. constructor. eapply IHe; eauto. intros.
-    eapply upn_scope; eauto.
-  * constructor. eapply IHe; eauto. intros.
-    eapply upn_scope; eauto.
-  * constructor. constructor. eapply IHe; eauto. intros.
     eapply up_scope; eauto.
   * constructor. eapply IHe; eauto. intros.
     eapply up_scope; eauto.
@@ -578,7 +524,7 @@ Module SUB_IMPLIES_SCOPE.
        (unfold magic_ξ in Heqs; break_match_hyp; [ auto | try congruence ]).
        inversion H. inversion H0. subst. inversion Heqs. subst. lia.
     * inversion H. inversion H0. subst.
-      eapply IHe. rewrite upn_magic in H1. eauto.
+      eapply IHe. rewrite upn_magic, up_magic in H1. eauto.
     * constructor. constructor. break_match_hyp; 
        (unfold magic_ξ in Heqs; break_match_hyp; [ auto | try congruence ]).
        inversion H. inversion H0. subst. inversion Heqs. subst. lia.
@@ -589,14 +535,6 @@ Module SUB_IMPLIES_SCOPE.
       eapply IHe. replace (up_subst (upn (Datatypes.length vl) (magic_ξ Γ Γ'))) with
                           (upn (S (length vl)) ((magic_ξ Γ Γ'))) in H3 by reflexivity.
       rewrite upn_magic in H3. eauto.
-    * constructor. constructor. inversion H. inversion H0. subst.
-      eapply IHe. replace (up_subst (upn (Datatypes.length vl) (magic_ξ Γ Γ'))) with
-                          (upn (S (length vl)) ((magic_ξ Γ Γ'))) in H3 by reflexivity.
-      rewrite upn_magic in H3. eauto.
-    * constructor. inversion H. subst.
-      eapply IHe. replace (up_subst (upn (Datatypes.length vl) (magic_ξ Γ Γ'))) with
-                          (upn (S (length vl)) ((magic_ξ Γ Γ'))) in H1 by reflexivity.
-      rewrite upn_magic in H1. eauto.
     * inversion H. 2: inversion H0. constructor.
       - eapply IHe; eauto.
       - replace (ELit 0) with (subst (magic_ξ Γ Γ') (ELit 0)) in H3 by reflexivity.
@@ -707,11 +645,6 @@ Module SUB_IMPLIES_SCOPE.
       repeat destruct Compare_dec.lt_dec; try destruct Nat.eq_dec; auto.
       lia. lia. lia. split; intros; inversion H. inversion H0. all: subst.
       all : lia.
-    * rewrite upn_magic, upn_magic_2.
-      replace (length vl + S Γ') with (S (length vl + Γ')) by lia.
-      specialize (IHe (length vl + Γ')). destruct IHe. split; intros.
-      - rewrite H; auto. inversion H1. inversion H2. auto.
-      - rewrite H; auto. inversion H1. subst. auto.
     * rewrite upn_magic, up_magic, upn_magic_2, up_magic_2.
       replace (S (length vl + S Γ')) with (S (S (length vl) + Γ')) by lia.
       specialize (IHe (S (length vl + Γ'))). destruct IHe. split; intros.

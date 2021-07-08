@@ -28,10 +28,9 @@ Notation uprenn := (iterate upren).
 Fixpoint rename (ρ : Renaming) (e : Exp) : Exp :=
 match e with
  | ELit l => e
- | EVar n v => EVar (ρ n) v
- | EFunId n f => EFunId (ρ n) f
- | EFun vl e => EFun vl (rename (uprenn (length vl) ρ) e)
- | ERecFun f vl e => ERecFun f vl (rename (uprenn (1 + length vl) ρ) e)
+ | EVar n => EVar (ρ n)
+ | EFunId n => EFunId (ρ n)
+ | EFun vl e => EFun vl (rename (uprenn (S (length vl)) ρ) e)
  | EApp exp l => EApp (rename ρ exp) (map (rename ρ) l)
  | ELet v e1 e2 => ELet v (rename ρ e1) (rename (upren ρ) e2)
  | ELetRec f vl b e => ELetRec f vl (rename (uprenn (1 + length vl) ρ) b) 
@@ -71,16 +70,15 @@ Notation "ξ -- vl" := (restrict_subst ξ vl) (at level 70). *)
 Fixpoint subst (ξ : Substitution) (base : Exp) : Exp :=
 match base with
  | ELit l => base
- | EVar n v => match ξ n with
+ | EVar n => match ξ n with
+             | inl exp => exp
+             | inr num => EVar num
+             end
+ | EFunId n => match ξ n with
                | inl exp => exp
-               | inr num => EVar num v
+               | inr num => EFunId num
                end
- | EFunId n f => match ξ n with
-                 | inl exp => exp
-                 | inr num => EFunId num f
-                 end
- | EFun vl e => EFun vl (subst (upn (length vl) ξ) e)
- | ERecFun f vl e => ERecFun f vl (subst (upn (1 + length vl) ξ) e)
+ | EFun vl e => EFun vl (subst (upn (S (length vl)) ξ) e)
  | EApp exp l => EApp (subst ξ exp) (map (subst ξ) l)
  | ELet v e1 e2 => ELet v (subst ξ e1) (subst (up_subst ξ) e2)
  | ELetRec f vl b e => ELetRec f vl (subst (upn (1 + length vl) ξ) b)
@@ -112,8 +110,8 @@ fold_right (fun v acc => v .: acc) ξ l.
 (* Tests: *)
 Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
 Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
-Goal (EApp (EVar 0 XVar) [EVar 0 XVar; ELet XVar (EVar 0 XVar) (EVar 0 XVar)]).[ELit 0/]
-  = (EApp (ELit 0) [ELit 0; ELet XVar (ELit 0) (EVar 0 XVar)]). Proof. reflexivity. Qed.
+Goal (EApp (EVar 0) [EVar 0; ELet XVar (EVar 0) (EVar 0)]).[ELit 0/]
+  = (EApp (ELit 0) [ELit 0; ELet XVar (ELit 0) (EVar 0)]). Proof. reflexivity. Qed.
 
 Compute (ELit 0 .: ELit 0 .: idsubst) 3.
 
@@ -151,7 +149,6 @@ Theorem renaming_is_subst : forall e ρ,
   rename ρ e = e.[ren ρ].
 Proof.
   induction e using Exp_ind2 with (Q := fun l => forall ρ, Forall (fun e => rename ρ e = e.[ren ρ]) l); intros; try reflexivity; cbn.
-  * rewrite IHe, renn_up. auto.
   * rewrite IHe, ren_up, renn_up. auto.
   * rewrite IHe. erewrite map_ext_Forall. reflexivity. auto.
   * rewrite IHe1. rewrite <- ren_up, IHe2. auto.
@@ -234,7 +231,6 @@ Lemma subst_ren (σ : Renaming) (ξ : Substitution) e :
   e.[ren σ].[ξ] = e.[σ >>> ξ].
 Proof.
   revert ξ σ. induction e using Exp_ind2 with (Q := fun l => forall ξ σ, Forall (fun e => e.[ren σ].[ξ] = e.[σ >>> ξ]) l); simpl; intros; auto.
-  * rewrite <- renn_up. rewrite IHe, uprenn_subst_upn. auto.
   * rewrite <- renn_up, <- ren_up. rewrite IHe, upren_subst_up, uprenn_subst_upn. auto.
   * rewrite IHe. erewrite map_map, map_ext_Forall. reflexivity. auto.
   * rewrite <- ren_up, IHe1, IHe2, upren_subst_up. auto.
@@ -266,7 +262,6 @@ Proof.
   intros; simpl; auto.
   * rewrite <- uprenn_comp. reflexivity.
   * rewrite <- uprenn_comp. reflexivity.
-  * rewrite IHe, uprenn_comp. auto.
   * repeat fold_upn. rewrite IHe, uprenn_comp. auto.
   * erewrite IHe, map_map, map_ext_Forall. reflexivity. auto.
   * rewrite IHe1. do 2 fold_upn. rewrite IHe2. auto.
@@ -279,7 +274,6 @@ Theorem rename_comp :
   forall e σ ρ, rename σ (rename ρ e) = rename (ρ >>> σ) e.
 Proof.
   induction e using Exp_ind2 with (Q := fun l => forall σ ρ, Forall (fun e => rename σ (rename ρ e) = rename (ρ >>> σ) e) l); intros; auto; cbn.
-  * rewrite rename_up. auto.
   * do 3 fold_upn. now rewrite rename_up.
   * now erewrite IHe, map_map, map_ext_Forall.
   * now rewrite IHe1, IHe2, upren_comp.
@@ -316,7 +310,6 @@ Proof.
   simpl; intros; auto.
   * unfold ">>", ren. destruct (ξ n) eqn:P; auto.
   * unfold ">>", ren. destruct (ξ n) eqn:P; auto.
-  * rewrite <- renn_up, IHe. f_equiv. now rewrite <- subst_upn_uprenn.
   * do 3 fold_upn. now rewrite <- renn_up, <- subst_upn_uprenn, IHe.
   * now erewrite IHe, map_map, map_ext_Forall.
   * now rewrite <- ren_up, <- subst_up_upren, IHe1, IHe2.
@@ -352,7 +345,6 @@ Proof.
      Forall (fun e => e.[ξ].[η] = e.[ξ >> η]) l); simpl; intros; auto.
   * unfold ">>". break_match_goal; auto.
   * unfold ">>". break_match_goal; auto.
-  * rewrite IHe, upn_comp. auto.
   * do 3 fold_upn. now rewrite IHe, upn_comp.
   * now erewrite IHe, map_map, map_ext_Forall.
   * now rewrite IHe1, IHe2, up_comp.

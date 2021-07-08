@@ -128,3 +128,16 @@ Proof.
   * apply Nat.ltb_lt in P. left. split; [ apply app_nth1 | ]; auto.
   * apply Nat.ltb_nlt in P. right. split; [ apply app_nth2 | rewrite app_length in H ]; lia.
 Qed.
+
+Definition Injective {A B} (f : A->B) :=
+ forall x y, f x = f y -> x = y.
+
+Theorem map_not_in {T T' : Type} : forall (l : list T) (x: T) (f : T -> T'),
+  Injective f -> ~In x l -> ~In (f x) (map f l).
+Proof.
+  induction l; intros; intro.
+  * inversion H1.
+  * inversion H1.
+    - apply H in H2. subst. apply H0. intuition.
+    - eapply IHl; eauto. apply not_in_cons in H0. destruct H0. auto.
+Qed.
