@@ -1140,13 +1140,12 @@ Local Theorem inf_diverges :
   forall n Fs, ~|Fs, inf| n↓.
 Proof.
   unfold inf.
-  intros. intro. inversion H; try inversion_is_value. subst.
-  inversion H4; subst.
-  clear H4 H. simpl in H5.
-  induction k0 using lt_wf_ind.
-  inversion H5; subst; try inversion_is_value. inversion H4. subst.
-  simpl in H6. eapply H. 2: exact H6. lia.
+  intros. intro. induction n using lt_wf_ind. inversion H; try inversion_is_value. subst.
+  inversion H5; subst.
+  clear H5 H. simpl in H6.
+  eapply H0. 2: exact H6. lia.
 Qed.
+
 
 Lemma lit_ctx :
   forall e l, CTX 0 (ELit l) e -> ⟨ [] , e ⟩-->* ELit l.
@@ -1296,7 +1295,7 @@ end.
 Definition eq_exps (e1 e2 : Exp) := forall n, equivalent_exps e1 e2 (equivalent_values n).
 
 
-Goal
+(* Goal
   forall e1 e2, CTX 0 e1 e2 -> eq_exps e1 e2.
 Proof.
   intros. intro. revert H. generalize dependent e2. generalize dependent e1.
@@ -1335,17 +1334,39 @@ Proof.
       + inversion Hv'.
       + admit.
       + admit.
-Qed.
+Qed. *)
 
+(* Lemma let_eval :
+  forall e1 e2 v, ⟨  *)
 
+Definition build_frame_exp (F : Frame) (e : Exp) : Exp :=
+match F with
+ | FApp1 l => EApp e l
+ | FApp2 v l1 l2 => EApp v (l1 ++ [e] ++ l2)
+ | FLet v e2 => ELet v e e2
+ | FPlus1 e2 => EPlus e e2
+ | FPlus2 v => EPlus v e
+ | FIf e2 e3 => EIf e e2 e3
+end.
+
+(* Fixpoint build_stack_exp (Fs : FrameStack) (e : Exp) : Exp :=
+match Fs with
+| [] => e
+| f::fs => build_stack_exp fs (build_frame_exp f e)
+end. *)
+
+Definition build_stack_exp (Fs : FrameStack) (e : Exp) : Exp :=
+  fold_right (fun f acc => build_frame_exp f acc) e Fs.
+
+(* Theorem 
 
 Theorem functional_iff_frame_stack :
-  forall e v,
-  (exists d, eval d e = Res v) <-> ⟨ [], e ⟩ -->* v.
+  forall e v Fs,
+  (exists d, eval d (build_stack_exp Fs e) = Res v) <-> ⟨ Fs, e ⟩ -->* v.
 Proof.
-  split; revert e v.
+  split; revert e v Fs.
   { intros. destruct H. revert H. generalize dependent e.
-    generalize dependent v. induction x; intros.
+    generalize dependent v. generalize dependent Fs. induction x; intros.
     * inversion H.
     * destruct e; simpl in H.
       - inversion H. exists 0. do 2 constructor.
@@ -1359,7 +1380,7 @@ Proof.
         destruct Heqr. destruct H. exists (S (x1 + x0)). econstructor. constructor.
         
 Admitted.
-
+ *)
 
 
 

@@ -159,6 +159,7 @@ Section Tests.
 
   Goal Erel 3 e2 e3.
   Proof.
+    unfold e2, e3, e1.
     split. 2: split.
     1-2: repeat constructor. intros.
     destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.

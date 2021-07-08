@@ -1,5 +1,6 @@
 Require Export Scoping.
 From Coq Require Export Logic.ProofIrrelevance Program.Equality.
+Export Coq.Arith.Wf_nat.
 Export PeanoNat.
 (* Export Relations.Relations.
 Export Classes.RelationClasses.
@@ -488,5 +489,37 @@ match goal with
 | [ H: is_value (EPlus _ _) |- _ ] => inversion H
 | [ H: is_value (EIf _ _ _) |- _ ] => inversion H
 | [ H: is_value (EApp _ _) |- _ ] => inversion H
+| [ H: is_value (EVar _ _) |- _ ] => inversion H
+| [ H: is_value (EFunId _ _) |- _ ] => inversion H
 end.
+
+Theorem term_dec :
+  forall k e Fs, | Fs, e | k ↓ \/ ~ | Fs, e | k ↓.
+Proof.
+  induction k using lt_wf_ind. intros.
+  destruct k.
+  * destruct Fs.
+    - destruct e. 1, 4, 5: left; do 2 constructor.
+      all: right; intro; inversion H0; inversion H1.
+    - right. intro. inversion H0.
+  * destruct e.
+    - destruct Fs. right. intro. inversion H0.
+      left. destruct f.
+Abort.
+
+(* Theorem partial_step :
+  ⟨ fs :: Fs, 
+
+Theorem partial_eval : forall k e v,
+  ⟨ [], e ⟩ -[S k]-> ⟨ [], v ⟩
+<->
+  forall Fs, ⟨ Fs, e ⟩ -[S k]-> ⟨ Fs, v ⟩.
+Proof.
+  split; revert e v.
+  { intros. dependent induction H.
+    * 
+  
+Qed. *)
+
+
 
