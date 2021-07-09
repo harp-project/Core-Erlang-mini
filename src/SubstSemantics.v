@@ -450,17 +450,6 @@ Proof.
     auto.
 Qed.
 
-Ltac inversion_is_value :=
-match goal with
-| [ H: is_value (ELet _ _ _) |- _ ] => inversion H
-| [ H: is_value (ELetRec _ _ _ _) |- _ ] => inversion H
-| [ H: is_value (EPlus _ _) |- _ ] => inversion H
-| [ H: is_value (EIf _ _ _) |- _ ] => inversion H
-| [ H: is_value (EApp _ _) |- _ ] => inversion H
-| [ H: is_value (EVar _ _) |- _ ] => inversion H
-| [ H: is_value (EFunId _ _) |- _ ] => inversion H
-end.
-
 Theorem term_dec :
   forall k e Fs, | Fs, e | k ↓ \/ ~ | Fs, e | k ↓.
 Proof.

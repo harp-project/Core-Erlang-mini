@@ -844,3 +844,27 @@ Proof.
   * simpl. apply IHvals; auto. lia.
 Qed.
 
+Lemma Valclosed_is_value v :
+  VALCLOSED v -> is_value v.
+Proof.
+  intros. inversion H; try constructor. 1-2: inversion H0.
+Qed.
+
+
+Ltac inversion_is_value :=
+match goal with
+| [ H: is_value (ELet _ _ _) |- _ ] => inversion H
+| [ H: is_value (ELetRec _ _ _ _) |- _ ] => inversion H
+| [ H: is_value (EPlus _ _) |- _ ] => inversion H
+| [ H: is_value (EIf _ _ _) |- _ ] => inversion H
+| [ H: is_value (EApp _ _) |- _ ] => inversion H
+| [ H: is_value (EVar _) |- _ ] => inversion H
+| [ H: is_value (EFunId _) |- _ ] => inversion H
+end.
+
+Lemma is_value_subst :
+  forall v ξ, is_value v -> is_value (v.[ξ]).
+Proof.
+  intros. destruct v; try inversion_is_value.
+  all: simpl; constructor.
+Qed.

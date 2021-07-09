@@ -984,58 +984,47 @@ Proof.
   apply CTX_IsCtxRel.
 Qed.
 
-Lemma CIU_beta_value : forall {Γ b vals} vl,
-    length vl = length vals ->
-    EXP S (length vl) + Γ ⊢ b ->
-    Forall (fun v => VAL Γ ⊢ v) vals ->
-    (CIU_open Γ b.[list_subst (EFun vl b::vals) idsubst] (EApp (EFun vl b) vals) /\ 
-     CIU_open Γ (EApp (EFun vl b) vals) b.[list_subst (EFun vl b::vals) idsubst]).
+Lemma CIU_beta_value : forall {Γ e2 x v},
+    EXP S Γ ⊢ e2 -> VAL Γ ⊢ v ->
+    (CIU_open Γ e2.[v/] (ELet x v e2) /\ 
+     CIU_open Γ (ELet x v e2) e2.[v/]).
 Proof.
   unfold CIU_open.
   intros.
   unfold CIU.
   intuition idtac.
-  - apply -> subst_preserves_scope_exp; try eassumption.
+  1,5: apply -> subst_preserves_scope_exp; try eassumption;
     apply -> subst_preserves_scope_exp; eauto.
-    Search idsubst. intro. intros. Search list_subst.
-    pose (list_subst_get_possibilities v vals idsubst). intuition; rewrite H5.
-    rewrite indexed_to_forall in H1. apply H1. auto.
-    unfold idsubst. lia.
-  - simpl. constructor.
-    + constructor. constructor.
-      apply -> subst_preserves_scope_exp; eauto.
-    + intros. replace (ELit 0) with ((ELit 0).[ξ]) by auto. rewrite map_nth.
-      apply -> subst_preserves_scope_exp; eauto. rewrite indexed_to_forall in H1.
-      constructor. apply H1. rewrite map_length in H3. auto.
-  - simpl. admit.
-  - simpl. constructor.
-    + do 2 constructor. apply upn_scope with (n := length vl) in H2.
-      apply -> subst_preserves_scope_exp; eauto.
-    + intros. rewrite indexed_to_forall in H1. rewrite map_length in H3.
-      specialize (H1 i H3). eapply subst_preserves_scope_val in H1; eauto.
-      apply scoped_val in H1. replace (ELit 0) with ((ELit 0).[ξ]) by auto.
-      rewrite map_nth. exact H1.
-  - apply -> subst_preserves_scope_exp; eauto.
-    apply -> subst_preserves_scope_exp. exact H0.
-    intro. intros.
-    destruct (list_subst_get_possibilities v vals idsubst); destruct H4.
-    + rewrite H4. rewrite indexed_to_forall in H1. apply H1. auto.
-    + rewrite H4. unfold idsubst. lia.
-  - admit.
-Admitted.
+  1,3: simpl; constructor; [ constructor; apply -> subst_preserves_scope_val; eauto |
+                             apply -> subst_preserves_scope_exp; eauto ].
+  destruct H3. exists (S (S x0)). simpl. apply term_let.
+  pose proof (subst_preserves_scope_val v Γ). destruct H4.
+  clear H5. specialize (H4 H0 0 ξ H1). apply Valclosed_is_value in H4. constructor; auto.
+  rewrite subst_comp, subst_extend.
+  now rewrite subst_comp, scons_substcomp, substcomp_id_l in H3.
 
-Lemma CTX_closed_under_substitution : forall {Γ e1 e2 v CTX},
-    IsCtxRel CTX ->
+  destruct H3. simpl in H3. inversion H3; try inversion_is_value. subst.
+  pose proof (subst_preserves_scope_val v Γ). destruct H4.
+  clear H5. specialize (H4 H0 0 ξ H1). apply Valclosed_is_value in H4.
+  inversion H9; subst.
+  rewrite subst_comp, subst_extend in H12.
+  rewrite subst_comp, scons_substcomp, substcomp_id_l. eexists. exact H12.
+
+  all: rewrite <- H5 in H4; inversion H4.
+Qed.
+
+Lemma CTX_closed_under_substitution : forall {Γ e1 e2 v R},
+    IsCtxRel R ->
     VAL Γ ⊢ v ->
-    CTX (S Γ) e1 e2 ->
-    CTX Γ e1.[v/] e2.[v/].
+    R (S Γ) e1 e2 ->
+    R Γ e1.[v/] e2.[v/].
 Proof.
-  intros Γ e1 e2 v CTX HCtx Hscope_v HCtx_e1e2.
+  intros Γ e1 e2 v R HCtx Hscope_v HCtx_e1e2.
   destruct HCtx as [HCtx Hbiggest].
   destruct HCtx as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RLet [RLetRec [RPlus RIf]]]]]]]]].
   destruct (Rscope _ _ _ HCtx_e1e2) as [Hscope_e1 Hscope_e2].
-  epose proof (@CIU_beta_value Γ e1 [v] ["X"%string] (eq_refl _) Hscope_e1 _).
-  epose proof (@CIU_beta_value Γ e2 [v] ["X"%string] (eq_refl _) Hscope_e2 _).
+  epose proof (@CIU_beta_value Γ e1 "X"%string v Hscope_e1 _).
+  epose proof (@CIU_beta_value Γ e2 "X"%string v Hscope_e2 _).
   destruct H as [? _].
   destruct H0 as [_ ?].
   apply CIU_iff_Erel in H.
@@ -1046,21 +1035,17 @@ Proof.
   eapply H.
   eapply Rtrans; revgoals.
   eapply H0.
-  apply RApp.
-  1-4: constructor; constructor; auto.
-  2: constructor; [ apply Rrefl; now constructor | constructor ].
-  apply RFun; auto.
-Unshelve.
+  apply RLet.
   1-2: constructor; auto.
+  1-2: auto.
+  apply Rrefl. now constructor.
+  auto.
+Unshelve.
+  1-2: auto.
 Qed.
 
-Definition mk_exp (v : Exp + nat) :=
-match v with
-| inl e => e
-| inr n => EVar n "x"%string
-end.
-
-(* Fixpoint make_Ctx (fs : FrameStack) : Ctx :=
+(*
+Fixpoint make_Ctx (fs : FrameStack) : Ctx :=
 match fs with
 | [] => CHole
 | x::xs => plugc (make_Ctx xs) 
@@ -1081,7 +1066,7 @@ Proof.
 Admitted. *)
 
 
-Local Definition inf : Exp := EApp (ERecFun ("f"%string, 0) [] (EApp (EFunId 0 ("f"%string, 0)) [])) [].
+Local Definition inf : Exp := EApp (EFun [] (EApp (EFunId 0) [])) [].
 
 Local Theorem inf_diverges :
   forall n Fs, ~|Fs, inf| n↓.
@@ -1089,8 +1074,8 @@ Proof.
   unfold inf.
   intros. intro. induction n using lt_wf_ind. inversion H; try inversion_is_value. subst.
   inversion H5; subst.
-  clear H5 H. simpl in H6.
-  eapply H0. 2: exact H6. lia.
+  clear H5 H. simpl in H3.
+  eapply H0. 2: exact H3. lia.
 Qed.
 
 
@@ -1131,6 +1116,12 @@ Proof.
   * simpl in H2. *)
 Admitted.
 
+(* Definition mk_exp (v : Exp + nat) :=
+match v with
+| inl e => e
+| inr n => idsubst n
+end. *)
+
 Theorem CIU_IsCtxRel : IsCtxRel CIU_open.
 Proof.
   destruct exists_CTX as [R' HR'].
@@ -1138,16 +1129,18 @@ Proof.
   induction Γ; revgoals.
   - unfold CIU_open.
     intros.
-    replace e1.[ξ] with e1.[mk_exp (ξ 0) /].[(fun n => n + 1) >>> ξ]; revgoals.
-    { simpl.
+    replace e1.[ξ] with e1.[scons (ξ 0) idsubst].[(fun n => n + 1) >>> ξ]; revgoals.
+    { 
+      rewrite subst_comp. Search scons ">>".
+      (* simpl.
       (* replace (ξ 0).[_] with (ξ 0).
       autosubst. *)
       replace ((fun n => n + 1) >>> ξ) with (upn 0 ((fun n => n + 1) >>> ξ)) by auto.
       rewrite escoped_ignores_sub.
         auto.
-        1-2: admit.
+        1-2: admit. *)
     }
-    replace e2.[ξ] with e2.[mk_exp (ξ 0) /].[(fun n => n + 1) >>> ξ]; revgoals.
+    replace e2.[ξ] with e2.[scons (ξ 0) idsubst].[(fun n => n + 1) >>> ξ]; revgoals.
     {
       admit.
     }

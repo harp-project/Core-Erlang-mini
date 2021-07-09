@@ -93,6 +93,7 @@ Definition scons {X : Type} (s : X) (σ : nat -> X) (x : nat) : X :=
   | _ => s
   end.
 Notation "s .: σ" := (scons (inl s) σ) (at level 55, σ at level 56, right associativity).
+Notation "s .:: σ" := (scons s σ) (at level 55, σ at level 56, right associativity).
 Notation "s .[ σ ]" := (subst σ s)
   (at level 2, σ at level 200, left associativity,
    format "s .[ σ ]" ).
@@ -353,35 +354,62 @@ Proof.
   * now rewrite IHe1, IHe2, IHe3.
 Qed.
 
-Theorem rename_subst : forall e v,
-  (rename (fun n : nat => S n) e).[v/] = e.
+Theorem rename_subst_ext : forall e v,
+  (rename (fun n : nat => S n) e).[v .:: idsubst] = e.
 Proof.
   intros.
   rewrite renaming_is_subst, subst_comp. cbn.
   unfold substcomp, ren. cbn. rewrite idsubst_is_id. reflexivity.
 Qed.
 
-Lemma scons_substcomp v ξ η :
-  (v .: ξ) >> η = v.[η] .: (ξ >> η).
+Theorem rename_subst : forall e v,
+  (rename (fun n : nat => S n) e).[v/] = e.
+Proof.
+  intros. apply rename_subst_ext.
+Qed.
+
+Lemma scons_substcomp_ext v ξ η :
+  (v .:: ξ) >> η = match v with 
+                   | inl exp => inl (exp.[η])
+                   | inr n => η n
+                   end .:: (ξ >> η).
 Proof.
   extensionality x. unfold scons, substcomp. now destruct x.
 Qed.
 
-Lemma substcomp_scons v ξ η :
-  up_subst ξ >> v .: η = v .: (ξ >> η).
+Lemma scons_substcomp v ξ η :
+  (v .: ξ) >> η = v.[η] .: (ξ >> η).
+Proof.
+  apply scons_substcomp_ext.
+Qed.
+
+Lemma substcomp_scons_ext v ξ η :
+  up_subst ξ >> v .:: η = v .:: (ξ >> η).
 Proof.
   extensionality x. unfold scons, substcomp, up_subst. destruct x; auto.
   unfold shift. destruct (ξ x) eqn:P; auto.
   rewrite renaming_is_subst, subst_comp. f_equiv.
 Qed.
 
-Theorem subst_extend : forall ξ v,
-  (up_subst ξ) >> (v .: idsubst) = v .: ξ.
+Lemma substcomp_scons v ξ η :
+  up_subst ξ >> v .: η = v .: (ξ >> η).
+Proof.
+  apply substcomp_scons_ext.
+Qed.
+
+Theorem subst_extend_ext : forall ξ v,
+  (up_subst ξ) >> (v .:: idsubst) = v .:: ξ.
 Proof.
   intros. unfold substcomp. extensionality x. destruct x; auto.
   cbn. break_match_goal.
-  * unfold shift in Heqs. break_match_hyp; inversion Heqs. rewrite rename_subst. auto.
+  * unfold shift in Heqs. break_match_hyp; inversion Heqs. rewrite rename_subst_ext. auto.
   * unfold shift in Heqs. break_match_hyp; inversion Heqs. cbn. reflexivity.
+Qed.
+
+Theorem subst_extend : forall ξ v,
+  (up_subst ξ) >> (v .: idsubst) = v .: ξ.
+Proof.
+  intros. apply subst_extend_ext.
 Qed.
 
 Corollary subst_list_extend : forall n ξ vals, length vals = n ->

@@ -450,12 +450,6 @@ Proof.
   2: contradiction. do 2 eexists. split; eauto.
 Qed.
 
-Lemma Valclosed_is_value v :
-  VALCLOSED v -> is_value v.
-Proof.
-  intros. inversion H; try constructor. 1-2: inversion H0.
-Qed.
-
 Lemma Erel_App_compat_ind : forall hds hds' tl tl' F1 F2 k0 v1 v2 (* P1 P1' P2 P2' *),
   list_biforall (Erel k0) hds hds' ->
   list_biforall (Vrel k0) tl tl' ->
