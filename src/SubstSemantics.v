@@ -216,7 +216,7 @@ where "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" := (step fs e fs' e').
 
 Reserved Notation "⟨ fs , e ⟩ -[ k ]-> ⟨ fs' , e' ⟩" (at level 50).
 Inductive step_rt : FrameStack -> Exp -> nat -> FrameStack -> Exp -> Prop :=
-| step_refl e : is_value e -> ⟨ [], e ⟩ -[ 0 ]-> ⟨ [], e ⟩
+| step_refl e Fs : is_value e -> ⟨ Fs, e ⟩ -[ 0 ]-> ⟨ Fs, e ⟩
 | step_trans fs e fs' e' fs'' e'' k:
   ⟨ fs, e ⟩ --> ⟨ fs', e'⟩ -> ⟨fs', e'⟩ -[ k ]-> ⟨fs'', e''⟩
 ->
@@ -450,6 +450,38 @@ Proof.
     auto.
 Qed.
 
+Theorem terminates_step_2 :
+  forall n fs e, | fs, e | n ↓ -> forall fs' e', ⟨fs, e⟩ --> ⟨fs', e'⟩
+->
+  | fs', e' | n - 1↓.
+Proof.
+  intros. apply terminates_in_k_eq_terminates_in_k_sem in H. destruct H. destruct n.
+  * inversion H. subst. apply value_nostep in H0; intuition.
+  * inversion H. subst. apply (step_determinism H0) in H2. destruct H2. subst.
+    apply ex_intro in H5. apply terminates_in_k_eq_terminates_in_k_sem in H5.
+    now rewrite Nat.sub_1_r.
+Qed.
+
+Corollary terminates_step_any :
+  forall k fs e, | fs, e | ↓ -> forall fs' e', ⟨fs, e⟩ -[k]-> ⟨fs', e'⟩
+->
+  | fs', e' | ↓.
+Proof.
+  induction k; intros; inversion H0; subst; auto.
+  apply terminates_step in H2; auto. apply IHk in H5; auto.
+Qed.
+
+Corollary terminates_step_any_2 :
+  forall k n fs e, | fs, e | n ↓ -> forall fs' e', ⟨fs, e⟩ -[k]-> ⟨fs', e'⟩
+->
+  | fs', e' | n - k ↓.
+Proof.
+  induction k; intros; inversion H0; subst; auto.
+  * rewrite Nat.sub_0_r. auto.
+  * apply terminates_step_2 with (n := n) in H2; auto.
+    eapply IHk in H5; auto. 2: exact H2. now replace (n - S k) with ((n - 1) - k) by lia.
+Qed.
+
 Theorem is_value_dec v :
   {is_value v} + {~is_value v}.
 Proof.
@@ -569,6 +601,120 @@ Proof.
       + left. constructor. exact H0.
       + right. intro. inversion H1; try inversion_is_value. contradiction.
 Qed.
+
+Definition plug_f (F : Frame) (e : Exp) : Exp :=
+match F with
+ | FApp1 l => EApp e l
+ | FApp2 v l1 l2 => EApp v (l2 ++ [e] ++ l1)
+ | FLet v e2 => ELet v e e2
+ | FPlus1 e2 => EPlus e e2
+ | FPlus2 v => EPlus v e
+ | FIf e2 e3 => EIf e e2 e3
+end.
+
+Corollary trasitive_eval : forall n  Fs Fs' e e',
+  ⟨ Fs, e ⟩ -[n]-> ⟨ Fs', e' ⟩ -> forall n' Fs'' e'', ⟨ Fs', e' ⟩ -[n']-> ⟨ Fs'', e'' ⟩
+->
+  ⟨ Fs, e ⟩ -[n + n']-> ⟨ Fs'', e''⟩.
+Proof.
+  intros n Fs F' e e' IH. induction IH; intros; auto.
+  simpl. econstructor. exact H. now apply IHIH.
+Qed.
+
+Theorem term_eval : forall x Fs e, | Fs, e | x ↓ ->
+  exists v k, is_value v /\ ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ (* /\ k <= x *).
+Proof.
+  induction x using lt_wf_ind. destruct x; intros; inversion H0; subst; try congruence.
+  * exists e, 0. now repeat constructor.
+  * exists (ELit 0), 0. split; [ constructor | do 2 constructor ].
+  * exists e, 0. split; [ auto | now constructor ].
+  * exists e, 0. split; [ auto | now constructor].
+  * exists (ELit m), 0. split; [ constructor | do 2 constructor].
+  * exists e, 0. split; [ auto | now constructor].
+  * apply H in H4. destruct H4, H1, H1. exists x0, (S x1).
+    split; [ auto | ]. econstructor. constructor. auto. lia.
+  * exists e, 0. split; [ auto | now constructor ].
+  * exists (EFun [] e0), 0. split; [ constructor | do 2 constructor].
+  * exists e, 0. split; [ auto | now constructor].
+  * exists e, 0. split; [ auto | now constructor ].
+  * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
+    eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
+    inversion H2'; subst; try inversion_is_value.
+    - apply H in H8. 2: lia. destruct H8, H3, H3.
+      exists x0, (S (x1 + S x2)). split. auto.
+      econstructor. constructor. eapply trasitive_eval; eauto.
+      econstructor. constructor. auto.
+    - apply H in H11. 2: lia. destruct H11, H3, H3.
+      exists x2, (S (x1 + S x3)). split. auto.
+      econstructor. constructor. eapply trasitive_eval; eauto.
+      econstructor. constructor; auto. auto.
+  * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
+    eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
+    inversion H2'; subst; try inversion_is_value.
+    apply H in H9 as HH. destruct HH, H3, H3. 2: lia.
+    eapply (terminates_step_any_2 _ _ _ _ H9) in H5 as H5'.
+    inversion H5'; subst; try inversion_is_value.
+    exists (ELit (n + m)), (S (x1 + (S (x3 + 1)))).
+    split. constructor.
+    econstructor. constructor. eapply trasitive_eval; eauto. 
+    econstructor. constructor; auto. eapply trasitive_eval; eauto.
+    econstructor. constructor. constructor. constructor.
+  * admit. (* TODO, provable. App case is technically challenging. *)
+  * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
+    eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
+    inversion H2'; subst; try inversion_is_value.
+    apply H in H10 as HH. destruct HH, H3, H3. 2: lia.
+    eapply (terminates_step_any_2 _ _ _ _ H10) in H5 as H5'.
+    exists x2, (S (x1 + (S x3))).
+    split. auto.
+    econstructor. constructor. eapply trasitive_eval; eauto. 
+    econstructor. constructor; auto. auto.
+Admitted.
+
+Theorem plus_lit : forall v Fs e x,
+  | (FPlus2 v) :: Fs, e | x ↓ -> exists l, v = ELit l.
+Proof.
+  intros. apply term_eval in H as H'. destruct H', H0, H0.
+  eapply terminates_step_any_2 in H1. 2: exact H.
+  inversion H1; subst; try inversion_is_value.
+  now exists n.
+Qed.
+
+Inductive frame_wf : Frame -> Prop :=
+| wf_app1 l : frame_wf (FApp1 l)
+| wf_app2 v l1 l2 : is_value v -> Forall is_value l2 -> frame_wf (FApp2 v l1 l2)
+| wf_let v e : frame_wf (FLet v e)
+| wf_plus1 e : frame_wf (FPlus1 e)
+| wf_plus2 v : is_value v -> frame_wf (FPlus2 v)
+| wf_if e2 e3 : frame_wf (FIf e2 e3)
+.
+
+Theorem put_back : forall F e Fs,
+  | F :: Fs, e | ↓ -> | Fs, plug_f F e | ↓ /\ frame_wf F.
+Proof.
+  destruct F; intros; simpl.
+  * inversion H. split. exists (S x). constructor. auto. constructor.
+  * admit. (* TODO, provable, technically challenging *)
+  * inversion H. split. exists (S x). constructor. auto. constructor.
+  * inversion H. split. exists (S x). constructor. auto. constructor.
+  * inversion H. apply plus_lit in H0 as H'. destruct H'. subst. split.
+    exists (S (S x)). do 2 constructor. constructor. auto. do 2 constructor.
+  * inversion H. split. exists (S x). constructor. auto. constructor.
+Admitted.
+
+Theorem put_back_rev : forall F e Fs, frame_wf F ->
+  | Fs, plug_f F e | ↓ -> | F :: Fs, e | ↓.
+Proof.
+  destruct F; intros; simpl.
+  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
+  * admit. (* TODO, provable, technically challenging *)
+  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
+  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
+  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. inversion H.
+    subst. inversion H5; subst; try inversion_is_value. eexists. eauto.
+  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
+Admitted.
+
 
 (* Theorem partial_step :
   ⟨ fs :: Fs, 

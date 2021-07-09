@@ -978,6 +978,8 @@ Proof.
   intros. eapply CTX_bigger. 2: exact H. apply CIU_IsPreCtxRel.
 Qed.
 
+Global Hint Resolve CIU_implies_CTX : core.
+
 Lemma exists_CTX : exists R, IsCtxRel R.
 Proof.
   exists CTX.
@@ -1071,56 +1073,6 @@ match v with
 | inr n => idsubst n
 end. *)
 
-Local Definition inf : Exp := EApp (EFun [] (EApp (EFunId 0) [])) [].
-
-Local Theorem inf_diverges :
-  forall n Fs, ~|Fs, inf| n↓.
-Proof.
-  unfold inf.
-  intros. intro. induction n using lt_wf_ind. inversion H; try inversion_is_value. subst.
-  inversion H5; subst.
-  clear H5 H. simpl in H3.
-  eapply H0. 2: exact H3. lia.
-Qed.
-
-
-Lemma lit_ctx :
-  forall e l, CTX 0 (ELit l) e -> ⟨ [] , e ⟩-->* ELit l.
-Proof.
-  
-  intros.
-  assert (EECTX 0 ⊢ CIf1 (CPlus1 CHole (ELit (- l))) (ELit 0) inf ∷ 0). {
-    repeat constructor. inversion H0. inversion H0.
-  }
-  assert (| [], plug (CIf1 (CPlus1 CHole (ELit (- l))) (ELit 0) inf) (ELit l) | ↓). {
-    simpl. exists 5.
-    constructor. apply term_plus. apply term_plus_left. constructor.
-    apply term_plus_right. Locate "-". assert (Z.add l (Z.opp l) = 0%Z) by lia.
-    rewrite H1. constructor. constructor. constructor. 
-  }
-  destruct H, H.
-  specialize (H2 (CIf1 (CPlus1 CHole (ELit (-l))) (ELit 0) inf) H0 H1). clear H H0 H1 H3.
-  simpl in H2. 
-  inversion H2. inversion H. inversion H0. subst.
-  inversion H6. inversion H4. subst.
-  clear H H6 H2. exists (pred (pred k0)).
-  
-  
-  (* destruct e.
-  * simpl in H2. inversion H2. inversion H. inversion H0. subst.
-    inversion H7. inversion H5. subst. inversion H6; subst. inversion H9. subst.
-    inversion H10.
-    + subst. exists 0. assert (l = l0) by lia. subst. do 2 constructor.
-    + subst. apply inf_diverges in H14. inversion H14.
-  * inversion H3. inversion H. inversion H4.
-  * inversion H3. inversion H. inversion H4.
-  * inversion H2. inversion H. inversion H0. subst.
-    inversion H7. inversion H5. subst. inversion H6; subst. inversion H9.
-  * inversion H2. inversion H. inversion H0. subst.
-    inversion H7. inversion H5. subst. inversion H6; subst. inversion H9.
-  * simpl in H2. *)
-Admitted.
-
 Theorem CIU_IsCtxRel : IsCtxRel CIU_open.
 Proof.
   destruct exists_CTX as [R' HR'].
@@ -1172,29 +1124,31 @@ Proof.
       generalize dependent e2. generalize dependent e1. generalize dependent F.
       induction F; intros.
       * destruct HR'. destruct H, H. apply (H4 CHole); auto. constructor.
-      * inversion H1. subst. destruct H2. inversion H0; subst.
-        -- 
-        
-       
-       
-(*         replace (μeval_star e1 _ _)
-          with (μeval_star (Seq e1 e) K A);
-          revgoals.
-        {
-          run_μeval_star_for 1.
-          auto.
-        }
-        replace (μeval_star e2 _ A)
-          with (μeval_star (Seq e2 e) K A);
-          revgoals.
-        { run_μeval_star_for 1.
-          auto.
-        }
-        inversion H1; subst.
-        apply IHK; auto.
-        apply HR'; auto.
-        apply HR'; auto. *)
-Admitted.
+      * apply put_back in H2. destruct H2. apply put_back_rev; auto.
+        eapply IHF. 2: exact H0. now inversion H1.
+        destruct HR'. inversion H1; subst. inversion H. inversion H5.
+        destruct a; inversion H7; subst.
+        -- simpl. apply CTX_IsPreCtxRel; auto. apply forall_biforall_refl.
+           apply Forall_forall. intros. apply CTX_refl. rewrite Forall_forall in H12.
+           now apply H12.
+        -- simpl. apply CTX_IsPreCtxRel; auto.
+           ++ apply Forall_app. split; auto. eapply Forall_impl. 2: exact H16.
+              intros. now constructor.
+           ++ apply Forall_app. split; auto. eapply Forall_impl. 2: exact H16.
+              intros. now constructor.
+           ++ now constructor.
+           ++ now constructor.
+           ++ apply CTX_refl. now constructor.
+           ++ apply biforall_app. 2: constructor; auto.
+              all: apply forall_biforall_refl; apply Forall_forall; 
+                   intros; apply CTX_refl; rewrite Forall_forall in H15, H16.
+              constructor. now apply H16.
+              now apply H15.
+        -- simpl. apply CTX_IsPreCtxRel; auto. now apply CTX_refl.
+        -- simpl. apply CTX_IsPreCtxRel; auto. now apply CTX_refl.
+        -- simpl. apply CTX_IsPreCtxRel; auto. 3: apply CTX_refl. all: now constructor.
+        -- simpl. apply CTX_IsPreCtxRel; auto. 1-2: now apply CTX_refl.
+Qed.
 
 Theorem Erel_IsCtxRel : IsCtxRel Erel_open.
 Proof.
@@ -1208,6 +1162,79 @@ Proof.
   destruct H1.
   eapply H2; eauto.
 Qed.
+
+Corollary CTX_implies_CIU :
+  forall e1 e2 Γ, CTX Γ e1 e2 -> CIU_open Γ e1 e2.
+Proof.
+  intros. eapply CIU_IsCtxRel. 2: exact H. auto.
+Qed.
+
+Global Hint Resolve CTX_implies_CIU : core.
+
+Corollary CIU_iff_CTX :
+  forall e1 e2 Γ, CTX Γ e1 e2 <-> CIU_open Γ e1 e2.
+Proof.
+  intros. split; auto.
+Qed.
+
+Corollary Erel_iff_CTX :
+  forall e1 e2 Γ, CTX Γ e1 e2 <-> Erel_open Γ e1 e2.
+Proof.
+  intros. split; intros.
+  * apply CIU_iff_Erel. auto.
+  * apply CIU_iff_Erel in H. auto.
+Qed.
+
+Local Definition inf : Exp := EApp (EFun [] (EApp (EFunId 0) [])) [].
+
+Local Theorem inf_diverges :
+  forall n Fs, ~|Fs, inf| n↓.
+Proof.
+  unfold inf.
+  intros. intro. induction n using lt_wf_ind. inversion H; try inversion_is_value. subst.
+  inversion H5; subst.
+  clear H5 H. simpl in H3.
+  eapply H0. 2: exact H3. lia.
+Qed.
+
+
+Lemma lit_ctx :
+  forall e l, CTX 0 (ELit l) e -> ⟨ [] , e ⟩-->* ELit l.
+Proof.
+  
+  intros.
+  assert (EECTX 0 ⊢ CIf1 (CPlus1 CHole (ELit (- l))) (ELit 0) inf ∷ 0). {
+    repeat constructor. inversion H0. inversion H0.
+  }
+  assert (| [], plug (CIf1 (CPlus1 CHole (ELit (- l))) (ELit 0) inf) (ELit l) | ↓). {
+    simpl. exists 5.
+    constructor. apply term_plus. apply term_plus_left. constructor.
+    apply term_plus_right. Locate "-". assert (Z.add l (Z.opp l) = 0%Z) by lia.
+    rewrite H1. constructor. constructor. constructor. 
+  }
+  destruct H, H.
+  specialize (H2 (CIf1 (CPlus1 CHole (ELit (-l))) (ELit 0) inf) H0 H1). clear H H0 H1 H3.
+  simpl in H2. 
+  inversion H2. inversion H. inversion H0. subst.
+  inversion H6. inversion H4. subst.
+  clear H H6 H2. exists (pred (pred k0)).
+  
+  
+  (* destruct e.
+  * simpl in H2. inversion H2. inversion H. inversion H0. subst.
+    inversion H7. inversion H5. subst. inversion H6; subst. inversion H9. subst.
+    inversion H10.
+    + subst. exists 0. assert (l = l0) by lia. subst. do 2 constructor.
+    + subst. apply inf_diverges in H14. inversion H14.
+  * inversion H3. inversion H. inversion H4.
+  * inversion H3. inversion H. inversion H4.
+  * inversion H2. inversion H. inversion H0. subst.
+    inversion H7. inversion H5. subst. inversion H6; subst. inversion H9.
+  * inversion H2. inversion H. inversion H0. subst.
+    inversion H7. inversion H5. subst. inversion H6; subst. inversion H9.
+  * simpl in H2. *)
+Admitted.
+
 
 Definition equivalent_exps (e1 e2 : Exp) (R : Exp -> Exp -> Prop) : Prop :=
   forall v1, ⟨ [], e1 ⟩ -->* v1 -> (exists v2, ⟨ [], e2 ⟩ -->* v2 /\ R v1 v2).
