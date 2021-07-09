@@ -1065,6 +1065,11 @@ Proof.
 
 Admitted. *)
 
+(* Definition mk_exp (v : Exp + nat) :=
+match v with
+| inl e => e
+| inr n => idsubst n
+end. *)
 
 Local Definition inf : Exp := EApp (EFun [] (EApp (EFunId 0) [])) [].
 
@@ -1116,12 +1121,6 @@ Proof.
   * simpl in H2. *)
 Admitted.
 
-(* Definition mk_exp (v : Exp + nat) :=
-match v with
-| inl e => e
-| inr n => idsubst n
-end. *)
-
 Theorem CIU_IsCtxRel : IsCtxRel CIU_open.
 Proof.
   destruct exists_CTX as [R' HR'].
@@ -1129,27 +1128,26 @@ Proof.
   induction Γ; revgoals.
   - unfold CIU_open.
     intros.
-    replace e1.[ξ] with e1.[scons (ξ 0) idsubst].[(fun n => n + 1) >>> ξ]; revgoals.
-    { 
-      rewrite subst_comp. Search scons ">>".
-      (* simpl.
-      (* replace (ξ 0).[_] with (ξ 0).
-      autosubst. *)
-      replace ((fun n => n + 1) >>> ξ) with (upn 0 ((fun n => n + 1) >>> ξ)) by auto.
-      rewrite escoped_ignores_sub.
-        auto.
-        1-2: admit. *)
-    }
-    replace e2.[ξ] with e2.[scons (ξ 0) idsubst].[(fun n => n + 1) >>> ξ]; revgoals.
+    pose proof (H0 0 ltac:(lia)). break_match_hyp. 2: inversion H1.
+    replace e1.[ξ] with e1.[e/].[(fun n => n + 1) >>> ξ]; revgoals.
     {
-      admit.
+      rewrite subst_comp. rewrite scons_substcomp_ext.
+      rewrite (vclosed_ignores_sub e); auto.
+      rewrite <- substcomp_scons, idsubst_up, substcomp_id_l.
+      now rewrite subst_ren_scons.
+    }
+    replace e2.[ξ] with e2.[e/].[(fun n => n + 1) >>> ξ]; revgoals.
+    {
+      rewrite subst_comp. rewrite scons_substcomp_ext.
+      rewrite (vclosed_ignores_sub e); auto.
+      rewrite <- substcomp_scons, idsubst_up, substcomp_id_l.
+      now rewrite subst_ren_scons.
     }
     apply IHΓ.
     apply CTX_closed_under_substitution; auto; revgoals.
-    + specialize (H0 0 ltac:(lia)). destruct (ξ 0); auto.
-      ** simpl. replace e with (e.[idsubst]) by auto.
-         apply -> subst_preserves_scope_val; eauto. intro. intros. inversion H1.
-      ** inversion H0.
+    + specialize (H0 0 ltac:(lia)).
+      simpl. replace e with (e.[idsubst]) by auto.
+      apply -> subst_preserves_scope_val; eauto. intro. intros. inversion H2.
     + unfold subscoped.
       intros. apply H0. lia.
   - unfold CIU_open.
@@ -1175,7 +1173,7 @@ Proof.
       induction F; intros.
       * destruct HR'. destruct H, H. apply (H4 CHole); auto. constructor.
       * inversion H1. subst. destruct H2. inversion H0; subst.
-        --
+        -- 
         
        
        
