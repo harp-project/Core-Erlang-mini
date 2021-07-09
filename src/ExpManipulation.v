@@ -464,3 +464,11 @@ Lemma substcomp_id_l :
 Proof.
   unfold ">>", idsubst. intros. extensionality x. auto.
 Qed.
+
+Lemma subst_ren_scons : forall (ξ : Substitution) e,
+  ξ 0 = inl e ->
+  (e .: (fun n : nat => n + 1) >>> ξ) = ξ.
+Proof.
+  intros. extensionality x. unfold ">>>", scons. destruct x; auto.
+  rewrite Nat.add_comm. reflexivity.
+Qed.

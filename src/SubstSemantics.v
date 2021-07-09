@@ -450,6 +450,14 @@ Proof.
     auto.
 Qed.
 
+Theorem is_value_dec v :
+  {is_value v} + {~is_value v}.
+Proof.
+  destruct v.
+  1, 4: left; constructor.
+  all: right; intro; inversion H.
+Qed.
+
 Theorem term_dec :
   forall k e Fs, | Fs, e | k ↓ \/ ~ | Fs, e | k ↓.
 Proof.
@@ -461,8 +469,106 @@ Proof.
     - right. intro. inversion H0.
   * destruct e.
     - destruct Fs. right. intro. inversion H0.
-      left. destruct f.
-Abort.
+      destruct f.
+      + destruct l0.
+        ** right. intro. inversion H0.
+        ** epose proof (H k ltac:(lia) e _). destruct H0.
+           -- left. constructor. constructor. exact H0.
+           -- right. intro. inversion H1. subst. contradiction.
+      + destruct l1.
+        ** destruct v.
+           1-3, 5-9: right; intro; inversion H0.
+           destruct (Nat.eq_dec (length vl) (S (length l2))).
+           -- destruct (Forall_dec is_value is_value_dec l2).
+              ++ epose proof (H k ltac:(lia) _ _). destruct H0.
+                 *** left. constructor; auto. constructor. exact H0.
+                 *** right. intro. inversion H1. contradiction.
+              ++ right. intro. inversion H0. contradiction.
+           -- right. intro. inversion H0. subst. contradiction.
+        ** destruct (Forall_dec is_value is_value_dec l2).
+           -- destruct (is_value_dec v).
+              ++ epose proof (H k ltac:(lia) _ _). destruct H0.
+                 *** left. constructor; auto. constructor. exact H0.
+                 *** right. intro. inversion H1. contradiction.
+              ++ right. intro. inversion H0. contradiction.
+           -- right. intro. inversion H0. contradiction.
+      + epose proof (H k ltac:(lia) _ _). destruct H0.
+        ** left. constructor. constructor. exact H0.
+        ** right. intro. inversion H1. contradiction.
+      + epose proof (H k ltac:(lia) _ _). destruct H0.
+        ** left. constructor. constructor. exact H0.
+        ** right. intro. inversion H1. contradiction.
+      + destruct v.
+        2-9: right; intro; inversion H0.
+        ** epose proof (H k ltac:(lia) _ _). destruct H0.
+           -- left. constructor. exact H0.
+           -- right. intro. inversion H1. contradiction.
+      + destruct l.
+        ** epose proof (H k ltac:(lia) _ _). destruct H0.
+           -- left. constructor. exact H0.
+           -- right. intro. inversion H1. contradiction. contradiction.
+        ** epose proof (H k ltac:(lia) _ _). destruct H0.
+           -- left. constructor. constructor. intro. inversion H1. exact H0.
+           -- right. intro. inversion H1. contradiction.
+        ** epose proof (H k ltac:(lia) _ _). destruct H0.
+           -- left. constructor. constructor. intro. inversion H1. exact H0.
+           -- right. intro. inversion H1. contradiction.
+    - right. intro. inversion H0; inversion_is_value.
+    - right. intro. inversion H0; inversion_is_value.
+    - destruct Fs. right. intro. inversion H0.
+      destruct f.
+      + destruct l.
+        ** destruct vl.
+           -- epose proof (H k ltac:(lia) _ _). destruct H0.
+              ++ left. constructor. exact H0.
+              ++ right. intro. inversion H1. contradiction.
+           -- right. intro. inversion H0.
+        ** epose proof (H k ltac:(lia) _ _). destruct H0.
+           -- left. constructor. constructor. exact H0.
+           -- right. intro. inversion H1. subst. contradiction.
+      + destruct l1.
+        ** destruct v.
+           1-3, 5-9: right; intro; inversion H0.
+           destruct (Nat.eq_dec (length vl0) (S (length l2))).
+           -- destruct (Forall_dec is_value is_value_dec l2).
+              ++ epose proof (H k ltac:(lia) _ _). destruct H0.
+                 *** left. constructor; auto. constructor. exact H0.
+                 *** right. intro. inversion H1. contradiction.
+              ++ right. intro. inversion H0. contradiction.
+           -- right. intro. inversion H0. subst. contradiction.
+        ** destruct (Forall_dec is_value is_value_dec l2).
+           -- destruct (is_value_dec v).
+              ++ epose proof (H k ltac:(lia) _ _). destruct H0.
+                 *** left. constructor; auto. constructor. exact H0.
+                 *** right. intro. inversion H1. contradiction.
+              ++ right. intro. inversion H0. contradiction.
+           -- right. intro. inversion H0. contradiction.
+      + epose proof (H k ltac:(lia) _ _). destruct H0.
+        ** left. constructor. constructor. exact H0.
+        ** right. intro. inversion H1. contradiction.
+      + epose proof (H k ltac:(lia) _ _). destruct H0.
+        ** left. constructor. constructor. exact H0.
+        ** right. intro. inversion H1. contradiction.
+      + right. intro. inversion H0.
+      + epose proof (H k ltac:(lia) _ _). destruct H0.
+        ** left. constructor. constructor. congruence. exact H0.
+        ** right. intro. inversion H1. contradiction.
+    - epose proof (H k ltac:(lia) _ _). destruct H0.
+      + left. constructor. exact H0.
+      + right. intro. inversion H1; try inversion_is_value. contradiction.
+    - epose proof (H k ltac:(lia) _ _). destruct H0.
+      + left. constructor. exact H0.
+      + right. intro. inversion H1; try inversion_is_value. contradiction.
+    - epose proof (H k ltac:(lia) _ _). destruct H0.
+      + left. constructor. exact H0.
+      + right. intro. inversion H1; try inversion_is_value. contradiction.
+    - epose proof (H k ltac:(lia) _ _). destruct H0.
+      + left. constructor. exact H0.
+      + right. intro. inversion H1; try inversion_is_value. contradiction.
+    - epose proof (H k ltac:(lia) _ _). destruct H0.
+      + left. constructor. exact H0.
+      + right. intro. inversion H1; try inversion_is_value. contradiction.
+Qed.
 
 (* Theorem partial_step :
   ⟨ fs :: Fs, 
