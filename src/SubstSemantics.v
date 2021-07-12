@@ -369,6 +369,16 @@ Proof.
   intros. destruct H. induction H; auto.
 Qed.
 
+Corollary step_rt_closedness : forall F e v,
+   ⟨ F, e ⟩ -->* v -> FSCLOSED F -> EXPCLOSED e
+->
+  VALCLOSED v.
+Proof.
+  intros. destruct H. induction H.
+  * destruct e; try inversion H; now inversion H1.
+  * apply step_closedness in H; auto. now apply IHstep_rt.
+Qed.
+
 Definition terminates_sem (fs : FrameStack) (e : Exp) : Prop :=
   exists v, ⟨fs, e⟩ -->* v.
 
@@ -612,13 +622,24 @@ match F with
  | FIf e2 e3 => EIf e e2 e3
 end.
 
-Corollary trasitive_eval : forall n  Fs Fs' e e',
+Corollary transitive_eval : forall n  Fs Fs' e e',
   ⟨ Fs, e ⟩ -[n]-> ⟨ Fs', e' ⟩ -> forall n' Fs'' e'', ⟨ Fs', e' ⟩ -[n']-> ⟨ Fs'', e'' ⟩
 ->
   ⟨ Fs, e ⟩ -[n + n']-> ⟨ Fs'', e''⟩.
 Proof.
   intros n Fs F' e e' IH. induction IH; intros; auto.
   simpl. econstructor. exact H. now apply IHIH.
+Qed.
+
+Corollary term_step_term :
+  forall k n fs e fs' e', ⟨fs, e⟩ -[k]-> ⟨fs', e'⟩ -> | fs', e' | n - k ↓ -> n >= k 
+->
+  | fs, e | n ↓.
+Proof.
+  intros. apply terminates_in_k_eq_terminates_in_k_sem.
+  apply terminates_in_k_eq_terminates_in_k_sem in H0. destruct H0.
+  pose proof (transitive_eval _ _ _ _ _ H _ _ _ H0). replace (k+(n-k)) with n in H2 by lia.
+  eexists. eauto.
 Qed.
 
 Theorem term_eval : forall x Fs e, | Fs, e | x ↓ ->
@@ -642,11 +663,11 @@ Proof.
     inversion H2'; subst; try inversion_is_value.
     - apply H in H8. 2: lia. destruct H8, H3, H3.
       exists x0, (S (x1 + S x2)). split. auto.
-      econstructor. constructor. eapply trasitive_eval; eauto.
+      econstructor. constructor. eapply transitive_eval; eauto.
       econstructor. constructor. auto.
     - apply H in H11. 2: lia. destruct H11, H3, H3.
       exists x2, (S (x1 + S x3)). split. auto.
-      econstructor. constructor. eapply trasitive_eval; eauto.
+      econstructor. constructor. eapply transitive_eval; eauto.
       econstructor. constructor; auto. auto.
   * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
     eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
@@ -656,8 +677,8 @@ Proof.
     inversion H5'; subst; try inversion_is_value.
     exists (ELit (n + m)), (S (x1 + (S (x3 + 1)))).
     split. constructor.
-    econstructor. constructor. eapply trasitive_eval; eauto. 
-    econstructor. constructor; auto. eapply trasitive_eval; eauto.
+    econstructor. constructor. eapply transitive_eval; eauto. 
+    econstructor. constructor; auto. eapply transitive_eval; eauto.
     econstructor. constructor. constructor. constructor.
   * admit. (* TODO, provable. App case is technically challenging. *)
   * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
@@ -667,7 +688,7 @@ Proof.
     eapply (terminates_step_any_2 _ _ _ _ H10) in H5 as H5'.
     exists x2, (S (x1 + (S x3))).
     split. auto.
-    econstructor. constructor. eapply trasitive_eval; eauto. 
+    econstructor. constructor. eapply transitive_eval; eauto. 
     econstructor. constructor; auto. auto.
 Admitted.
 
@@ -714,6 +735,62 @@ Proof.
     subst. inversion H5; subst; try inversion_is_value. eexists. eauto.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
 Admitted.
+
+Lemma self_list :
+  forall {T : Type} (l : list T) a, l = a :: l -> False.
+Proof.
+  induction l; intros; inversion H.
+  eapply IHl. eauto.
+Qed.
+
+Lemma self_list_2 :
+  forall {T : Type} (l : list T) a b, l = a :: b :: l -> False.
+Proof.
+  induction l; intros; inversion H.
+  eapply IHl. eauto.
+Qed.
+
+Theorem frame_indep_step : forall e F F' Fs e',
+  ⟨ F :: Fs, e ⟩ --> ⟨ F' :: Fs, e' ⟩
+->
+  forall Fs', ⟨ F :: Fs', e ⟩ --> ⟨ F' :: Fs', e' ⟩.
+Proof.
+  intros. revert Fs'. dependent induction H; intros.
+  all: try constructor; auto.
+  all: try (apply self_list in x; contradiction).
+  all: symmetry in x; try (apply self_list in x; contradiction).
+Qed.
+
+Theorem frame_indep_red : forall e F Fs e',
+  ⟨ F :: Fs, e ⟩ --> ⟨ Fs, e' ⟩
+->
+  forall Fs', ⟨ F :: Fs', e ⟩ --> ⟨ Fs', e' ⟩.
+Proof.
+  intros. revert Fs'. dependent induction H; intros.
+  all: try constructor; auto.
+  all: symmetry in x; try (apply self_list_2 in x; contradiction).
+  all: try (apply self_list in x; contradiction).
+Qed.
+
+Theorem frame_indep_any : forall k e e' front front' Fs,
+  ⟨ front ++ Fs, e ⟩ -[k]-> ⟨ front' ++ Fs, e' ⟩
+->
+  forall Fs', ⟨ front ++ Fs', e ⟩ -[k]-> ⟨ front' ++ Fs', e' ⟩.
+Proof.
+  induction k; intros.
+  * inversion H; subst. apply app_inv_tail in H0. subst. now constructor.
+  * inversion H; subst. inversion H1; subst.
+    - 
+Admitted.
+
+Theorem frame_indep : forall k e Fs v,
+  ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩
+->
+  forall Fs', ⟨ Fs', e ⟩ -[k]-> ⟨ Fs', v ⟩.
+Proof.
+  intros. epose proof (frame_indep_any k e v [] [] Fs H Fs').
+  apply H0.
+Qed.
 
 
 (* Theorem partial_step :

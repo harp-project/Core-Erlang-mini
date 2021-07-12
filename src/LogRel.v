@@ -526,14 +526,18 @@ Proof.
   * eapply IHvals1; eauto.
 Qed.
 
-(* Theorem Erel_open_trans :
-  forall Γ, Transitive (Erel_open Γ).
+(* Theorem alma : forall n e1 e2, VALCLOSED e1 -> VALCLOSED e2 -> Erel n e1 e2 -> Vrel n e1 e2.
 Proof.
-  repeat intro. unfold Erel_open in H, H0.
+  intros. destruct H1, H2.
+  apply Valclosed_is_value in H. apply Valclosed_is_value in H0.
+  destruct e4, e5; try inversion_is_value.
+Qed.
 
-Theorem Vrel_open_trans :
-  forall Γ, Transitive (Vrel_open Γ).
+Theorem alma : forall Γ e1 e2,
+  VAL Γ ⊢ e1 -> VAL Γ ⊢ e2 ->
+  Erel_open Γ e1 e2 -> Vrel_open Γ e1 e2.
 Proof.
-  repeat intro. unfold Vrel_open in *.
-
-Theorem Erel_open_trans : *)
+  intros. intro. intros.
+  specialize (H1 _ _ _ H2). destruct H1, H3.
+  specialize (H4 n ltac:(lia)).
+Qed. *)
