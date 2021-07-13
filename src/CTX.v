@@ -1228,14 +1228,14 @@ Theorem CIU_eval : forall e1 v,
 Proof.
   intros. split. split. 2: split. auto.
   apply step_rt_closedness in H0; auto. 1-2: now constructor.
-  intros. destruct H2, H0. eapply frame_indep in H0.
-  eapply terminates_step_any. 2: exact H0. eexists. exact H2.
+  intros. destruct H2, H0, H3. eapply frame_indep in H3.
+  eapply terminates_step_any. 2: exact H3. eexists. exact H2.
 
   split. 2: split. 2: auto.
   apply step_rt_closedness in H0; auto. 1-2: now constructor.
-  intros. destruct H2, H0. eapply frame_indep in H0.
+  intros. destruct H2, H0, H3. eapply frame_indep in H3.
   exists (x + x0).
-  eapply term_step_term. exact H0. 2: lia. replace (x + x0 - x0) with x by lia. exact H2.
+  eapply term_step_term. exact H3. 2: lia. replace (x + x0 - x0) with x by lia. exact H2.
 Qed.
 
 Corollary CTX_eval : forall e1 v,
@@ -1312,27 +1312,27 @@ Proof.
       + epose proof (H1 (CIf1 (CPlus1 CHole (ELit (-l))) (ELit 0) inf) _ _).
         simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
         inversion H10; try inversion_is_value. subst.
-        destruct H3. eapply frame_indep in H3.
-        eapply terminates_step_any_2 in H9. 2: exact H3.
-        inversion H9. inversion H12. inversion H17; subst.
+        destruct H3, H5. eapply frame_indep in H5.
+        eapply terminates_step_any_2 in H9. 2: exact H5.
+        inversion H9. inversion H13. inversion H18; subst.
         ** lia.
-        ** apply inf_diverges in H25. contradiction.
+        ** apply inf_diverges in H26. contradiction.
       + epose proof (H1 (CIf1 (CPlus1 CHole (ELit (-l))) (ELit 0) inf) _ _).
         simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
         inversion H10; try inversion_is_value. subst.
-        destruct H3. eapply frame_indep in H3.
-        eapply terminates_step_any_2 in H9. 2: exact H3.
-        inversion H9. inversion H12.
+        destruct H3, H5. eapply frame_indep in H5.
+        eapply terminates_step_any_2 in H9. 2: exact H5.
+        inversion H9. inversion H13.
       Unshelve.
         1-3: repeat constructor. 1, 2, 4, 5 : inversion H4.
-        ** simpl. destruct H0. exists (5 + x).
+        ** simpl. destruct H0, H4. exists (5 + x).
            constructor. apply term_plus. eapply term_step_term with (k := x).
-           eapply frame_indep. exact H0. replace (S (S (S x)) - x) with 3 by lia.
+           eapply frame_indep. exact H4. replace (S (S (S x)) - x) with 3 by lia.
            do 2 constructor. replace (Z.add l (Z.opp l)) with 0%Z by lia.
            do 3 constructor. lia.
-        ** simpl. destruct H0. exists (5 + x0).
+        ** simpl. destruct H0, H4. exists (5 + x0).
            constructor. apply term_plus. eapply term_step_term with (k := x0).
-           eapply frame_indep. exact H0. replace (S (S (S x0)) - x0) with 3 by lia.
+           eapply frame_indep. exact H4. replace (S (S (S x0)) - x0) with 3 by lia.
            do 2 constructor. replace (Z.add l (Z.opp l)) with 0%Z by lia.
            do 3 constructor. lia.
     - destruct x; try inversion_is_value.
@@ -1341,9 +1341,9 @@ Proof.
         epose proof (H5 (CIf1 (CPlus1 CHole (ELit (-l))) (ELit 0) inf) _ _).
         simpl in H6. destruct H6. inversion H6; try inversion_is_value. subst.
         inversion H12; try inversion_is_value. subst.
-        destruct H0. eapply frame_indep in H0.
-        eapply terminates_step_any_2 in H11. 2: exact H0.
-        inversion H11. inversion H14.
+        destruct H0, H7. eapply frame_indep in H7.
+        eapply terminates_step_any_2 in H11. 2: exact H7.
+        inversion H11. inversion H15.
       + intros. apply IHn.
         --
         assert (CTX 0 e1 e2). {
@@ -1401,10 +1401,10 @@ Proof.
            rewrite Forall_forall in H4. constructor. now apply H4.
 Unshelve.
   ++ repeat constructor. all: inversion H6.
-  ++ simpl. destruct H3. exists (5 + x).
+  ++ simpl. destruct H3, H6. exists (5 + x).
      constructor. apply term_plus.
      eapply term_step_term with (k := x).
-     eapply frame_indep in H3. exact H3. replace (S (S (S x)) - x) with 3 by lia.
+     eapply frame_indep in H6. exact H6. replace (S (S (S x)) - x) with 3 by lia.
      constructor. auto. constructor. replace (Z.add l (Z.opp l)) with 0%Z by lia.
      do 3 constructor. lia.
 Qed.
@@ -1416,7 +1416,7 @@ Proof.
   intros. split; eapply terminating_implies_equivalence_helper; auto.
 Qed.
 
-Goal
+(* Goal
   forall e1 e2 (* (P : CTX 0 e2 e1), *), CTX 0 e1 e2 -> eq_exps e1 e2.
 Proof.
   intros. intro. revert H. generalize dependent e2. generalize dependent e1.
@@ -1489,7 +1489,7 @@ Proof.
         ** eapply Forall_impl. 2: exact H4. intros. now constructor.
         ** apply forall_biforall_refl. apply Forall_forall. intros. apply CTX_refl.
            rewrite Forall_forall in H4. constructor. now apply H4.
-Abort.
+Abort. *)
 
 (* Lemma let_eval :
   forall e1 e2 v, ⟨  *)

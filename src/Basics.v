@@ -141,3 +141,22 @@ Proof.
     - apply H in H2. subst. apply H0. intuition.
     - eapply IHl; eauto. apply not_in_cons in H0. destruct H0. auto.
 Qed.
+
+Section list_length_ind.  
+  Variable A : Type.
+  Variable P : list A -> Prop.
+
+  Hypothesis H : forall xs, (forall l, length l < length xs -> P l) -> P xs.
+
+  Theorem list_length_ind : forall xs, P xs.
+  Proof.
+    assert (forall xs l : list A, length l <= length xs -> P l) as H_ind.
+    { induction xs; intros l Hlen; apply H; intros l0 H0.
+      - inversion Hlen. lia.
+      - apply IHxs. simpl in Hlen. lia.
+    }
+    intros xs.
+    apply H_ind with (xs := xs).
+    lia.
+  Qed.
+End list_length_ind.

@@ -265,25 +265,6 @@ Definition Grel (n : nat) (Γ : nat) (ξ₁ ξ₂ : Substitution) : Prop :=
   (subscoped Γ [] η) /\
   forall x, In x Γ -> Vrel n (ξ x) (η x). *)
 
-Section list_length_ind.  
-  Variable A : Type.
-  Variable P : list A -> Prop.
-
-  Hypothesis H : forall xs, (forall l, length l < length xs -> P l) -> P xs.
-
-  Theorem list_length_ind : forall xs, P xs.
-  Proof.
-    assert (forall xs l : list A, length l <= length xs -> P l) as H_ind.
-    { induction xs; intros l Hlen; apply H; intros l0 H0.
-      - inversion Hlen. lia.
-      - apply IHxs. simpl in Hlen. lia.
-    }
-    intros xs.
-    apply H_ind with (xs := xs).
-    lia.
-  Qed.
-End list_length_ind.
-
 Lemma Grel_downclosed_helper : forall vals1 vals2 m n,
   m <= n -> length vals1 = length vals2 ->
   list_biforall (Vrel n) vals1 vals2 ->
