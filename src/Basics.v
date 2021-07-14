@@ -160,3 +160,16 @@ Section list_length_ind.
     lia.
   Qed.
 End list_length_ind.
+
+Theorem cons_neq :
+  forall {T:Type}(l : list T) e, e :: l = l -> False.
+Proof.
+  induction l; intros; inversion H. eapply IHl. eauto.
+Qed.
+
+Lemma cons_neq_2 :
+  forall {T : Type} (l : list T) a b, l = a :: b :: l -> False.
+Proof.
+  induction l; intros; inversion H.
+  eapply IHl. eauto.
+Qed.

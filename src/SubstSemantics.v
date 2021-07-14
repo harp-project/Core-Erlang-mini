@@ -692,41 +692,211 @@ Proof.
     rewrite <- app_assoc. auto. apply Forall_app. split. auto. constructor; auto.
 Qed.
 
-(* Lemma eval_app_partial_2 : forall hds tl e v Fs,
-  Forall is_value hds -> is_value v -> is_value e
-->
-  ⟨ Fs, EApp v (hds ++ e :: tl) ⟩ -[S (S (if length hds =? 0 then 0 else 2 + length hds))]-> ⟨ FApp2 v tl hds :: Fs, e ⟩.
+Lemma eval_app_partial_core :
+  forall hds' vals vl e e' v Fs hds, (* length vl = length (hds ++ v::hds' ++ vals) -> *)
+  Forall is_value hds -> Forall is_value hds' -> is_value v ->
+  ⟨ FApp2 (EFun vl e) (hds' ++ e' :: vals) hds :: Fs, v ⟩ -[S (length hds')]-> 
+  ⟨ FApp2 (EFun vl e) vals (hds ++ v :: hds') :: Fs , e'⟩.
 Proof.
-  (* intros hds tl e v Fs x ev IH. induction IH. *)
-  
-  induction hds using list_length_ind; intros.
-  destruct (length hds) eqn:Len.
-  * apply length_zero_iff_nil in Len. subst.
-    simpl. econstructor. constructor. econstructor. now constructor. constructor.
-  * apply eq_sym, last_element_exists in Len as Last. symmetry in Len.
-    destruct Last, H3. subst.
-    rewrite app_length in Len. simpl in Len. rewrite Nat.add_1_r in Len.
-    inversion Len. apply Forall_app in H0. destruct H0. inversion H3.
-    rewrite <- app_assoc. simpl. subst.
-    specialize (H x ltac:(lia) (e::tl) x0 v Fs H0 H1 H7).
-    
-    
-    
-(*     econstructor. constructor. econstructor. now constructor.
-    
-    
-  
-  induction hds; intros.
-  * simpl. econstructor. constructor. econstructor. now constructor. auto.
-  * simpl. econstructor. constructor. econstructor. now constructor.
-    inversion H.
-    epose proof (IHhds (e :: tl) a v Fs _ a  H6 H0 H5).
-    
+  induction hds'; intros.
+  * simpl. econstructor. constructor; auto. constructor.
+    constructor.
+  * simpl. econstructor. constructor; auto. constructor. inversion H0. subst.
+    epose proof (IHhds' vals vl e _ a Fs (hds ++ [v]) _ _ H4).
+    rewrite <- app_assoc in H2. exact H2.
+  Unshelve.
+    apply Forall_app. split; auto. auto.
+Qed.
+
+Theorem transitive_eval_rev : forall Fs Fs' e e' k1,
+  ⟨ Fs, e ⟩ -[k1]-> ⟨ Fs', e' ⟩-> 
+  forall Fs'' e'' k2,
+  ⟨ Fs, e ⟩ -[k1 + k2]-> ⟨ Fs'', e'' ⟩
+->
+  ⟨ Fs', e' ⟩ -[k2]-> ⟨ Fs'', e'' ⟩.
+Proof.
+  intros Fs Fs' e e' k1 IH. induction IH; intros.
+  * simpl in H. auto.
+  * simpl in H0. inversion H0; subst. eapply step_determinism in H.
+    2: exact H2. destruct H; subst.
+    apply IHIH in H5. auto.
+Qed.
+
+Theorem app_term_fun : forall tl k hds e e' Fs,
+  | FApp2 e' tl hds :: Fs, e | k ↓ -> Forall is_value hds ->
+  (forall m : nat,
+    m < S k ->
+    forall (Fs : FrameStack) (e : Exp),
+    | Fs, e | m ↓ ->
+    exists (v : Exp) (k : nat), is_value v /\ ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩)
+->
+  exists vl b, e' = EFun vl b /\ length vl = S (length (hds ++ tl)).
+Proof.
+  induction tl; intros.
+  * apply H1 in H as H'. 2: lia. destruct H', H2, H2.
+    eapply terminates_step_any_2 in H. 2: exact H3.
+    inversion H; subst; try inversion_is_value.
+    rewrite app_length, Nat.add_0_r. do 2 eexists. split. reflexivity. auto.
+  * apply H1 in H as H'. 2: lia. destruct H', H2, H2.
+    eapply terminates_step_any_2 in H. 2: exact H3.
+    inversion H; subst; try inversion_is_value.
+    apply H1 in H13 as H''. 2: lia. destruct H'', H4, H4.
+    eapply terminates_step_any_2 in H13. 2: exact H5.
+    apply IHtl in H13. destruct H13, H6, H6. subst. exists x3, x4. split; auto.
+    repeat rewrite app_length in *. simpl in *. lia.
+    apply Forall_app; auto.
+    intros. eapply H1. 2: exact H7. lia.
+Qed.
+
+Theorem frame_indep_step : forall e F F' Fs e',
+  ⟨ F :: Fs, e ⟩ --> ⟨ F' :: Fs, e' ⟩
+->
+  forall Fs', ⟨ F :: Fs', e ⟩ --> ⟨ F' :: Fs', e' ⟩.
+Proof.
+  intros. revert Fs'. dependent induction H; intros.
+  all: try constructor; auto.
+  all: try (apply cons_neq in x; contradiction).
+  all: symmetry in x; try (apply cons_neq in x; contradiction).
+Qed.
+
+Theorem frame_indep_red : forall e F Fs e',
+  ⟨ F :: Fs, e ⟩ --> ⟨ Fs, e' ⟩
+->
+  forall Fs', ⟨ F :: Fs', e ⟩ --> ⟨ Fs', e' ⟩.
+Proof.
+  intros. revert Fs'. dependent induction H; intros.
+  all: try constructor; auto.
+  all: symmetry in x; try (apply cons_neq_2 in x; contradiction).
+  all: (apply eq_sym, cons_neq in x; contradiction).
+Qed.
+
+Theorem frame_indep_any : forall k e e' front front' Fs,
+  ⟨ front ++ Fs, e ⟩ -[k]-> ⟨ front' ++ Fs, e' ⟩
+->
+  forall Fs', ⟨ front ++ Fs', e ⟩ -[k]-> ⟨ front' ++ Fs', e' ⟩.
+Proof.
+  induction k; intros.
+  * inversion H; subst. apply app_inv_tail in H2. subst. now constructor.
+  * inversion H; subst. inversion H1; subst.
+    - 
+Admitted.
+
+Theorem frame_indep : forall k e Fs v,
+  ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩
+->
+  forall Fs', ⟨ Fs', e ⟩ -[k]-> ⟨ Fs', v ⟩.
+Proof.
+  intros. epose proof (frame_indep_any k e v [] [] Fs H Fs').
+  apply H0.
+Qed.
+
+Lemma eval_dec : forall Fs e,
+  (exists v k, ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ /\ is_value v)
+  \/
+  ~(exists v k, ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ /\ is_value v).
+Proof.
+  intros.
+Qed.
+
+(* Lemma eval_app_steps : forall tl k hds x0 e x Fs,
+  ⟨ FApp2 x0 tl hds :: Fs, e ⟩ -[ k ]-> ⟨ Fs, x ⟩
+->
+  k > length tl.
+Proof.
+  induction tl; intros. 
+  * inversion H. subst. apply cons_neq in H3. contradiction. simpl. lia.
+  * pose proof (eval_dec (FApp2 x0 (a :: tl) hds :: Fs) e (FApp2 x0 (a :: tl) hds :: Fs)).
+Admitted. *)
+
+(* Lemma term_eval_app_2 : forall tl hds x0 k e Fs (P : Forall is_value hds),
+  is_value x0 -> | FApp2 x0 tl hds :: Fs, e | k ↓ ->
+  (forall m : nat,
+    m < S k ->
+    forall (Fs : FrameStack) (e : Exp),
+    | Fs, e | m ↓ ->
+    exists (v : Exp) (k : nat), is_value v /\ ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩ /\ k <= m)
+->
+  exists (v : Exp) (k0 : nat),
+    is_value v /\ ⟨ Fs, EApp x0 (hds ++ e :: tl) ⟩ -[ k0 ]-> ⟨ Fs, v ⟩ /\ k0 <= S (S k).
+Proof.
+  induction tl; intros.
+  * apply H1 in H0 as H0'; auto. destruct H0', H2, H2, H3.
+    eapply (terminates_step_any_2 _ _ _ _ H0) in H3 as H3'.
+    inversion H3'; subst; try inversion_is_value.
+    apply H1 in H13 as H0'; auto. destruct H0', H5, H5, H6. 2: lia.
     destruct hds.
-    - econstructor. constructor; auto. now inversion H. simpl.
-      specialize (IHhds tl e v _ _ ev).
-    - simpl. constructor. *)
-Qed. *)
+    - exists x0, (2 + x1 + (S x2)). split; auto. split.
+      econstructor. constructor. econstructor. simpl. constructor. constructor.
+      eapply transitive_eval; eauto. econstructor. constructor; auto. auto. lia.
+    - inversion H9. subst.
+      epose proof (eval_app_partial_core hds [] vl e0 e e1 Fs [] ltac:(auto) H16 H15).
+      pose proof (transitive_eval _ _ _ _ _ H10 _ _ _ H3).
+      exists x0, (3 + (S (length hds) + x1 + x2)).
+      split. auto. split.
+      econstructor. constructor. econstructor. simpl. constructor. constructor.
+      replace (S (S (length hds) + x1 + x2)) with ((S (length hds) + x1) + (1 + x2)) by lia.
+      eapply transitive_eval. exact H14. econstructor. constructor; auto. auto.
+      lia.
+  * apply H1 in H0 as H0'. destruct H0', H2, H2.
+    eapply (terminates_step_any_2 _ _ _ _ H0) in H3 as H3'.
+    inversion H3'; subst; try inversion_is_value. 2: lia.
+    
+    assert (| FApp2 x0 tl (hds ++ [x]) :: Fs, a | k0 ↓) as PP. { auto. }
+
+    apply IHtl in H13; auto.
+    - destruct H13, H4, H4.
+      inversion H5; subst; try inversion_is_value. inversion H6; subst; try inversion_is_value. inversion H7; subst. apply cons_neq in H14. contradiction.
+      inversion H8; subst; try inversion_is_value. 2: { destruct hds; inversion H14. }
+      (* inversion H10. admit.
+      epose proof (eval_app_partial_core hds (a :: tl) vl e0 e x Fs [] _ ltac:(auto) H12 H'). *)
+      
+      (* exists x2, (2 + (x1 + k2)). split. auto.
+      econstructor. constructor. *) destruct hds.
+      + exists x2, (2 + (x1 + k2)). split. auto.
+        econstructor. constructor.
+        econstructor. apply red_app_start; auto. simpl in H13. inversion H13. subst.
+        now epose (transitive_eval _ _ _ _ _ H3 _ _ _ H9).
+      + simpl. simpl in H13. inversion H13. subst.
+        
+        (* exists x2, (2 + (x1 + k2)). split. auto.
+        econstructor. constructor. *)
+        
+        (* econstructor. apply red_app_start; auto.  *)inversion H12. subst.
+        inversion H18.
+        ** apply app_term_fun in H0; auto. subst. destruct H0, H0, H0. congruence.
+        ** subst.
+           epose proof (eval_app_partial_core hds (a :: tl) vl e1 e e0 Fs []
+                         ltac:(auto) H17 H16).
+           epose proof (transitive_eval _ _ _ _ _ H14 _ _ _ H3).
+           assert (⟨ FApp2 (EFun vl e1) (a :: tl) (e0 :: hds) :: Fs, x ⟩ -[1]->
+                   ⟨ FApp2 (EFun vl e1) tl (e0 :: hds ++ [x]) :: Fs, a ⟩).
+           { econstructor. constructor; auto. constructor. }
+           epose proof (transitive_eval _ _ _ _ _ H15 _ _ _ H19).
+           epose proof (eval_app_partial_core hds (a :: tl) vl e1 x e0 Fs []
+                         ltac:(auto) H17 H16).
+           assert (exists j, k2 = S (Datatypes.length hds) + j). {
+              admit.
+           }
+           destruct H22. subst. rewrite <- app_assoc in H9. simpl in H9.
+           epose proof (transitive_eval_rev _ _ _ _ _ H21 _ _ _ H9).
+           simpl in H21, H22.
+           epose proof (transitive_eval _ _ _ _ _ H21 _ _ _ H19).
+           Search (FApp2 (EFun vl e1) tl (e0 :: hds ++ [x]) :: Fs).
+           inversion H22; subst. apply cons_neq in H27. contradiction.
+           inversion H24; subst; try inversion_is_value.
+           rewrite <- app_comm_cons in H25.
+           Search (FApp2 (EFun vl e1) tl (e0 :: hds ++ [x]) :: Fs) e'.
+           
+           epose proof (transitive_eval _ _ _ _ _ H20 _ _ _ H25).
+           
+           exists x2, (2 + (S (Datatypes.length hds) + x1 + 1 + k1 )). split. auto.
+           econstructor. constructor. econstructor. apply red_app_start; auto.
+           exact H26.
+    - apply Forall_app. split; auto.
+    - intros. eapply H1. 2: exact H5. lia.
+Unshelve.
+  all: simpl; repeat rewrite app_length; simpl; try lia.
+Admitted. *)
 
 Lemma term_eval_app : forall tl hds x0 k e Fs (P : Forall is_value hds),
   is_value x0 -> | FApp2 x0 tl hds :: Fs, e | k ↓ ->
@@ -739,32 +909,84 @@ Lemma term_eval_app : forall tl hds x0 k e Fs (P : Forall is_value hds),
   exists (v : Exp) (k0 : nat),
     is_value v /\ ⟨ Fs, EApp x0 (hds ++ e :: tl) ⟩ -[ k0 ]-> ⟨ Fs, v ⟩.
 Proof.
-  (* intros. eapply (terminates_step_any_2 _ _ _ _ H0) in H3 as H3'.
-  pose (eval_app_partial hds vl e0 x Fs []). *)
-  (* intros. apply H1 in H0 as H0'; auto. destruct H0', H2, H2.
-  eapply (terminates_step_any_2 _ _ _ _ H0) in H3 as H3'.
-  inversion H.
-  - admit. (* contradiction *)
-  - subst. 
-    epose (eval_app_partial hds vl e0 x Fs tl _ P).
-  
-  
-  inversion H3'; subst; try inversion_is_value. 2: {
-  apply H1 in H12 as H0'; auto. destruct H0', H4, H4. 2: lia.
-  destruct H9. *)
-  
-  
-  
   induction tl; intros.
   * apply H1 in H0 as H0'; auto. destruct H0', H2, H2.
     eapply (terminates_step_any_2 _ _ _ _ H0) in H3 as H3'.
     inversion H3'; subst; try inversion_is_value.
     apply H1 in H12 as H0'; auto. destruct H0', H4, H4. 2: lia.
-    pose proof (eval_app_partial hds vl e0 x Fs [] ltac:(simpl;lia)
-                     H8 ltac:(auto) H11).
-    (* epose (transitive_eval _ _ _ _ _ H6 _ _ _ H5).
-    exists x0, (S ). *)
-Abort.
+    destruct hds.
+    - exists x0, (2 + x1 + (S x2)). split; auto.
+      econstructor. constructor. econstructor. simpl. constructor. constructor.
+      eapply transitive_eval; eauto. econstructor. constructor; auto. auto.
+    - inversion H8. subst.
+      epose proof (eval_app_partial_core hds [] vl e0 e e1 Fs [] ltac:(auto) H14 H13).
+      pose proof (transitive_eval _ _ _ _ _ H6 _ _ _ H3).
+      exists x0, (3 + (S (length hds) + x1 + x2)).
+      split. auto.
+      econstructor. constructor. econstructor. simpl. constructor. constructor.
+      replace (S (S (length hds) + x1 + x2)) with ((S (length hds) + x1) + (1 + x2)) by lia. 
+      eapply transitive_eval. exact H9. econstructor. constructor; auto. auto.
+  * apply H1 in H0 as H0'. destruct H0', H2, H2.
+    eapply (terminates_step_any_2 _ _ _ _ H0) in H3 as H3'.
+    inversion H3'; subst; try inversion_is_value. 2: lia.
+    
+    assert (| FApp2 x0 tl (hds ++ [x]) :: Fs, a | k0 ↓) as PP. { auto. }
+
+    apply IHtl in H13; auto.
+    - destruct H13, H4, H4.
+      inversion H5; subst; try inversion_is_value. inversion H6; subst; try inversion_is_value. inversion H7; subst. apply cons_neq in H14. contradiction.
+      inversion H8; subst; try inversion_is_value. 2: { destruct hds; inversion H14. }
+      (* inversion H10. admit.
+      epose proof (eval_app_partial_core hds (a :: tl) vl e0 e x Fs [] _ ltac:(auto) H12 H'). *)
+      
+      (* exists x2, (2 + (x1 + k2)). split. auto.
+      econstructor. constructor. *) destruct hds.
+      + exists x2, (2 + (x1 + k2)). split. auto.
+        econstructor. constructor.
+        econstructor. apply red_app_start; auto. simpl in H13. inversion H13. subst.
+        now epose (transitive_eval _ _ _ _ _ H3 _ _ _ H9).
+      + simpl. simpl in H13. inversion H13. subst.
+        
+        (* exists x2, (2 + (x1 + k2)). split. auto.
+        econstructor. constructor. *)
+        
+        (* econstructor. apply red_app_start; auto.  *)inversion H12. subst.
+        inversion H18.
+        ** apply app_term_fun in H0; auto. subst. destruct H0, H0, H0. congruence.
+        ** subst.
+           epose proof (eval_app_partial_core hds (a :: tl) vl e1 e e0 Fs []
+                         ltac:(auto) H17 H16).
+           epose proof (transitive_eval _ _ _ _ _ H14 _ _ _ H3).
+           assert (⟨ FApp2 (EFun vl e1) (a :: tl) (e0 :: hds) :: Fs, x ⟩ -[1]->
+                   ⟨ FApp2 (EFun vl e1) tl (e0 :: hds ++ [x]) :: Fs, a ⟩).
+           { econstructor. constructor; auto. constructor. }
+           epose proof (transitive_eval _ _ _ _ _ H15 _ _ _ H19).
+           epose proof (eval_app_partial_core hds (a :: tl) vl e1 x e0 Fs []
+                         ltac:(auto) H17 H16).
+           assert (exists j, k2 = S (Datatypes.length hds) + j). {
+              Search k2.
+              admit.
+           }
+           destruct H22. subst. rewrite <- app_assoc in H9. simpl in H9.
+           epose proof (transitive_eval_rev _ _ _ _ _ H21 _ _ _ H9).
+           simpl in H21, H22.
+           epose proof (transitive_eval _ _ _ _ _ H21 _ _ _ H19).
+           Search (FApp2 (EFun vl e1) tl (e0 :: hds ++ [x]) :: Fs).
+           inversion H22; subst. apply cons_neq in H27. contradiction.
+           inversion H24; subst; try inversion_is_value.
+           rewrite <- app_comm_cons in H25.
+           Search (FApp2 (EFun vl e1) tl (e0 :: hds ++ [x]) :: Fs) e'.
+           
+           epose proof (transitive_eval _ _ _ _ _ H20 _ _ _ H25).
+           
+           exists x2, (2 + (S (Datatypes.length hds) + x1 + 1 + k1 )). split. auto.
+           econstructor. constructor. econstructor. apply red_app_start; auto.
+           exact H26.
+    - apply Forall_app. split; auto.
+    - intros. eapply H1. 2: exact H5. lia.
+Unshelve.
+  all: simpl; repeat rewrite app_length; simpl; try lia.
+Admitted.
 
 Theorem term_eval : forall x Fs e, | Fs, e | x ↓ ->
   exists v k, is_value v /\ ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ (* /\ k <= x *).
@@ -813,7 +1035,15 @@ Proof.
       econstructor. constructor. eapply transitive_eval; eauto.
       econstructor. constructor. auto.
     - inversion H2'; subst; try inversion_is_value.
-      admit.
+      epose proof (term_eval_app vs [] x0 k e Fs ltac:(auto) H8 H10 _).
+      destruct H3, H3, H3, H5. inversion H5; subst; try inversion_is_value.
+      inversion H7; subst; try inversion_is_value.
+      inversion H11; subst. apply cons_neq in H15. contradiction.
+      inversion H12; subst; try inversion_is_value.
+      exists x2, (S (x1 + S k1)). split; auto.
+      econstructor. constructor. eapply transitive_eval; eauto.
+    Unshelve.
+      intros. apply H with (m := m); eauto. lia.
   * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
     eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
     inversion H2'; subst; try inversion_is_value.
@@ -823,7 +1053,75 @@ Proof.
     split. auto.
     econstructor. constructor. eapply transitive_eval; eauto. 
     econstructor. constructor; auto. auto.
-Admitted.
+Qed.
+
+Theorem term_eval_2 : forall x Fs e, | Fs, e | x ↓ ->
+  exists v k, is_value v /\ ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ /\ k <= x.
+Proof.
+  induction x using lt_wf_ind. destruct x; intros; inversion H0; subst; try congruence.
+  * exists e, 0. now repeat constructor.
+  * exists (ELit 0), 0. split; [ constructor | do 2 constructor ]. lia.
+  * exists e, 0. split; [ auto | split; [now constructor | lia ] ].
+  * exists e, 0. split; [ auto | split; [ now constructor | lia ] ].
+  * exists (ELit m), 0. split; [ constructor | do 2 constructor]. lia.
+  * exists e, 0. split; [ auto | split; [now constructor | lia] ].
+  * apply H in H4. destruct H4, H1, H1. exists x0, (S x1).
+    split; [ auto | ]. split. econstructor. constructor. apply H2. lia. lia.
+  * exists e, 0. split; [ auto | split; [ now constructor | lia ] ].
+  * exists (EFun [] e0), 0. split; [ constructor | do 2 constructor]. lia.
+  * exists e, 0. split; [ auto | split; [now constructor | lia]].
+  * exists e, 0. split; [ auto | split; [now constructor | lia] ].
+  * apply H in H4 as HH. destruct HH, H1, H1, H2. 2: lia.
+    eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
+    inversion H2'; subst; try inversion_is_value.
+    - apply H in H9. 2: lia. destruct H9, H5, H5, H6.
+      exists x0, (S (x1 + S x2)). split. auto. split.
+      econstructor. constructor. eapply transitive_eval; eauto.
+      econstructor. constructor. auto. lia.
+    - apply H in H12. 2: lia. destruct H12, H5, H5, H6.
+      exists x2, (S (x1 + S x3)). split. auto. split.
+      econstructor. constructor. eapply transitive_eval; eauto.
+      econstructor. constructor; auto. auto. lia.
+  * apply H in H4 as HH. destruct HH, H1, H1, H2. 2: lia.
+    eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
+    inversion H2'; subst; try inversion_is_value.
+    apply H in H10 as HH. destruct HH, H5, H5, H6. 2: lia.
+    eapply (terminates_step_any_2 _ _ _ _ H10) in H6 as H6'.
+    inversion H6'; subst; try inversion_is_value.
+    exists (ELit (n + m)), (S (x1 + (S (x3 + 1)))).
+    split. constructor. split.
+    econstructor. constructor. eapply transitive_eval; eauto. 
+    econstructor. constructor; auto. eapply transitive_eval; eauto.
+    econstructor. constructor. constructor. lia.
+  * apply H in H4 as v_eval. 2: lia. destruct v_eval, H1, H1, H2.
+    eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
+    destruct vs.
+    - inversion H2'; subst; try inversion_is_value.
+      apply H in H8. 2: lia. destruct H8, H5, H5, H7.
+      exists x0, (S (x1 + S x2)). split; auto. split.
+      econstructor. constructor. eapply transitive_eval; eauto.
+      econstructor. constructor. auto. lia.
+    - inversion H2'; subst; try inversion_is_value.
+      epose proof (term_eval_app vs [] x0 k e Fs ltac:(auto) H9 H11 _).
+      destruct H5, H5, H5, H6. inversion H6; subst; try inversion_is_value.
+      inversion H8; subst; try inversion_is_value.
+      inversion H12; subst. apply cons_neq in H16. contradiction.
+      inversion H13; subst; try inversion_is_value.
+      exists x2, (S (x1 + S k1)). split; auto.
+      split.
+      econstructor. constructor. eapply transitive_eval; eauto. lia.
+    Unshelve.
+      intros. apply H with (m := m); eauto. lia.
+  * apply H in H4 as HH. destruct HH, H1, H1, H2. 2: lia.
+    eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
+    inversion H2'; subst; try inversion_is_value.
+    apply H in H11 as HH. destruct HH, H5, H5, H6. 2: lia.
+    eapply (terminates_step_any_2 _ _ _ _ H11) in H6 as H6'.
+    exists x2, (S (x1 + (S x3))).
+    split. auto. split.
+    econstructor. constructor. eapply transitive_eval; eauto. 
+    econstructor. constructor; auto. auto. lia.
+Qed.
 
 Theorem plus_lit : forall v Fs e x,
   | (FPlus2 v) :: Fs, e | x ↓ -> exists l, v = ELit l.
@@ -868,63 +1166,6 @@ Proof.
     subst. inversion H5; subst; try inversion_is_value. eexists. eauto.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
 Admitted.
-
-Lemma self_list :
-  forall {T : Type} (l : list T) a, l = a :: l -> False.
-Proof.
-  induction l; intros; inversion H.
-  eapply IHl. eauto.
-Qed.
-
-Lemma self_list_2 :
-  forall {T : Type} (l : list T) a b, l = a :: b :: l -> False.
-Proof.
-  induction l; intros; inversion H.
-  eapply IHl. eauto.
-Qed.
-
-Theorem frame_indep_step : forall e F F' Fs e',
-  ⟨ F :: Fs, e ⟩ --> ⟨ F' :: Fs, e' ⟩
-->
-  forall Fs', ⟨ F :: Fs', e ⟩ --> ⟨ F' :: Fs', e' ⟩.
-Proof.
-  intros. revert Fs'. dependent induction H; intros.
-  all: try constructor; auto.
-  all: try (apply self_list in x; contradiction).
-  all: symmetry in x; try (apply self_list in x; contradiction).
-Qed.
-
-Theorem frame_indep_red : forall e F Fs e',
-  ⟨ F :: Fs, e ⟩ --> ⟨ Fs, e' ⟩
-->
-  forall Fs', ⟨ F :: Fs', e ⟩ --> ⟨ Fs', e' ⟩.
-Proof.
-  intros. revert Fs'. dependent induction H; intros.
-  all: try constructor; auto.
-  all: symmetry in x; try (apply self_list_2 in x; contradiction).
-  all: try (apply self_list in x; contradiction).
-Qed.
-
-Theorem frame_indep_any : forall k e e' front front' Fs,
-  ⟨ front ++ Fs, e ⟩ -[k]-> ⟨ front' ++ Fs, e' ⟩
-->
-  forall Fs', ⟨ front ++ Fs', e ⟩ -[k]-> ⟨ front' ++ Fs', e' ⟩.
-Proof.
-  induction k; intros.
-  * inversion H; subst. apply app_inv_tail in H2. subst. now constructor.
-  * inversion H; subst. inversion H1; subst.
-    - 
-Admitted.
-
-Theorem frame_indep : forall k e Fs v,
-  ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩
-->
-  forall Fs', ⟨ Fs', e ⟩ -[k]-> ⟨ Fs', v ⟩.
-Proof.
-  intros. epose proof (frame_indep_any k e v [] [] Fs H Fs').
-  apply H0.
-Qed.
-
 
 (* Theorem partial_step :
   ⟨ fs :: Fs, 
