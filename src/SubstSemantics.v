@@ -1004,38 +1004,76 @@ Qed.
 
 Inductive frame_wf : Frame -> Prop :=
 | wf_app1 l : frame_wf (FApp1 l)
-| wf_app2 v l1 l2 : is_value v -> Forall is_value l2 -> frame_wf (FApp2 v l1 l2)
+| wf_app2 vl b l1 l2 :  Forall is_value l2 -> frame_wf (FApp2 (EFun vl b) l1 l2)
 | wf_let v e : frame_wf (FLet v e)
 | wf_plus1 e : frame_wf (FPlus1 e)
 | wf_plus2 v : is_value v -> frame_wf (FPlus2 v)
 | wf_if e2 e3 : frame_wf (FIf e2 e3)
 .
 
+Theorem app_term_conds : forall l1 l2 v e x Fs, 
+  | FApp2 v l1 l2 :: Fs, e | x ↓ ->
+  Forall is_value l2 /\ exists vl e', v = EFun vl e'.
+Proof.
+  induction l1; intros.
+  * apply term_eval in H as H'. destruct H', H0, H0.
+    eapply (terminates_step_any_2 _ _ _ _ H) in H1 as H1'.
+    inversion H1'; subst; try inversion_is_value. split. auto. now do 2 eexists.
+  * apply term_eval in H as H'. destruct H', H0, H0.
+    eapply (terminates_step_any_2 _ _ _ _ H) in H1 as H1'.
+    inversion H1'; subst; try inversion_is_value. apply IHl1 in H11.
+    destruct H11, H3, H3. split; auto. subst. now do 2 eexists.
+Qed.
+
 Theorem put_back : forall F e Fs,
   | F :: Fs, e | ↓ -> | Fs, plug_f F e | ↓ /\ frame_wf F.
 Proof.
   destruct F; intros; simpl.
   * inversion H. split. exists (S x). constructor. auto. constructor.
-  * destruct H. admit.
+  * destruct H.
+    apply term_eval in H as H'. destruct H', H0, H0.
+    apply app_term_conds in H as CDS. destruct CDS, H3, H3. subst.
+    split. 2: constructor; auto.
+    destruct l2.
+    - simpl in *. exists (2 + x). do 2 constructor.
+      constructor. auto.
+    - inversion H2. subst.
+      epose proof (eval_app_partial_core l2 l1 x2 x3 e e0 Fs [] _ H6 H5).
+      exists (2 + (S (Datatypes.length l2) + x)). simpl.
+      do 2 constructor. constructor.
+      apply terminates_in_k_eq_terminates_in_k_sem in H.
+      apply terminates_in_k_eq_terminates_in_k_sem. destruct H, H.
+      exists x4. split; auto. rewrite <- Nat.add_succ_l.
+      eapply transitive_eval. exact H3. auto.
   * inversion H. split. exists (S x). constructor. auto. constructor.
   * inversion H. split. exists (S x). constructor. auto. constructor.
   * inversion H. apply plus_lit in H0 as H'. destruct H'. subst. split.
     exists (S (S x)). do 2 constructor. constructor. auto. do 2 constructor.
   * inversion H. split. exists (S x). constructor. auto. constructor.
-Admitted.
+Unshelve.
+  auto.
+Qed.
 
 Theorem put_back_rev : forall F e Fs, frame_wf F ->
   | Fs, plug_f F e | ↓ -> | F :: Fs, e | ↓.
 Proof.
   destruct F; intros; simpl.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
-  * admit. (* TODO, provable, technically challenging *)
+  * simpl in *. inversion H. subst. destruct H0.
+    destruct l2.
+    - simpl in H0. inversion H0; subst; try inversion_is_value.
+      inversion H6; subst; try inversion_is_value. eexists. eauto.
+    - inversion H2. subst. inversion H0; subst; try inversion_is_value.
+      inversion H8; subst; try inversion_is_value.
+      epose proof (eval_app_partial_core l2 l1 vl b e e0 Fs [] ltac:(auto) H5 H4).
+      simpl in H1.
+      eapply (terminates_step_any_2 _ _ _ _ H11) in H1 as H1'. eexists. exact H1'.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. inversion H.
     subst. inversion H5; subst; try inversion_is_value. eexists. eauto.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
-Admitted.
+Qed.
 
 (* Theorem partial_step :
   ⟨ fs :: Fs, 
