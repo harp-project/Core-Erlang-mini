@@ -1327,12 +1327,12 @@ Proof.
         1-3: repeat constructor. 1, 2, 4, 5 : inversion H4.
         ** simpl. destruct H0, H4. exists (5 + x).
            constructor. apply term_plus. eapply term_step_term with (k := x).
-           eapply frame_indep. exact H4. replace (S (S (S x)) - x) with 3 by lia.
+           eapply frame_indep in H4. exact H4. replace (S (S (S x)) - x) with 3 by lia.
            do 2 constructor. replace (Z.add l (Z.opp l)) with 0%Z by lia.
            do 3 constructor. lia.
         ** simpl. destruct H0, H4. exists (5 + x0).
            constructor. apply term_plus. eapply term_step_term with (k := x0).
-           eapply frame_indep. exact H4. replace (S (S (S x0)) - x0) with 3 by lia.
+           eapply frame_indep in H4. exact H4. replace (S (S (S x0)) - x0) with 3 by lia.
            do 2 constructor. replace (Z.add l (Z.opp l)) with 0%Z by lia.
            do 3 constructor. lia.
     - destruct x; try inversion_is_value.
@@ -1415,127 +1415,4 @@ Theorem terminating_implies_equivalence :
 Proof.
   intros. split; eapply terminating_implies_equivalence_helper; auto.
 Qed.
-
-(* Goal
-  forall e1 e2 (* (P : CTX 0 e2 e1), *), CTX 0 e1 e2 -> eq_exps e1 e2.
-Proof.
-  intros. intro. revert H. generalize dependent e2. generalize dependent e1.
-  induction n; intros.
-  * unfold equivalent_exps. intros. cbn. destruct H, H.
-    apply ex_intro in H0. apply -> terminates_eq_terminates_sem in H0.
-    apply (H1 CHole ltac:(constructor)) in H0. apply terminates_eq_terminates_sem in H0.
-    destruct H0. exists x. split; auto.
-  * unfold equivalent_exps. intros. cbn. destruct H, H.
-    apply ex_intro in H0 as H0'. apply -> terminates_eq_terminates_sem in H0'.
-    pose proof (H1 CHole ltac:(constructor) H0'). simpl in H3.
-    apply terminates_eq_terminates_sem in H3. destruct H3. exists x. split; auto.
-    clear H0'.
-    apply result_is_value_star in H0 as Hv. apply result_is_value_star in H3 as Hv'.
-    destruct v1; try inversion_is_value.
-    - destruct x; try inversion_is_value.
-      + epose proof (H1 (CIf1 (CPlus1 CHole (ELit (-l))) (ELit 0) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        inversion H10; try inversion_is_value. subst.
-        destruct H3. eapply frame_indep in H3.
-        eapply terminates_step_any_2 in H9. 2: exact H3.
-        inversion H9. inversion H12. inversion H17; subst.
-        ** lia.
-        ** apply inf_diverges in H25. contradiction.
-      + epose proof (H1 (CIf1 (CPlus1 CHole (ELit (-l))) (ELit 0) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        inversion H10; try inversion_is_value. subst.
-        destruct H3. eapply frame_indep in H3.
-        eapply terminates_step_any_2 in H9. 2: exact H3.
-        inversion H9. inversion H12.
-      Unshelve.
-        1-3: repeat constructor. 1, 2, 4, 5 : inversion H4.
-        ** simpl. destruct H0. exists (5 + x).
-           constructor. apply term_plus. eapply term_step_term with (k := x).
-           eapply frame_indep. exact H0. replace (S (S (S x)) - x) with 3 by lia.
-           do 2 constructor. replace (Z.add l (Z.opp l)) with 0%Z by lia.
-           do 3 constructor. lia.
-        ** simpl. destruct H0. exists (5 + x0).
-           constructor. apply term_plus. eapply term_step_term with (k := x0).
-           eapply frame_indep. exact H0. replace (S (S (S x0)) - x0) with 3 by lia.
-           do 2 constructor. replace (Z.add l (Z.opp l)) with 0%Z by lia.
-           do 3 constructor. lia.
-    - destruct x; try inversion_is_value.
-      + apply ex_intro in H3 as H3'. apply -> terminates_eq_terminates_sem in H3'.
-        admit. (* exceptions can help here, otherwise, <-> is needed in the def *)
-      + intros. apply IHn.
-        assert (CTX 0 e1 e2). {
-          split. split. all: auto.
-        }
-        assert (CTX 0 (EFun vl v1) (EFun vl0 x)). {
-          apply CTX_eval in H0; auto. apply CTX_eval in H3; auto.
-          assert (Transitive (CTX 0)). { apply CTX_IsPreCtxRel. }
-          destruct H0, H3.
-          epose proof (H8 _ _ _ H9 H7). epose proof (H8 _ _ _ H11 H3). auto.
-        }
-        epose proof CTX_IsPreCtxRel. destruct H9 as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RLet [RLetRec [RPlus RIf]]]]]]]]]. unfold CompatibleApp in RApp.
-        assert (VALCLOSED (EFun vl v1)). {
-          apply step_rt_closedness in H0. now inversion H0. constructor. auto.
-        }
-        assert (VALCLOSED (EFun vl0 x)). {
-          apply step_rt_closedness in H3. now inversion H3. constructor. auto.
-        }
-        apply RApp with (vals1 := vals) (vals2 := vals) in H8; auto.
-        4-5: now constructor.
-        ** epose proof (CTX_beta_values H9 H4 (eq_sym H5)). destruct H11.
-           epose proof (CTX_beta_values H10 H4 (eq_sym H6)). destruct H13.
-           epose proof (Rtrans 0 _ _ _ H11 H8).
-           epose proof (Rtrans 0 _ _ _ H15 H14). auto.
-        ** eapply Forall_impl. 2: exact H4. intros. now constructor.
-        ** eapply Forall_impl. 2: exact H4. intros. now constructor.
-        ** apply forall_biforall_refl. apply Forall_forall. intros. apply CTX_refl.
-           rewrite Forall_forall in H4. constructor. now apply H4.
-Abort. *)
-
-(* Lemma let_eval :
-  forall e1 e2 v, ⟨  *)
-
-Definition build_frame_exp (F : Frame) (e : Exp) : Exp :=
-match F with
- | FApp1 l => EApp e l
- | FApp2 v l1 l2 => EApp v (l1 ++ [e] ++ l2)
- | FLet v e2 => ELet v e e2
- | FPlus1 e2 => EPlus e e2
- | FPlus2 v => EPlus v e
- | FIf e2 e3 => EIf e e2 e3
-end.
-
-(* Fixpoint build_stack_exp (Fs : FrameStack) (e : Exp) : Exp :=
-match Fs with
-| [] => e
-| f::fs => build_stack_exp fs (build_frame_exp f e)
-end. *)
-
-Definition build_stack_exp (Fs : FrameStack) (e : Exp) : Exp :=
-  fold_right (fun f acc => build_frame_exp f acc) e Fs.
-
-(* Theorem 
-
-Theorem functional_iff_frame_stack :
-  forall e v Fs,
-  (exists d, eval d (build_stack_exp Fs e) = Res v) <-> ⟨ Fs, e ⟩ -->* v.
-Proof.
-  split; revert e v Fs.
-  { intros. destruct H. revert H. generalize dependent e.
-    generalize dependent v. generalize dependent Fs. induction x; intros.
-    * inversion H.
-    * destruct e; simpl in H.
-      - inversion H. exists 0. do 2 constructor.
-      - inversion H.
-      - inversion H.
-      - inversion H. exists 0. do 2 constructor.
-      - inversion H. exists 0. do 2 constructor.
-      - break_match_hyp. 1-2 : inversion H. destruct v0; try inversion H.
-        admit. admit.
-      - break_match_hyp. 1-2: inversion H. apply IHx in Heqr. apply IHx in H.
-        destruct Heqr. destruct H. exists (S (x1 + x0)). econstructor. constructor.
-        
-Admitted.
- *)
-
-
 
