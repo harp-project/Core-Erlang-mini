@@ -2,8 +2,6 @@ Require Export CIU.
 
 Import ListNotations.
 
-Check fold_left.
-
 Theorem fold_left_map :
   forall (T T2 T3 : Type) (l : list T) f (f2 : T -> T2 -> T3 -> T) d t2 t3,
   (forall a b t2 t3, f2 (f a b) t2 t3 = f (f2 a t2 t3) (f2 b t2 t3)) ->
@@ -431,7 +429,7 @@ Proof.
           remember (i - length l1) as i'. destruct i'.
           -- simpl. eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
              simpl in H0. inversion H0. subst. 2: inversion H4.
-             Search length nth cons app. epose (H11 (length l1) _). rewrite nth_middle in e. auto.
+             epose (H11 (length l1) _). rewrite nth_middle in e. auto.
              Unshelve. 1-2: exact (ELit 0). rewrite app_length. lia.
           -- simpl. apply H8. simpl in H3. lia.
       + rewrite indexed_to_forall. intros.
@@ -1046,39 +1044,6 @@ Unshelve.
   1-2: auto.
 Qed.
 
-(* Corollary CTX_closed_under_subst_list : forall {Γ e1 e2 vals R},
-    IsCtxRel R ->
-    VAL Γ ⊢ v ->
-    R (S Γ) e1 e2 ->
-    R Γ e1.[v/] e2.[v/]. *)
-
-(*
-Fixpoint make_Ctx (fs : FrameStack) : Ctx :=
-match fs with
-| [] => CHole
-| x::xs => plugc (make_Ctx xs) 
-           match x with
-           | FApp1 l => CAppFun CHole l
-           | FApp2 v p l1 l2 p2 => CAppParam v l1 CHole l2
-           | FLet x e2 => CLet1 x CHole e2
-           | FPlus1 e2 => CPlus1 CHole e2
-           | FPlus2 v p => CPlus2 v CHole
-           | FIf e2 e3 => CIf1 CHole e2 e3
-          end
-end. *)
-
-(* Theorem make_Ctx_eval_equiv :
-  forall fs e, | fs , e | ↓ -> | [], plug (make_Ctx fs) e | ↓.
-Proof.
-
-Admitted. *)
-
-(* Definition mk_exp (v : Exp + nat) :=
-match v with
-| inl e => e
-| inr n => idsubst n
-end. *)
-
 Theorem CIU_IsCtxRel : IsCtxRel CIU_open.
 Proof.
   destruct exists_CTX as [R' HR'].
@@ -1274,15 +1239,102 @@ Proof.
     intros. rewrite map_length in H6. rewrite indexed_to_forall in H0.
     replace (ELit 0) with ((ELit 0).[ξ]) by auto. rewrite map_nth.
     apply -> subst_preserves_scope_exp; eauto.
-  * destruct H7. simpl. admit. (* TODO, technical *)
+  * destruct H7. simpl.
+    destruct vals.
+    - exists (2 + x). constructor.
+      simpl. apply length_zero_iff_nil in H1. subst. simpl in *. constructor. simpl in *.
+      rewrite subst_comp in *.
+      rewrite subst_extend. rewrite scons_substcomp in H7. simpl in H7. auto.
+    - simpl in *. subst. inversion H0. subst.
+      assert (Forall is_value (e1.[ξ]::map (subst ξ) vals)). { 
+        constructor. apply Valclosed_is_value.
+        eapply subst_preserves_scope_val in H8. exact H8. auto.
+        
+        clear H0 H1 H3 H6 H7 H8 F x H e1 vl e. induction vals.
+        constructor.
+        inversion H9. constructor. 2: apply IHvals; auto.
+        subst. apply Valclosed_is_value. eapply subst_preserves_scope_val in H1. exact H1.
+        auto.
+      }
+      destruct (length vals) eqn:Lvals.
+      + apply length_zero_iff_nil in Lvals. subst.
+        simpl in *. exists (3 + x). do 2 constructor. constructor.
+        inversion H2. subst. constructor; auto. Opaque list_subst.
+        rewrite subst_comp in *. simpl in *. rewrite H1 in *.
+        replace (up_subst (upn 1 ξ)) with (upn 2 ξ) by auto.
+        rewrite subst_list_extend; auto. do 2 rewrite scons_substcomp in H7. simpl in H7.
+        Transparent list_subst. simpl. rewrite H1 in H7. simpl in H7. auto.
+      + apply eq_sym, last_element_exists in Lvals as LL. destruct LL, H4. subst.
+        inversion H2. subst. rewrite map_app in H12. rewrite app_length in Lvals.
+        simpl in Lvals.
+        apply Forall_app in H12. destruct H12. inversion H10. subst.
+        epose proof (eval_app_partial_core (map (subst ξ) x0) [] vl 
+                          (e.[up_subst (upn (Datatypes.length vl) ξ)]) x1.[ξ] 
+                          e1.[ξ] F [] ltac:(auto) H4 H11). simpl in H12.
+        rewrite subst_comp in *. do 2 rewrite scons_substcomp in H7.
+        rewrite scons_substcomp_list in H7. simpl in H7.
+        assert (⟨ FApp2 (EFun vl e.[up_subst (upn (Datatypes.length vl) ξ)]) []
+              (e1.[ξ] :: map (subst ξ) x0) :: F, x1.[ξ] ⟩ -[1]->
+              ⟨F,
+      e.[EFun vl e.[up_subst (upn (Datatypes.length vl) ξ)]
+        .: e1.[ξ] .: list_subst (map (subst ξ) (x0 ++ [x1])) (idsubst >> ξ)]⟩). {
+          econstructor. constructor; auto. simpl. rewrite map_length. lia.
+          simpl. rewrite subst_comp. repeat fold_upn.
+          replace (EFun vl e.[upn (S (Datatypes.length vl)) ξ]
+   .: e1.[ξ] .: list_subst (map (subst ξ) x0 ++ [x1.[ξ]]) idsubst) with
+          (list_subst (EFun vl e.[upn (S (Datatypes.length vl)) ξ] :: e1.[ξ] :: (map (subst ξ) x0 ++ [x1.[ξ]])) idsubst) by auto.
+          rewrite subst_list_extend; auto. 2: simpl; rewrite app_length, map_length; simpl; lia.
+           simpl. rewrite substcomp_id_l, map_app. constructor.
+        }
+        epose proof (transitive_eval _ _ _ _ _ H12 _ _ _ H13).
+        eapply term_step_term_plus in H16. 2: exact H7.
+        exists (2 + (S (Datatypes.length (map (subst ξ) x0)) + 1 + x)).
+        do 2 constructor. constructor. rewrite map_app. exact H16.
   * simpl. constructor. do 2 constructor.
     apply -> subst_preserves_scope_exp; eauto. do 2 rewrite Nat.add_succ_l.
     now apply up_scope, upn_scope.
     intros. rewrite map_length in H6. rewrite indexed_to_forall in H0.
     replace (ELit 0) with ((ELit 0).[ξ]) by auto. rewrite map_nth.
     apply -> subst_preserves_scope_exp; eauto.
-  * admit. (* TODO, technical *)
-Admitted.
+  * rewrite subst_comp, scons_substcomp_list, substcomp_id_l.
+    destruct H7. simpl in H7. inversion H7; subst; try inversion_is_value.
+    destruct vals.
+    - inversion H12; subst; try inversion_is_value. simpl in *.
+      rewrite subst_comp, subst_extend in H10. exists k0. auto.
+    - Opaque list_subst.
+      assert (Forall is_value (e0.[ξ]::map (subst ξ) vals)). { 
+        inversion H0. subst.
+        constructor. apply Valclosed_is_value. 
+        eapply subst_preserves_scope_val in H8. exact H8. auto.
+        
+        clear H0 H1 H3 H6 H7 H8 H12 F H vl e0 e. induction vals.
+        constructor.
+        inversion H9. constructor. 2: apply IHvals; auto.
+        subst. apply Valclosed_is_value. eapply subst_preserves_scope_val in H1. exact H1.
+        auto.
+      } inversion H2. subst.
+      destruct (length vals) eqn:Lvals.
+      + apply length_zero_iff_nil in Lvals. subst.
+        inversion H12; subst; try inversion_is_value. simpl in *.
+        inversion H16; try rewrite <- H4 in *; try inversion_is_value.
+        subst. repeat fold_upn. repeat fold_upn_hyp.
+        rewrite subst_comp, subst_list_extend in H21. simpl in H21. exists k. auto.
+        simpl. lia.
+      + apply eq_sym, last_element_exists in Lvals as LL. destruct LL, H4. subst.
+        rewrite app_length in Lvals; simpl in Lvals. rewrite map_app in H10.
+        apply Forall_app in H10. destruct H10.
+        epose proof (eval_app_partial_core (map (subst ξ) x) [] vl 
+                          (e.[up_subst (upn (Datatypes.length vl) ξ)]) x0.[ξ] 
+                          e0.[ξ] F [] ltac:(auto) H4 H9).
+        inversion H12; subst; try inversion_is_value. rewrite map_app in H18.
+        eapply (terminates_step_any_2 _ _ _ _ H18) in H10 as H10'. simpl in H10'.
+        inversion H8. subst.
+        inversion H10'; subst; try rewrite <- H11 in *; try inversion_is_value.
+        repeat fold_upn_hyp. rewrite subst_comp, subst_list_extend in H25. simpl in H25.
+        simpl. rewrite map_app. eexists. exact H25.
+        simpl in *. rewrite app_length, map_length in *. simpl. lia.
+      Transparent list_subst.
+Qed.
 
 Corollary CTX_beta_values : forall {Γ e vl vals},
     VAL Γ ⊢ EFun vl e -> Forall (fun v => VAL Γ ⊢ v) vals -> length vl = length vals ->

@@ -677,6 +677,18 @@ Proof.
   eexists. eauto.
 Qed.
 
+Corollary term_step_term_plus :
+  forall k k2 fs e fs' e', 
+  ⟨fs, e⟩ -[k]-> ⟨fs', e'⟩ -> | fs', e' | k2 ↓
+->
+  | fs, e | k + k2 ↓.
+Proof.
+  intros. apply terminates_in_k_eq_terminates_in_k_sem.
+  apply terminates_in_k_eq_terminates_in_k_sem in H0. destruct H0, H0.
+  pose proof (transitive_eval _ _ _ _ _ H _ _ _ H0).
+  eexists. eauto.
+Qed.
+
 Lemma eval_app_partial :
   forall vals vl e v Fs hds, length vl = length (hds ++ v :: vals) ->
   Forall is_value vals -> Forall is_value hds -> is_value v ->
@@ -807,24 +819,6 @@ Proof.
     all: simpl; econstructor; try constructor; auto.
     all: eapply IHk in H4; simpl in H4; exact H4.
 Qed.
-
-(* Lemma eval_dec : forall Fs e,
-  (exists v k, ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ /\ is_value v)
-  \/
-  ~(exists v k, ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ /\ is_value v).
-Proof.
-  intros.
-Qed. *)
-
-(* Lemma eval_app_steps : forall tl k hds x0 e x Fs,
-  ⟨ FApp2 x0 tl hds :: Fs, e ⟩ -[ k ]-> ⟨ Fs, x ⟩
-->
-  k > length tl.
-Proof.
-  induction tl; intros. 
-  * inversion H. subst. apply cons_neq in H3. contradiction. simpl. lia.
-  * pose proof (eval_dec (FApp2 x0 (a :: tl) hds :: Fs) e (FApp2 x0 (a :: tl) hds :: Fs)).
-Admitted. *)
 
 Lemma term_app_length : forall tl hds e k Fs x0,
   (forall m : nat,

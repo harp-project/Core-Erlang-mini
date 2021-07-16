@@ -424,10 +424,9 @@ Proof.
         destruct H0. inversion H7. simpl in H8. exact H8.
       + apply H4. lia.
     - intros. destruct x.
-      + simpl. eapply Vrel_Fun_compat; eauto. (* eapply Grel_downclosed; eauto. *)
+      + simpl. eapply Vrel_Fun_compat; eauto.
       + simpl. specialize (H5 x ltac:(lia)).
         break_match_goal. break_match_goal. all: try lia. eapply Vrel_downclosed; eauto.
-(*   * admit. *)
 Unshelve. lia.
 Qed.
 

@@ -129,6 +129,12 @@ match goal with
 | |- context G [upren (uprenn ?n ?ξ)] => replace (upren (uprenn n ξ)) with (uprenn (S n) ξ) by auto
 end.
 
+Ltac fold_upn_hyp :=
+match goal with
+| [ H : context G [up_subst (upn ?n ?ξ)] |- _ ] => replace (up_subst (upn n ξ)) with (upn (S n) ξ) in H by auto
+| [ H : context G [upren (uprenn ?n ?ξ)] |- _ ] => replace (upren (uprenn n ξ)) with (uprenn (S n) ξ) in H by auto
+end.
+
 Definition ren (ρ : Renaming) : Substitution :=
   fun x => inr (ρ x).
 
@@ -381,6 +387,13 @@ Lemma scons_substcomp v ξ η :
   (v .: ξ) >> η = v.[η] .: (ξ >> η).
 Proof.
   apply scons_substcomp_ext.
+Qed.
+
+Lemma scons_substcomp_list ξ η vals :
+  (list_subst vals ξ) >> η = list_subst (map (subst η) vals) (ξ >> η).
+Proof.
+  induction vals; simpl. auto.
+  rewrite scons_substcomp, IHvals. auto.
 Qed.
 
 Lemma substcomp_scons_ext v ξ η :
