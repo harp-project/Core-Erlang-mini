@@ -1,7 +1,117 @@
-Require Import LogRel.
+Require Export Compatibility.
+
 Import ListNotations.
 
 Definition CIU (e1 e2 : Exp) : Prop :=
   EXPCLOSED e1 /\ EXPCLOSED e2 /\
-  exists v1 v2, (* Vrel v1 v2 /\  <- here n-independent equivalence needed *)
-  (exists clock, eval clock e1 = Res v1) <-> (exists clock, eval clock e2 = Res v2). 
+  forall F, FSCLOSED F -> | F, e1 | ↓ -> | F, e2 | ↓.
+
+Definition CIU_open (Γ : nat) (e1 e2 : Exp) :=
+  forall ξ, SUBSCOPE Γ ⊢ ξ ∷ 0 ->
+  CIU (e1.[ξ]) (e2.[ξ]).
+
+Lemma CIU_closed :
+  forall e1 e2,
+  CIU e1 e2 -> EXPCLOSED e1 /\ EXPCLOSED e2.
+Proof.
+  intros. unfold CIU in H. intuition.
+Qed.
+
+Lemma CIU_closed_l : forall {e1 e2},
+    CIU e1 e2 ->
+    EXPCLOSED e1.
+Proof.
+  intros.
+  apply CIU_closed in H.
+  intuition.
+Qed.
+
+Global Hint Resolve CIU_closed_l : core.
+
+Lemma CIU_closed_r : forall {e1 e2},
+    CIU e1 e2 ->
+    EXPCLOSED e2.
+Proof.
+  intros.
+  apply CIU_closed in H.
+  intuition.
+Qed.
+
+Global Hint Resolve CIU_closed_r : core.
+
+Lemma CIU_open_scope : forall {Γ e1 e2},
+    CIU_open Γ e1 e2 ->
+    EXP Γ ⊢ e1 /\ EXP Γ ⊢ e2.
+Proof.
+  intros.
+  unfold CIU_open in H.
+  split;
+    eapply subst_implies_scope_exp; eauto.
+Qed.
+
+Lemma CIU_open_scope_l : forall {Γ e1 e2},
+    CIU_open Γ e1 e2 ->
+    EXP Γ ⊢ e1.
+Proof.
+  intros.
+  apply CIU_open_scope in H.
+  intuition.
+Qed.
+
+Global Hint Resolve CIU_open_scope_l : core.
+
+Lemma CIU_open_scope_r : forall {Γ e1 e2},
+    CIU_open Γ e1 e2 ->
+    EXP Γ ⊢ e2.
+Proof.
+  intros.
+  apply CIU_open_scope in H.
+  intuition.
+Qed.
+
+
+Global Hint Resolve CIU_open_scope_r : core.
+
+Lemma Erel_implies_CIU : forall Γ e1 e2,
+  Erel_open Γ e1 e2 ->
+  CIU_open Γ e1 e2.
+Proof.
+  intros.
+  unfold CIU_open; intros.
+  unfold CIU.
+  split. 2: split.
+  - apply -> (subst_preserves_scope_exp); eauto.
+  - apply -> (subst_preserves_scope_exp); eauto.
+  - unfold Erel_open, Erel, exp_rel in H. intros. destruct H2.
+    specialize (H x ξ ξ (Grel_Fundamental _ _ H0 _)). destruct H, H3.
+    eapply H4 in H2; eauto. apply Frel_Fundamental_closed. auto.
+Qed.
+
+Lemma Erel_comp_CIU_implies_Erel : forall {Γ e1 e2 e3},
+    Erel_open Γ e1 e2 ->
+    CIU_open Γ e2 e3 ->
+    Erel_open Γ e1 e3.
+Proof.
+  intros Γ e1 e2 e3 HErel HCIU.
+  unfold Erel_open, Erel, exp_rel.
+  intros.
+  inversion H as [Hξ1 [Hξ2 _]].
+  split. 2: split. 1-2: apply -> subst_preserves_scope_exp; eauto.
+  intros. eapply HErel in H1; eauto. eapply HCIU in H1; eauto.
+Qed.
+
+Lemma CIU_implies_Erel : forall {Γ e1 e2},
+    CIU_open Γ e1 e2 ->
+    Erel_open Γ e1 e2.
+Proof.
+  intros.
+  eapply Erel_comp_CIU_implies_Erel; eauto.
+Qed.
+
+Theorem CIU_iff_Erel : forall {Γ e1 e2},
+    CIU_open Γ e1 e2 <->
+    Erel_open Γ e1 e2.
+Proof.
+  intuition (auto using CIU_implies_Erel, Erel_implies_CIU).
+Qed.
+
