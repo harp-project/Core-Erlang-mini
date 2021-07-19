@@ -2,16 +2,6 @@ Require Export CIU.
 
 Import ListNotations.
 
-Theorem fold_left_map :
-  forall (T T2 T3 : Type) (l : list T) f (f2 : T -> T2 -> T3 -> T) d t2 t3,
-  (forall a b t2 t3, f2 (f a b) t2 t3 = f (f2 a t2 t3) (f2 b t2 t3)) ->
-  f2 (fold_left f l d) t2 t3 = fold_left f (map (fun x => f2 x t2 t3) l) (f2 d t2 t3).
-Proof.
-  induction l; intros; auto.
-  intros. cbn.
-  rewrite IHl; auto. rewrite H. auto.
-Qed.
-
 Definition Adequate (R : nat -> Exp -> Exp -> Prop) :=
   forall e1 e2, R 0 e1 e2 -> |[], e1| ↓ -> |[], e2| ↓.
 
@@ -53,7 +43,7 @@ Definition CompatiblePlus (R : nat -> Exp -> Exp -> Prop) :=
 
 Definition CompatibleIf (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ e1 e1' e2 e2' e3 e3',
-  EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e2' -> EXP Γ ⊢ e3 -> EXP Γ ⊢ e3' -> (* is this needed? *)
+  EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e2' -> EXP Γ ⊢ e3 -> EXP Γ ⊢ e3' ->
   R Γ e1 e1' -> R Γ e2 e2' -> R Γ e3 e3' ->
   R Γ (EIf e1 e2 e3) (EIf e1' e2' e3').
 
@@ -68,32 +58,6 @@ Definition IsCtxRel (R : nat -> Exp -> Exp -> Prop) :=
   IsPreCtxRel R /\
   forall R', IsPreCtxRel R' ->
     forall Γ e1 e2, R' Γ e1 e2 -> R Γ e1 e2.
-
-
-(* Lemma CTX_closed_under_substitution : forall {Γ e1 e2 vals CTX},
-    IsCtxRel CTX ->
-    Forall (fun v => VAL Γ ⊢ v) vals ->
-    CTX (Γ ++ l) e1 e2 ->
-    CTX Γ (subst ξ e1) (subst ξ e2).
-Proof.
-  intros Γ e1 e2 v CTX HCtx Hscope_v HCtx_e1e2.
-  destruct HCtx as [HCtx Hbiggest].
-  destruct HCtx as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RSeq RFactor]]]]]]].
-  destruct (Rscope _ _ _ HCtx_e1e2) as [Hscope_e1 Hscope_e2].
-  pose proof (CIU_beta_value Hscope_e1 Hscope_v).
-  pose proof (CIU_beta_value Hscope_e2 Hscope_v).
-  destruct H as [? _].
-  destruct H0 as [_ ?].
-  apply CIU_iff_Erel in H.
-  apply CIU_iff_Erel in H0.
-  apply Hbiggest in H; auto using Erel_IsPreCtxRel.
-  apply Hbiggest in H0; auto using Erel_IsPreCtxRel.
-  eapply Rtrans in H.
-  eapply H.
-  eapply Rtrans; revgoals.
-  eapply H0.
-  auto.
-Qed. *)
 
 Lemma bigger_implies_IsCtxRel : forall E R,
     IsCtxRel R ->
@@ -207,7 +171,7 @@ Inductive Ctx :=
 | CHole
 | CFun      (vl : list Var) (e : Ctx)
 | CAppFun   (exp : Ctx) (l : list Exp)
-| CAppParam (exp : Exp) (l1 : list Exp) (c : Ctx) (l2 : list Exp)  (* one of the middle ones is a ctx *)
+| CAppParam (exp : Exp) (l1 : list Exp) (c : Ctx) (l2 : list Exp)  (** one of the middle ones is a ctx *)
 | CLet1     (v : Var) (e1 : Ctx) (e2 : Exp)
 | CLet2     (v : Var) (e1 : Exp) (e2 : Ctx)
 | CLetRec1  (f : FunctionIdentifier) (vl : list Var) (b : Ctx) (e : Exp)
@@ -796,14 +760,6 @@ Proof.
   * do 2 rewrite map_app. simpl. now rewrite IHC.
 Qed.
 
-Theorem map_const :
-  forall {T T2} (l : list T) (a : T2), map (fun _ => a) l = repeat a (length l).
-Proof.
-  induction l; intros.
-  auto.
-  simpl. rewrite IHl. auto.
-Qed.
-
 Lemma CTX_IsPreCtxRel : IsPreCtxRel CTX.
 Proof.
   unfold IsPreCtxRel.
@@ -1054,14 +1010,14 @@ Proof.
     pose proof (H0 0 ltac:(lia)). break_match_hyp. 2: inversion H1.
     replace e1.[ξ] with e1.[e/].[(fun n => n + 1) >>> ξ]; revgoals.
     {
-      rewrite subst_comp. rewrite scons_substcomp_ext.
+      rewrite subst_comp. rewrite scons_substcomp_core.
       rewrite (vclosed_ignores_sub e); auto.
       rewrite <- substcomp_scons, idsubst_up, substcomp_id_l.
       now rewrite subst_ren_scons.
     }
     replace e2.[ξ] with e2.[e/].[(fun n => n + 1) >>> ξ]; revgoals.
     {
-      rewrite subst_comp. rewrite scons_substcomp_ext.
+      rewrite subst_comp. rewrite scons_substcomp_core.
       rewrite (vclosed_ignores_sub e); auto.
       rewrite <- substcomp_scons, idsubst_up, substcomp_id_l.
       now rewrite subst_ren_scons.
@@ -1156,18 +1112,6 @@ Proof.
   * apply CIU_iff_Erel in H. auto.
 Qed.
 
-Local Definition inf : Exp := EApp (EFun [] (EApp (EFunId 0) [])) [].
-
-Local Theorem inf_diverges :
-  forall n Fs, ~|Fs, inf| n↓.
-Proof.
-  unfold inf.
-  intros. intro. induction n using lt_wf_ind. inversion H; try inversion_is_value. subst.
-  inversion H5; subst.
-  clear H5 H. simpl in H3.
-  eapply H0. 2: exact H3. lia.
-Qed.
-
 Definition equivalent_exps (e1 e2 : Exp) (R : Exp -> Exp -> Prop) : Prop :=
   forall v1, ⟨ [], e1 ⟩ -->* v1 -> (exists v2, ⟨ [], e2 ⟩ -->* v2 /\ R v1 v2).
 
@@ -1192,12 +1136,12 @@ Theorem CIU_eval : forall e1 v,
   ⟨ [], e1 ⟩ -->* v -> CIU e1 v /\ CIU v e1.
 Proof.
   intros. split. split. 2: split. auto.
-  apply step_rt_closedness in H0; auto. 1-2: now constructor.
+  apply step_any_closedness in H0; auto. 1-2: now constructor.
   intros. destruct H2, H0, H3. eapply frame_indep in H3.
   eapply terminates_step_any. 2: exact H3. eexists. exact H2.
 
   split. 2: split. 2: auto.
-  apply step_rt_closedness in H0; auto. 1-2: now constructor.
+  apply step_any_closedness in H0; auto. 1-2: now constructor.
   intros. destruct H2, H0, H3. eapply frame_indep in H3.
   exists (x + x0).
   eapply term_step_term. exact H3. 2: lia. replace (x + x0 - x0) with x by lia. exact H2.
@@ -1211,7 +1155,7 @@ Proof.
   rewrite eclosed_ignores_sub, vclosed_ignores_sub.
   4: rewrite vclosed_ignores_sub, eclosed_ignores_sub.
   1, 4: pose proof (CIU_eval _ _ H H0). all: auto. 1-2: apply H2.
-  all: apply step_rt_closedness in H0; auto; constructor.
+  all: apply step_any_closedness in H0; auto; constructor.
 Qed.
 
 Lemma CIU_beta_values : forall {Γ e vl vals},
@@ -1358,7 +1302,7 @@ Proof.
     pose proof (H1 CHole ltac:(constructor) H0'). simpl in H3.
     apply terminates_eq_terminates_sem in H3. destruct H3. exists x. split; auto.
     clear H0'.
-    apply result_is_value_star in H0 as Hv. apply result_is_value_star in H3 as Hv'.
+    apply result_is_value_any in H0 as Hv. apply result_is_value_any in H3 as Hv'.
     destruct v1; try inversion_is_value.
     - destruct x; try inversion_is_value.
       + epose proof (H1 (CIf1 (CPlus1 CHole (ELit (-l))) (ELit 0) inf) _ _).
@@ -1409,10 +1353,10 @@ Proof.
         }
         epose proof CTX_IsPreCtxRel. destruct H9 as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RLet [RLetRec [RPlus RIf]]]]]]]]]. unfold CompatibleApp in RApp.
         assert (VALCLOSED (EFun vl v1)). {
-          apply step_rt_closedness in H0. now inversion H0. constructor. auto.
+          apply step_any_closedness in H0. now inversion H0. constructor. auto.
         }
         assert (VALCLOSED (EFun vl0 x)). {
-          apply step_rt_closedness in H3. now inversion H3. constructor. auto.
+          apply step_any_closedness in H3. now inversion H3. constructor. auto.
         }
         apply RApp with (vals1 := vals) (vals2 := vals) in H8; auto.
         4-5: now constructor.
@@ -1436,10 +1380,10 @@ Proof.
         }
         epose proof CTX_IsPreCtxRel. destruct H9 as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RLet [RLetRec [RPlus RIf]]]]]]]]]. unfold CompatibleApp in RApp.
         assert (VALCLOSED (EFun vl v1)). {
-          apply step_rt_closedness in H0. now inversion H0. constructor. auto.
+          apply step_any_closedness in H0. now inversion H0. constructor. auto.
         }
         assert (VALCLOSED (EFun vl0 x)). {
-          apply step_rt_closedness in H3. now inversion H3. constructor. auto.
+          apply step_any_closedness in H3. now inversion H3. constructor. auto.
         }
         apply RApp with (vals1 := vals) (vals2 := vals) in H8; auto.
         4-5: now constructor.

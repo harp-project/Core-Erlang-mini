@@ -7,12 +7,10 @@ Import ListNotations.
 
 Inductive is_value : Exp -> Prop :=
 | ELit_val : forall l, is_value (ELit l)
-| EFun_val : forall vl e, is_value (EFun vl e)
-.
+| EFun_val : forall vl e, is_value (EFun vl e).
 
 Reserved Notation "'EXP' Γ ⊢ e"
          (at level 69, no associativity).
-
 Reserved Notation "'VAL' Γ ⊢ v"
          (at level 69, no associativity).
 Inductive ExpScoped (Γ : nat) : Exp -> Prop :=
@@ -157,12 +155,6 @@ Proof.
   auto.
 Qed.
 
-Theorem app_cons_swap {T : Type} : forall (l l' : list T) (a : T),
-  l ++ a::l' = l ++ [a] ++ l'.
-Proof.
-  firstorder.
-Qed.
-
 Corollary scope_ext_app : forall Γ' Γ, Γ <= Γ' ->
   (forall e, VAL Γ ⊢ e -> VAL Γ' ⊢ e) /\
   forall e, EXP Γ ⊢ e -> EXP Γ' ⊢ e.
@@ -175,7 +167,7 @@ Qed.
 Definition subscoped (Γ Γ' : nat) (ξ : Substitution) : Prop :=
   forall v, v < Γ -> (match ξ v with
                       | inl exp => VAL Γ' ⊢ exp
-                      | inr num => num < Γ'  (* in case of identity subst *)
+                      | inr num => num < Γ'  (** in case of identity subst *)
                       end).
 
 Notation "'SUBSCOPE' Γ ⊢ ξ ∷ Γ'" := (subscoped Γ Γ' ξ)
@@ -254,7 +246,7 @@ Proof.
   intros; cbn; unfold renscoped in *).
   1-4: constructor. 1-2: constructor.
   1, 5, 7: repeat constructor; try apply H0; try inversion H; try inversion H1; auto.
-  all: (* this solves around half the goals *)
+  all: (** this solves around half the goals *)
     try (specialize (H Γ id (renscope_id _)); rewrite idrenaming_is_id in H; apply H).
   all: try (inversion H; inversion H1).
   * constructor. apply H0. inversion H. auto.
@@ -405,10 +397,10 @@ Proof.
     intros.
   all: cbn; unfold subscoped in *.
   1-4: repeat constructor.
-  all: try (inversion H); try inversion H1; subst. (* cleaup contradictions *)
-  (* prove backward directions: *)
+  all: try (inversion H); try inversion H1; subst. (** cleaup contradictions *)
+  (** prove backward directions: *)
   all: try (specialize (H Γ idsubst (scope_idsubst _)); rewrite idsubst_is_id in H; auto).
-  (* forward: *)
+  (** forward: *)
   * specialize (H0 n H4). break_match_goal.
     - constructor. auto.
     - constructor. constructor. auto.
@@ -474,7 +466,7 @@ Module SUB_IMPLIES_SCOPE.
     then if Compare_dec.lt_dec n Γ'
          then inr n
          else inl (ELit 0)
-    else inr Γ'(* inl (EVar Γ' "x"%string) *).
+    else inr Γ'.
 
   Lemma magic_ξ_scope : forall Γ Γ', SUBSCOPE Γ ⊢ magic_ξ Γ Γ' ∷ Γ'.
   Proof.
@@ -771,16 +763,33 @@ Proof.
 Qed.
 Global Hint Resolve vclosed_sub_closed : core.
 
-(* FrameStack *)
+(** FrameStack *)
 (** Based on Pitts' work: https://www.cl.cam.ac.uk/~amp12/papers/opespe/opespe-lncs.pdf *)
-(* Section stack_machine_semantics. *)
 Inductive Frame : Set :=
 | FApp1 (l : list Exp) (* apply □(e₁, e₂, ..., eₙ) *)
-| FApp2 (v : Exp) (* (p : is_value v)  *) (l1 l2 : list Exp) (* (p2 : forall e, In e l2 -> is_value e) *) (** Can be problematic *)
+| FApp2 (v : Exp) (l1 l2 : list Exp) (* apply v(v₁, v₂, ... vᵢ₋₁, □, eᵢ₊₁, ..., eₙ) *)
 | FLet (v : Var) (e2 : Exp) (* let v = □ in e2 *)
 | FPlus1 (e2 : Exp) (* □ + e2 *)
 | FPlus2 (v : Exp) (* (p : is_value v) *) (* v + □ *)
 | FIf (e2 e3 : Exp) (* if □ then e2 else e3 *).
+
+Inductive frame_wf : Frame -> Prop :=
+| wf_app1 l : frame_wf (FApp1 l)
+| wf_app2 vl b l1 l2 :  Forall is_value l2 -> frame_wf (FApp2 (EFun vl b) l1 l2)
+| wf_let v e : frame_wf (FLet v e)
+| wf_plus1 e : frame_wf (FPlus1 e)
+| wf_plus2 v : is_value v -> frame_wf (FPlus2 v)
+| wf_if e2 e3 : frame_wf (FIf e2 e3).
+
+Definition plug_f (F : Frame) (e : Exp) : Exp :=
+match F with
+ | FApp1 l => EApp e l
+ | FApp2 v l1 l2 => EApp v (l2 ++ [e] ++ l1)
+ | FLet v e2 => ELet v e e2
+ | FPlus1 e2 => EPlus e e2
+ | FPlus2 v => EPlus v e
+ | FIf e2 e3 => EIf e e2 e3
+end.
 
 Definition FrameStack := list Frame.
 
@@ -800,10 +809,10 @@ Inductive FCLOSED : Frame -> Prop :=
   Forall (fun e => EXPCLOSED e) l
 ->
   FCLOSED (FApp1 l)
-| fclosed_app2 v (* p *) l1 l2 (* p2 *):
+| fclosed_app2 v l1 l2:
   VALCLOSED v -> Forall (fun e => EXPCLOSED e) l1 -> Forall (fun e => VALCLOSED e) l2
 ->
-  FCLOSED (FApp2 v (* p *) l1 l2 (* p2 *))
+  FCLOSED (FApp2 v l1 l2)
 | fclosed_let e2 v :
   EXP 1 ⊢ e2
 ->
@@ -812,10 +821,10 @@ Inductive FCLOSED : Frame -> Prop :=
   EXPCLOSED e2
 ->
   FCLOSED (FPlus1 e2)
-| fclosed_plus2 v1 (* p *):
+| fclosed_plus2 v1:
   VALCLOSED v1
 ->
-  FCLOSED (FPlus2 v1 (* p *))
+  FCLOSED (FPlus2 v1)
 | fclosed_if e2 e3:
   EXPCLOSED e2 -> EXPCLOSED e3
 ->

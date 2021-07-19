@@ -142,7 +142,7 @@ Proof.
     - eapply IHl; eauto. apply not_in_cons in H0. destruct H0. auto.
 Qed.
 
-Section list_length_ind.  
+Section list_length_ind.
   Variable A : Type.
   Variable P : list A -> Prop.
 
@@ -167,9 +167,65 @@ Proof.
   induction l; intros; inversion H. eapply IHl. eauto.
 Qed.
 
-Lemma cons_neq_2 :
+Lemma cons_cons_neq :
   forall {T : Type} (l : list T) a b, l = a :: b :: l -> False.
 Proof.
   induction l; intros; inversion H.
   eapply IHl. eauto.
+Qed.
+
+Ltac break_match_hyp :=
+match goal with
+| [ H : context [ match ?X with _=>_ end ] |- _] =>
+     match type of X with
+     | sumbool _ _=>destruct X
+     | _=>destruct X eqn:? 
+     end 
+end.
+
+Ltac break_match_goal :=
+match goal with
+| [ |- context [ match ?X with _=>_ end ] ] => 
+    match type of X with
+    | sumbool _ _ => destruct X
+    | _ => destruct X eqn:?
+    end
+end.
+
+Corollary app_not_in {T : Type} : forall (x:T) (l1 l2 : list T),
+  ~In x l1 -> ~In x l2 -> ~In x (l1 ++ l2).
+Proof.
+  intros.
+  intro. eapply in_app_or in H1. destruct H1; contradiction.
+Qed.
+
+Theorem app_cons_swap {T : Type} : forall (l l' : list T) (a : T),
+  l ++ a::l' = l ++ [a] ++ l'.
+Proof.
+  firstorder.
+Qed.
+
+Theorem list_app_neq :
+  forall {T : Type} (l2 l1 : list T) t, l1 = l2 ++ t :: l1 -> False.
+Proof.
+  intros. assert (length l1 = length (l2 ++ t :: l1)). { rewrite H at 1. auto. }
+  rewrite app_length in H0. simpl in H0. lia.
+Qed.
+
+Theorem fold_left_map :
+  forall (T T2 T3 : Type) (l : list T) f (f2 : T -> T2 -> T3 -> T) d t2 t3,
+  (forall a b t2 t3, f2 (f a b) t2 t3 = f (f2 a t2 t3) (f2 b t2 t3)) ->
+  f2 (fold_left f l d) t2 t3 = fold_left f (map (fun x => f2 x t2 t3) l) (f2 d t2 t3).
+Proof.
+  induction l; intros; auto.
+  intros. cbn.
+  rewrite IHl; auto. rewrite H. auto.
+Qed.
+
+Theorem map_const :
+  forall {T T2} (l : list T) (a : T2), map (fun _ => a) l = repeat a (length l).
+Proof.
+  induction l; intros.
+  auto.
+  simpl. rewrite IHl. auto.
 Qed.

@@ -41,24 +41,6 @@ Qed.
 
 Global Hint Resolve Vrel_Lit_compat_open : core.
 
-(* Fixpoint make_vars (n : nat) (l : list Var) : list Exp :=
-match l with
-| [] => []
-| x::xs => EVar n x :: (make_vars (S n) xs)
-end.
-
-Fixpoint unwinding (n : nat) (f : FunctionIdentifier) (vl : list Var) (b : Exp) : Exp :=
-match n with
-| 0 => ERecFun f vl (EApp (EFunId 0 f) (make_vars 1 vl))
-| S n' => EFun vl b.[unwinding n' f vl b/]
-end.
-
-Theorem unwinding_term :
-  forall f vl b fs e m, | fs, e.[ERecFun f vl b/] | m ↓ <-> exists n, | fs, e.[unwinding n f vl b/] | m ↓.
-Proof.
-  (* TODO *)
-Abort. *)
-
 Lemma Vrel_Fun_compat :
   forall Γ vl1 vl2 b1 b2, length vl1 = length vl2 ->
   Erel_open (S (length vl1) + Γ) b1 b2 ->
@@ -341,20 +323,10 @@ Lemma Erel_LetRec_compat_closed :
   forall n f1 f2 vl1 vl2 (b b' e e' : Exp) m (Hmn : m <= n)
   (CL1 : EXP S (length vl1) ⊢ b) (CL1 : EXP S (length vl2) ⊢ b')
   (CL1 : EXP 1 ⊢ e) (CL1 : EXP 1 ⊢ e'),
-  (* length vl1 = length vl2 -> *)
-    (* (forall m (Hmn : m <= n),  *)
-      Erel m e.[EFun vl1 b/] e'.[EFun vl2 b'/] (* ) *) ->
-    (* (forall m (Hmn : m <= n) vals1 vals2,
-        length vals1 = length vl1 ->
-        list_biforall (Vrel m) vals1 vals2 ->
-        Erel m e.[list_subst (ERecFun f1 vl1 b :: vals1) idsubst] 
-               e'.[list_subst (ERecFun f2 vl2 b' :: vals2) idsubst]) -> *)
-      Erel m (ELetRec f1 vl1 b e) (ELetRec f2 vl2 b' e').
+    Erel m e.[EFun vl1 b/] e'.[EFun vl2 b'/]  ->
+    Erel m (ELetRec f1 vl1 b e) (ELetRec f2 vl2 b' e').
 Proof.
-  (* induction n using lt_wf_ind. intros. *)
   intros.
-  (* specialize (H0 m Hmn). *)
-  (* specialize (H1 m Hmn). *)
   unfold Erel, exp_rel. split. 2: split.
   * constructor. rewrite Nat.add_0_r. auto. auto.
   * constructor. rewrite Nat.add_0_r. auto. auto.
@@ -779,10 +751,9 @@ Proof.
 Qed.
 
 Lemma Frel_Plus_rhs :
-    forall n (v1 v1' : Exp) 
-    (* (VV1 : is_value v1) (VV1' : is_value v1') *),
+    forall n (v1 v1' : Exp),
     (forall m, m <= n -> Vrel m v1 v1') ->
-    forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FPlus2 v1 (* VV1 *)::F1) (FPlus2 v1' (* VV1' *)::F2).
+    forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FPlus2 v1::F1) (FPlus2 v1'::F2).
 Proof.
   intros. destruct H1, H2. specialize (H m H0) as H'.
   apply Vrel_closed in H' as v. destruct v. split. 2: split.
@@ -852,12 +823,12 @@ Unshelve. auto.
 Qed.
 
 Lemma Frel_App2 :
-    forall n (es es' : list Exp) v1 v1' (* V1V V1'V *) vs vs' (* VSV VS'V *),
+    forall n (es es' : list Exp) v1 v1' vs vs',
     (forall m, m <= n -> Vrel m v1 v1') ->
     list_biforall (fun v1 v2 => forall m, m <= n -> Vrel m v1 v2) vs vs' ->
     list_biforall (fun e1 e2 => forall m, m <= n -> Erel m e1 e2) es es' ->
-    forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FApp2 v1 (* V1V *) es vs (* VSV *)::F1) 
-                                                     (FApp2 v1' (* V1'V *) es' vs' (* VS'V *)::F2).
+    forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FApp2 v1 es vs::F1) 
+                                                     (FApp2 v1' es' vs'::F2).
 Proof.
   intros. destruct H3, H4.
   apply Erel_App_compat_ind.

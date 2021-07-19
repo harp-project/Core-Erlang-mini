@@ -102,14 +102,23 @@ Proof.
   trivial.
 Qed.
 
+Definition inf := EApp (EFun [] (EApp (EFunId 0) [])) [].
+
+Theorem inf_diverges :
+  forall n Fs, ~|Fs, inf| n↓.
+Proof.
+  unfold inf.
+  intros. intro. induction n using lt_wf_ind. inversion H; try inversion_is_value. subst.
+  inversion H5; subst.
+  clear H5 H. simpl in H3.
+  eapply H0. 2: exact H3. lia.
+Qed.
+
 Section Tests.
 
   Local Definition e1 := ELit 0.
   Local Definition e2 := EFun [] e1.
   Local Definition e3 := EFun [] (EPlus e1 e1).
-  Local Definition inf := EApp (EFun [] (EApp (EFunId 0) [])) [].
-
-  Axiom inf_diverges : forall clock, eval clock (inf) = Timeout.
 
   Goal Erel 0 e1 e1.
   Proof.
@@ -243,27 +252,15 @@ Qed.
 
 Global Hint Resolve Erel_closed_r : core.
 
-(* Def: closed values are related *)
+
+(** closing substitutions *)
 Definition Grel (n : nat) (Γ : nat) (ξ₁ ξ₂ : Substitution) : Prop :=
   SUBSCOPE Γ ⊢ ξ₁ ∷ 0 /\ SUBSCOPE Γ ⊢ ξ₂ ∷ 0 /\
   forall x, x < Γ -> 
     match (ξ₁ x), (ξ₂ x) with
     | inl e1, inl e2 => Vrel n e1 e2
-(*     | inr n1, inr n2 => n1 = n2 NOTE: these are not needed, because of the subscoped property
-    | inr n1, inl (EVar n2 f) => n1 = n2
-    | inr n1, inl (EFunId n2 f) => n1 = n2
-    | inl (EVar n2 f), inr n1 => n2 = n1
-    | inl (EFunId n2 f), inr n1 => n2 = n1 *)
     | _, _ => False
     end.
-
-
-(** Closing substitutions  *)
-
-(* Definition Grel (n : nat) (Γ : nat) (ξ η : VarFunId -> Exp) : Prop :=
-  (subscoped Γ [] ξ) /\
-  (subscoped Γ [] η) /\
-  forall x, In x Γ -> Vrel n (ξ x) (η x). *)
 
 Lemma Grel_downclosed_helper : forall vals1 vals2 m n,
   m <= n -> length vals1 = length vals2 ->
@@ -302,23 +299,6 @@ Definition Erel_open (Γ : nat) (e1 e2 : Exp) :=
   Grel n Γ ξ₁ ξ₂
 ->
   Erel n (subst ξ₁ e1) (subst ξ₂ e2).
-
-(* Lemma subscoped_to_vrel vals :
-  subscoped [] vals ->
-  list_biforall (Vrel 0) vals vals.
-Proof.
-  induction vals; intros; constructor.
-  - rewrite Vrel_Fix_eq. specialize (H 0 (Nat.lt_0_succ _)). simpl in H.
-    unfold Vrel_rec. destruct H.
-    all: intuition.
-    all: try constructor.
-    all: auto.
-    + break_match_goal. 2: congruence.
-      intros. inversion Hmn.
-    + break_match_goal. 2: congruence.
-      intros. inversion Hmn.
-  - apply IHvals. intro. intros. apply (H (S i)). simpl. lia.
-Qed. *)
 
 Lemma Erel_open_closed : forall {Γ e1 e2},
     Erel_open Γ e1 e2 ->
@@ -506,19 +486,3 @@ Proof.
   * eapply Erel_closed_r; eauto.
   * eapply IHvals1; eauto.
 Qed.
-
-(* Theorem alma : forall n e1 e2, VALCLOSED e1 -> VALCLOSED e2 -> Erel n e1 e2 -> Vrel n e1 e2.
-Proof.
-  intros. destruct H1, H2.
-  apply Valclosed_is_value in H. apply Valclosed_is_value in H0.
-  destruct e4, e5; try inversion_is_value.
-Qed.
-
-Theorem alma : forall Γ e1 e2,
-  VAL Γ ⊢ e1 -> VAL Γ ⊢ e2 ->
-  Erel_open Γ e1 e2 -> Vrel_open Γ e1 e2.
-Proof.
-  intros. intro. intros.
-  specialize (H1 _ _ _ H2). destruct H1, H3.
-  specialize (H4 n ltac:(lia)).
-Qed. *)

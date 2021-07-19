@@ -1,4 +1,4 @@
-Require Export ExpSyntax Basics
+Require Export ExpSyntax
                Coq.Structures.OrderedType.
 
 Import ListNotations.
@@ -39,7 +39,9 @@ match e with
  | EIf e1 e2 e3 => EIf (rename ρ e1) (rename ρ e2) (rename ρ e3)
 end.
 
-Definition Substitution := nat -> Exp + nat. (* We need to have the names for the identity elements explicitly, because of the shiftings (up, upn) *)
+Definition Substitution := nat -> Exp + nat. (** We need to have the names for the
+                                                  identity elements explicitly, because 
+                                                  of the shiftings (up, upn) *)
 Definition idsubst : Substitution := fun x => inr x.
 
 Definition shift (ξ : Substitution) : Substitution := 
@@ -57,15 +59,6 @@ Definition up_subst (ξ : Substitution) : Substitution :=
     end.
 
 Notation upn := (iterate up_subst).
-
-(* Definition restrict_subst (ξ : Substitution) (n : nat) : Substitution :=
-  fun (x : VarFunId) =>
-    if in_list x vl
-    then idsubst x
-    else ξ x
-.
-
-Notation "ξ -- vl" := (restrict_subst ξ vl) (at level 70). *)
 
 Fixpoint subst (ξ : Substitution) (base : Exp) : Exp :=
 match base with
@@ -106,9 +99,9 @@ Notation "s .[ t1 , t2 , .. , tn /]" :=
    format "s '[ ' .[ t1 , '/' t2 , '/' .. , '/' tn /] ']'").
 
 Definition list_subst (l : list Exp) (ξ : Substitution) : Substitution :=
-fold_right (fun v acc => v .: acc) ξ l.
+  fold_right (fun v acc => v .: acc) ξ l.
 
-(* Tests: *)
+(** Tests: *)
 Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
 Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
 Goal (EApp (EVar 0) [EVar 0; ELet XVar (EVar 0) (EVar 0)]).[ELit 0/]
@@ -360,7 +353,7 @@ Proof.
   * now rewrite IHe1, IHe2, IHe3.
 Qed.
 
-Theorem rename_subst_ext : forall e v,
+Theorem rename_subst_core : forall e v,
   (rename (fun n : nat => S n) e).[v .:: idsubst] = e.
 Proof.
   intros.
@@ -371,10 +364,10 @@ Qed.
 Theorem rename_subst : forall e v,
   (rename (fun n : nat => S n) e).[v/] = e.
 Proof.
-  intros. apply rename_subst_ext.
+  intros. apply rename_subst_core.
 Qed.
 
-Lemma scons_substcomp_ext v ξ η :
+Lemma scons_substcomp_core v ξ η :
   (v .:: ξ) >> η = match v with 
                    | inl exp => inl (exp.[η])
                    | inr n => η n
@@ -386,7 +379,7 @@ Qed.
 Lemma scons_substcomp v ξ η :
   (v .: ξ) >> η = v.[η] .: (ξ >> η).
 Proof.
-  apply scons_substcomp_ext.
+  apply scons_substcomp_core.
 Qed.
 
 Lemma scons_substcomp_list ξ η vals :
@@ -396,7 +389,7 @@ Proof.
   rewrite scons_substcomp, IHvals. auto.
 Qed.
 
-Lemma substcomp_scons_ext v ξ η :
+Lemma substcomp_scons_core v ξ η :
   up_subst ξ >> v .:: η = v .:: (ξ >> η).
 Proof.
   extensionality x. unfold scons, substcomp, up_subst. destruct x; auto.
@@ -407,22 +400,22 @@ Qed.
 Lemma substcomp_scons v ξ η :
   up_subst ξ >> v .: η = v .: (ξ >> η).
 Proof.
-  apply substcomp_scons_ext.
+  apply substcomp_scons_core.
 Qed.
 
-Theorem subst_extend_ext : forall ξ v,
+Theorem subst_extend_core : forall ξ v,
   (up_subst ξ) >> (v .:: idsubst) = v .:: ξ.
 Proof.
   intros. unfold substcomp. extensionality x. destruct x; auto.
   cbn. break_match_goal.
-  * unfold shift in Heqs. break_match_hyp; inversion Heqs. rewrite rename_subst_ext. auto.
+  * unfold shift in Heqs. break_match_hyp; inversion Heqs. rewrite rename_subst_core. auto.
   * unfold shift in Heqs. break_match_hyp; inversion Heqs. cbn. reflexivity.
 Qed.
 
 Theorem subst_extend : forall ξ v,
   (up_subst ξ) >> (v .: idsubst) = v .: ξ.
 Proof.
-  intros. apply subst_extend_ext.
+  intros. apply subst_extend_core.
 Qed.
 
 Corollary subst_list_extend : forall n ξ vals, length vals = n ->

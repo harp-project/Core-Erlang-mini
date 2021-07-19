@@ -2,9 +2,6 @@ Require Export Scoping.
 From Coq Require Export Logic.ProofIrrelevance Program.Equality.
 Export Coq.Arith.Wf_nat.
 Export PeanoNat.
-(* Export Relations.Relations.
-Export Classes.RelationClasses.
-Require Export FSets.FMapFacts. *)
 
 Import ListNotations.
 
@@ -77,22 +74,6 @@ Goal eval 10 (sum 2) = Res (ELit 3). Proof. simpl. auto. Qed.
 Goal eval 100 (sum 10) = Res (ELit 55). Proof. simpl. auto. Qed.
 Goal eval 100 (simplefun2 10 10) = Res (ELit 20). Proof. simpl. auto. Qed.
 
-Theorem indexed_to_forall {A : Type} (l : list A) : forall P def,
-  Forall P l
-<->
-  (forall i, i < length l -> P (nth i l def)).
-Proof.
-  induction l; split; intros.
-  * inversion H0.
-  * constructor.
-  * inversion H. subst. destruct i.
-    - simpl. auto.
-    - simpl. apply IHl. exact H4. simpl in H0. lia.
-  * constructor.
-    - apply (H 0). simpl. lia.
-    - eapply IHl. intros. apply (H (S i)). simpl. lia.
-Qed.
-
 Theorem list_eval_eq_length (el : list Exp) : forall clock vl,
   eval_list (eval clock) el = Res vl -> length el = length vl.
 Proof.
@@ -155,12 +136,6 @@ Proof.
   simpl. auto.
 Qed.
 
-(** Congruence *)
-
-(* Future work, based on https://github.com/cobbal/ppl-ctx-equiv-coq 
-  Trick: avoid positivity check by using typing
-*)
-
 Axiom bigger_clock :
   forall e clock v clock', clock' >= clock ->
    eval clock  e = Res v ->
@@ -172,24 +147,28 @@ Axiom bigger_clock_list :
     eval_list (eval clock') l = Res v.
 
 Definition terminating (e : Exp) : Prop :=
-  exists v clock, eval clock e = Res v
-.
+  exists v clock, eval clock e = Res v.
+
+(** Based on https://github.com/cobbal/ppl-ctx-equiv-coq 
+    Frame stack semantics:
+*)
+
 
 Reserved Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" (at level 50).
 Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 (**  Reduction rules *)
 | red_app_start v hd tl xs (H : is_value v):
-  ⟨ (FApp1 (hd::tl))::xs, v ⟩ --> ⟨ (FApp2 v (* H *) tl [] (* empty_is_value *))::xs, hd⟩
+  ⟨ (FApp1 (hd::tl))::xs, v ⟩ --> ⟨ (FApp2 v tl [])::xs, hd⟩
 
 | red_app_fin xs e :
   ⟨ (FApp1 [])::xs, EFun [] e ⟩ --> ⟨ xs, e.[EFun [] e/] ⟩
 
 | app2_step v (H : is_value v) hd tl vs (H2 : Forall is_value vs) xs v' (H' : is_value v') :
-  ⟨ (FApp2 v (* H *) (hd::tl) vs (* H2 *)) :: xs, v' ⟩ --> ⟨ (FApp2 v (* H *) tl (vs ++ [v']) (* (step_value vs v' H2 H') *)) :: xs, hd ⟩
+  ⟨ (FApp2 v (hd::tl) vs) :: xs, v' ⟩ --> ⟨ (FApp2 v tl (vs ++ [v'])) :: xs, hd ⟩
 
 | red_app2 vl e vs v xs (H2 : Forall is_value vs) : 
   is_value v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (EFun vl e) (* H *) [] vs (* H2 *)) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (EFun vl e :: (vs ++ [v])) idsubst] ⟩
+  ⟨ (FApp2 (EFun vl e) [] vs) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (EFun vl e :: (vs ++ [v])) idsubst] ⟩
 
 | red_let val e2 xs v (H : is_value val) : ⟨ (FLet v e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
 
@@ -216,17 +195,17 @@ where "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" := (step fs e fs' e').
 
 Reserved Notation "⟨ fs , e ⟩ -[ k ]-> ⟨ fs' , e' ⟩" (at level 50).
 Inductive step_rt : FrameStack -> Exp -> nat -> FrameStack -> Exp -> Prop :=
-| step_refl e Fs : (* is_value e ->  *)⟨ Fs, e ⟩ -[ 0 ]-> ⟨ Fs, e ⟩
+| step_refl e Fs : ⟨ Fs, e ⟩ -[ 0 ]-> ⟨ Fs, e ⟩
 | step_trans fs e fs' e' fs'' e'' k:
   ⟨ fs, e ⟩ --> ⟨ fs', e'⟩ -> ⟨fs', e'⟩ -[ k ]-> ⟨fs'', e''⟩
 ->
   ⟨ fs, e ⟩ -[S k]-> ⟨fs'', e''⟩
 where "⟨ fs , e ⟩ -[ k ]-> ⟨ fs' , e' ⟩" := (step_rt fs e k fs' e').
 
-Definition eval_star (fs : FrameStack) (e : Exp) (v : Exp) : Prop :=
+Definition step_any (fs : FrameStack) (e : Exp) (v : Exp) : Prop :=
   is_value v /\ exists k, ⟨fs, e⟩ -[k]-> ⟨[], v⟩.
 
-Notation "⟨ fs , e ⟩ -->* v" := (eval_star fs e v) (at level 50).
+Notation "⟨ fs , e ⟩ -->* v" := (step_any fs e v) (at level 50).
 
 Goal ⟨ [], inc 1 ⟩ -->* ELit 2.
 Proof.
@@ -265,7 +244,7 @@ Proof.
   econstructor. eapply red_app_start.
   econstructor. econstructor.
   eapply step_plus.
-(* repeat   econstructor. *)
+
   econstructor. eapply red_plus_left.
   econstructor. econstructor. eapply red_plus_right. simpl Z.add.
   econstructor. eapply red_app2. constructor.
@@ -273,8 +252,7 @@ Proof.
   econstructor. eapply red_if_true.
   econstructor. eapply red_plus_right.
   econstructor.
-  
-  (* repeat econstructor. *)
+
   Unshelve.
   all : constructor.
 Qed.
@@ -358,19 +336,13 @@ Proof.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto. now constructor.
 Qed.
 
-(* Theorem result_is_value_m (fs : FrameStack) (e v : Exp) m :
-  ⟨ fs, e ⟩ -[m]-> ⟨[], v⟩ -> is_value v.
-Proof.
-  intros. induction H; auto.
-Qed. *)
-
-Theorem result_is_value_star (fs : FrameStack) (e v : Exp) :
+Theorem result_is_value_any (fs : FrameStack) (e v : Exp) :
   ⟨ fs, e ⟩ -->* v -> is_value v.
 Proof.
   intros. destruct H. auto.
 Qed.
 
-Corollary step_rt_closedness : forall F e v,
+Corollary step_any_closedness : forall F e v,
    ⟨ F, e ⟩ -->* v -> FSCLOSED F -> EXPCLOSED e
 ->
   VALCLOSED v.
@@ -391,22 +363,22 @@ Definition terminates_in_k_sem (fs : FrameStack) (e : Exp) (k : nat) : Prop :=
 Reserved Notation "| fs , e | k ↓" (at level 80).
 Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
 
-| term_value v : is_value v -> | [] , v | 0 ↓ (** TODO: empty stack + 0 steps? *)
+| term_value v : is_value v -> | [] , v | 0 ↓
 | term_if_true fs e1 e2 k : | fs , e1 | k ↓ -> | (FIf e1 e2)::fs , ELit 0 | S k ↓
 | term_if_false fs e1 e2 v k : is_value v -> v <> ELit 0 -> | fs , e2 | k ↓ -> | (FIf e1 e2)::fs , v | S k ↓
-| term_plus_left e2 v fs (H : is_value v) k : | (FPlus2 v (* H *))::fs , e2 | k ↓ -> | (FPlus1 e2)::fs, v | S k ↓
-| term_plus_right n m fs k : | fs , ELit (n + m) | k ↓ -> | (FPlus2 (ELit n) (* H *) )::fs, ELit m | S k ↓
+| term_plus_left e2 v fs (H : is_value v) k : | (FPlus2 v)::fs , e2 | k ↓ -> | (FPlus1 e2)::fs, v | S k ↓
+| term_plus_right n m fs k : | fs , ELit (n + m) | k ↓ -> | (FPlus2 (ELit n))::fs, ELit m | S k ↓
 | term_let_subst v e2 fs k x : is_value v -> | fs, e2.[v/] | k ↓ -> | (FLet x e2)::fs, v | S k ↓
 | term_letrec_subst vl b e fs f k : | fs, e.[EFun vl b/] | k ↓ -> | fs, ELetRec f vl b e | S k ↓
 | term_app_start v hd tl (H : is_value v) fs k : 
-  | (FApp2 v (* H  *) tl [] (* empty_is_value *))::fs, hd| k ↓ -> | (FApp1 (hd::tl))::fs, v | S k ↓
+  | (FApp2 v tl [])::fs, hd| k ↓ -> | (FApp1 (hd::tl))::fs, v | S k ↓
 | term_app1 e fs k : | fs, e.[EFun [] e/] | k ↓ -> | (FApp1 [])::fs, EFun [] e | S k ↓
 | term_app_step v v' (H : is_value v) hd tl vs (H2 : Forall is_value vs) (H' : is_value v') fs k :
-  | (FApp2 v (* H *) tl (vs ++ [v']) (* (step_value vs v' H2 H') *))::fs, hd | k ↓ -> | (FApp2 v (* H *) (hd::tl) vs (* H2 *))::fs , v' | S k ↓
+  | (FApp2 v tl (vs ++ [v']))::fs, hd | k ↓ -> | (FApp2 v (hd::tl) vs)::fs , v' | S k ↓
 
-| term_app2 v vl e vs fs (* H *) (H2 : Forall is_value vs) k :
+| term_app2 v vl e vs fs (H2 : Forall is_value vs) k :
   length vl = S (length vs) -> is_value v -> | fs, e.[list_subst (EFun vl e  :: (vs ++ [v])) idsubst] | k ↓ 
--> | (FApp2 (EFun vl e) (* H *) [] vs (* H2 *))::fs, v | S k ↓
+-> | (FApp2 (EFun vl e) [] vs)::fs, v | S k ↓
 
 
 | term_if e e1 e2 fs k : | (FIf e1 e2)::fs, e | k ↓ -> | fs, EIf e e1 e2 | S k ↓
@@ -433,35 +405,18 @@ Proof.
       clear H0. inversion H3; subst; econstructor; eauto.
     }
     {
-      inversion H; subst. (* ;
-      match goal with
-      | [ H0 : | _, _ | S k ↓, H1 : | _, _ | k ↓ |- _] => 
-         apply IHk in H1; destruct H1 as [e0 [H1e H1k]]; inversion H1e; subst (* econstructor; econstructor; eauto; constructor*)
-      end. *)
-      (* TODO: boiler plate... *)
+      inversion H; subst;
+      try match goal with
+      | [ H1 : | _, _ | k ↓ |- _] => 
+         apply IHk in H1; destruct H1 as [e0 [H1e H1k]]; econstructor; split; 
+           [ econstructor; [ constructor | eauto ] | auto ]
+      end.
+      all : auto.
       * apply IHk in H3. destruct H3, H0.
         econstructor; split. econstructor. constructor. eauto. auto.
-      * apply IHk in H5. destruct H5, H0.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H4. destruct H4, H0.
-        econstructor; split. econstructor. constructor. all: eauto.
       * apply IHk in H3. destruct H3, H0.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H4. destruct H4, H0.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H0.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H4. destruct H4, H0.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H0.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H5. destruct H5, H0.
         econstructor; split. econstructor. constructor. all: eauto.
       * apply IHk in H6. destruct H6, H0.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H0.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H0.
         econstructor; split. econstructor. constructor. all: eauto.
       * apply IHk in H3. destruct H3, H0.
         econstructor; split. econstructor. constructor. all: eauto.
@@ -647,16 +602,6 @@ Proof.
       + right. intro. inversion H1; try inversion_is_value. contradiction.
 Qed.
 
-Definition plug_f (F : Frame) (e : Exp) : Exp :=
-match F with
- | FApp1 l => EApp e l
- | FApp2 v l1 l2 => EApp v (l2 ++ [e] ++ l1)
- | FLet v e2 => ELet v e e2
- | FPlus1 e2 => EPlus e e2
- | FPlus2 v => EPlus v e
- | FIf e2 e3 => EIf e e2 e3
-end.
-
 Corollary transitive_eval : forall n  Fs Fs' e e',
   ⟨ Fs, e ⟩ -[n]-> ⟨ Fs', e' ⟩ -> forall n' Fs'' e'', ⟨ Fs', e' ⟩ -[n']-> ⟨ Fs'', e'' ⟩
 ->
@@ -734,25 +679,6 @@ Proof.
     apply IHIH in H5. auto.
 Qed.
 
-(* Theorem transitive_eval_rev_2 : forall Fs Fs' e e' k1,
-  ⟨ Fs, e ⟩ -[k1]-> ⟨ Fs', e' ⟩-> 
-  forall Fs'' e'' k2,
-  ⟨ Fs, e ⟩ -[k2]-> ⟨ Fs'', e'' ⟩
-->
-  ⟨ Fs', e' ⟩ -[k2 - k1]-> ⟨ Fs'', e'' ⟩.
-Proof.
-  intros Fs Fs' e e' k1 IH. dependent induction IH; intros.
-  * rewrite Nat.sub_0_r. auto.
-  * destruct k2.
-    - inversion H0. subst.
-      eapply IHIH in IH.
-  
-  
-    simpl in H0. inversion H0; subst. eapply step_determinism in H.
-    2: exact H2. destruct H; subst.
-    apply IHIH in H5. auto.
-Qed. *)
-
 Theorem app_term_fun : forall tl k hds e e' Fs,
   | FApp2 e' tl hds :: Fs, e | k ↓ -> Forall is_value hds ->
   (forall m : nat,
@@ -797,15 +723,8 @@ Theorem frame_indep_red : forall e F Fs e',
 Proof.
   intros. revert Fs'. dependent induction H; intros.
   all: try constructor; auto.
-  all: symmetry in x; try (apply cons_neq_2 in x; contradiction).
-  all: (apply eq_sym, cons_neq in x; contradiction).
-Qed.
-
-Theorem list_app_neq :
-  forall {T : Type} (l2 l1 : list T) t, l1 = l2 ++ t :: l1 -> False.
-Proof.
-  intros. assert (length l1 = length (l2 ++ t :: l1)). { rewrite H at 1. auto. }
-  rewrite app_length in H0. simpl in H0. lia.
+  all: try (apply cons_neq in x; contradiction).
+  all: symmetry in x; try (apply cons_cons_neq in x; contradiction).
 Qed.
 
 Theorem frame_indep : forall k e Fs v,
@@ -996,16 +915,7 @@ Proof.
   now exists n.
 Qed.
 
-Inductive frame_wf : Frame -> Prop :=
-| wf_app1 l : frame_wf (FApp1 l)
-| wf_app2 vl b l1 l2 :  Forall is_value l2 -> frame_wf (FApp2 (EFun vl b) l1 l2)
-| wf_let v e : frame_wf (FLet v e)
-| wf_plus1 e : frame_wf (FPlus1 e)
-| wf_plus2 v : is_value v -> frame_wf (FPlus2 v)
-| wf_if e2 e3 : frame_wf (FIf e2 e3)
-.
-
-Theorem app_term_conds : forall l1 l2 v e x Fs, 
+Theorem app_term_conditions : forall l1 l2 v e x Fs, 
   | FApp2 v l1 l2 :: Fs, e | x ↓ ->
   Forall is_value l2 /\ exists vl e', v = EFun vl e'.
 Proof.
@@ -1019,6 +929,8 @@ Proof.
     destruct H11, H3, H3. split; auto. subst. now do 2 eexists.
 Qed.
 
+
+
 Theorem put_back : forall F e Fs,
   | F :: Fs, e | ↓ -> | Fs, plug_f F e | ↓ /\ frame_wf F.
 Proof.
@@ -1026,7 +938,7 @@ Proof.
   * inversion H. split. exists (S x). constructor. auto. constructor.
   * destruct H.
     apply term_eval in H as H'. destruct H', H0, H0.
-    apply app_term_conds in H as CDS. destruct CDS, H3, H3. subst.
+    apply app_term_conditions in H as CDS. destruct CDS, H3, H3. subst.
     split. 2: constructor; auto.
     destruct l2.
     - simpl in *. exists (2 + x). do 2 constructor.
@@ -1068,17 +980,3 @@ Proof.
     subst. inversion H5; subst; try inversion_is_value. eexists. eauto.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
 Qed.
-
-(* Theorem partial_step :
-  ⟨ fs :: Fs, 
-
-Theorem partial_eval : forall k e v,
-  ⟨ [], e ⟩ -[S k]-> ⟨ [], v ⟩
-<->
-  forall Fs, ⟨ Fs, e ⟩ -[S k]-> ⟨ Fs, v ⟩.
-Proof.
-  split; revert e v.
-  { intros. dependent induction H.
-    * 
-  
-Qed. *)

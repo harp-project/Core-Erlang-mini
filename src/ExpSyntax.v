@@ -1,15 +1,10 @@
 
 From Coq Require Export ZArith.BinInt
-                        Arith.PeanoNat
                         FunctionalExtensionality
                         Strings.String.
 Require Export Basics.
 
 Import ListNotations.
-
-(* Inductive Literal : Set :=
-| Atom (s: string)
-| Integer (x : Z). *)
 
 Definition Var : Set := string.
 
@@ -19,15 +14,13 @@ Inductive Exp : Set :=
 | ELit    (l : Z)
 | EVar    (n : nat) (** (v : Var) <- these will be assigned by a naming function *)
 | EFunId  (n : nat) (** (f : FunctionIdentifier) <- these will be assigned by a naming function *)
-(* 
-| ERecFun (f : FunctionIdentifier) (vl : list Var) (e : Exp) (** This is not a valid expression, letrec reduces to this *) *)
-(** Instead of multiple fun-s, we use only recursive funs, which use the 0 DB-index
-    as the recursive fun-exp *)
+(** Instead of multiple fun-s (recursive and non-recursive), 
+    we use only recursive funs, which use the 0 DB-index as the recursive fun-exp *)
 | EFun    (vl : list Var) (e : Exp)
 | EApp    (exp : Exp)     (l : list Exp)
 | ELet    (v : Var) (e1 e2 : Exp)
 | ELetRec (f : FunctionIdentifier) (vl : list Var) (b e : Exp)
-(** Techical helpers: simplified bif: plus, simplified case: if *)
+(** Techical helper constructions: 1) simple bif: plus, 2) simple case: if *)
 | EPlus   (e1 e2 : Exp)
 | EIf (e1 e2 e3 : Exp).
 
@@ -38,10 +31,9 @@ Section correct_exp_ind.
 
   Hypotheses
    (H0 : forall (l : Z), P (ELit l))
-   (H1 : forall (n : nat) (* (v : Var) *), P (EVar n (* v *)))
-   (H2 : forall (n : nat) (* (f : FunctionIdentifier) *), P (EFunId n (* f *)))
+   (H1 : forall (n : nat), P (EVar n))
+   (H2 : forall (n : nat), P (EFunId n))
    (H3 : forall (vl : list Var) (e : Exp), P e -> P (EFun vl e))
-(*    (H4 : forall (f : FunctionIdentifier) (vl : list Var) (e : Exp), P e -> P (ERecFun f vl e)) *)
    (H5 : forall (e : Exp), P e -> forall (el : list Exp), Q el 
        -> P (EApp e el))
    (H6 : forall (v : Var) (e1 : Exp), P e1 -> forall e2 : Exp, P e2 
@@ -61,7 +53,6 @@ Section correct_exp_ind.
   | EVar n => H1 n
   | EFunId n => H2 n
   | EFun vl e => H3 vl e (Exp_ind2 e)
-(*   | ERecFun f vl e => H4 f vl e (Exp_ind2 e) *)
   | EApp e el => H5 e (Exp_ind2 e) el ((fix l_ind (l':list Exp) : Q l' :=
                                          match l' as x return Q x with
                                          | [] => H1'
@@ -78,6 +69,8 @@ End correct_exp_ind.
 Fixpoint Exp_eq_dec (e e' : Exp) : {e = e'} + {e <> e'}.
 Proof. repeat decide equality. Qed.
 
+(** Examples *)
+
 Definition XVar : Var := "X"%string.
 Definition YVar : Var := "Y"%string.
 Definition ZVar : Var := "Z"%string.
@@ -93,30 +86,8 @@ Definition sum (n : Z) := ELetRec F1 [XVar] (EIf (EVar 1) (EVar 1) (
 Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar 0) []).
 Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar 1) (EVar 2))) [ELit n; ELit m].
 
-Ltac break_match_hyp :=
-match goal with
-| [ H : context [ match ?X with _=>_ end ] |- _] =>
-     match type of X with
-     | sumbool _ _=>destruct X
-     | _=>destruct X eqn:? 
-     end 
-end.
 
-Ltac break_match_goal :=
-match goal with
-| [ |- context [ match ?X with _=>_ end ] ] => 
-    match type of X with
-    | sumbool _ _ => destruct X
-    | _ => destruct X eqn:?
-    end
-end.
-
-Corollary app_not_in {T : Type} : forall (x:T) (l1 l2 : list T),
-  ~In x l1 -> ~In x l2 -> ~In x (l1 ++ l2).
-Proof.
-  intros.
-  intro. eapply in_app_or in H1. destruct H1; contradiction.
-Qed.
+(** Names, equalities *)
 
 (* The equality of function signatures *)
 Definition funid_eqb (v1 v2 : FunctionIdentifier) : bool :=
