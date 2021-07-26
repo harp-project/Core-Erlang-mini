@@ -8,4 +8,5 @@ src/LogRel.v
 src/Compatibility.v
 src/CIU.v
 src/CTX.v
+src/Equivs.v
 
