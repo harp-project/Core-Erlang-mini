@@ -1412,3 +1412,170 @@ Proof.
   intros. split; eapply terminating_implies_equivalence_helper; auto.
 Qed.
 
+(* Theorem equivalence_implies_terminating :
+  forall e1 e2, EXPCLOSED e1 -> EXPCLOSED e2 -> eq_exps e1 e2 -> eq_exps e2 e1 ->
+    (CIU e1 e2 /\ CIU e2 e1).
+Proof.
+  intros. unfold CIU, eq_exps, equivalent_exps in *.
+  repeat split; auto; intros.
+  * apply terminates_eq_terminates_sem in H4 as [v H4]. apply H1 in H4.
+    destruct H4, H4. apply terminates_eq_terminates_sem. exists x; auto. auto.
+  * apply terminates_eq_terminates_sem in H4 as [v H4]. apply H2 in H4.
+    destruct H4, H4. apply terminates_eq_terminates_sem. exists x; auto. auto.
+Qed. *)
+
+
+
+Definition equivalent_exps2 (e1 e2 : Exp) (R : Exp -> Exp -> Prop) : Prop :=
+  forall v1 Fs, FSCLOSED Fs -> ⟨ Fs, e1 ⟩ -->* v1 -> (exists v2, ⟨ Fs, e2 ⟩ -->* v2 /\ R v1 v2).
+
+Fixpoint equivalent_values2 (n : nat) (v1 v2 : Exp) : Prop :=
+match n with
+| 0 => True
+| S n' =>
+  match v1, v2 with
+  | ELit l1, ELit l2 => l1 = l2
+  | EFun vl1 b1, EFun vl2 b2 => forall vals, Forall (fun v => VALCLOSED v) vals ->
+    length vals = length vl1 -> length vals = length vl2 ->
+    equivalent_exps2 (b1.[list_subst (EFun vl1 b1::vals) idsubst]) (b2.[list_subst (EFun vl2 b2::vals) idsubst]) (equivalent_values2 n')
+  | _, _ => False
+  end
+end.
+
+Definition eq_exps2 (e1 e2 : Exp) :=
+  equivalent_exps2 e1 e2 (fun v1 v2 => forall n, equivalent_values2 n v1 v2).
+
+Theorem equivalence_implies_terminating2 :
+  forall e1 e2, EXPCLOSED e1 -> EXPCLOSED e2 -> eq_exps2 e1 e2 -> eq_exps2 e2 e1 ->
+    (CIU e1 e2 /\ CIU e2 e1).
+Proof.
+  intros. unfold CIU, eq_exps2, equivalent_exps2 in *.
+  repeat split; auto; intros.
+  * apply terminates_eq_terminates_sem in H4 as [v H4]. apply H1 in H4.
+    destruct H4, H4. apply terminates_eq_terminates_sem. exists x; auto. auto.
+  * apply terminates_eq_terminates_sem in H4 as [v H4]. apply H2 in H4.
+    destruct H4, H4. apply terminates_eq_terminates_sem. exists x; auto. auto.
+Qed.
+
+Theorem terminating_implies_equivalence_helper2 :
+  forall e1 e2 (P : CIU e2 e1), CIU e1 e2 -> eq_exps2 e1 e2.
+Proof.
+  intros. intro. intros.
+  destruct P, H, H3, H4.
+  apply ex_intro in H1 as H1'. apply terminates_eq_terminates_sem in H1'.
+  epose proof (H6 _ H0 H1').
+  apply terminates_eq_terminates_sem in H7. clear H1'. destruct H7.
+  exists x; split; auto. intro.
+  generalize dependent v1. generalize dependent x. generalize dependent Fs.
+  induction n; intros.
+  * simpl. auto.
+  * simpl. assert (is_value v1) as Vv1 by apply H1.
+    assert (is_value x) as Vx by apply H7.
+    destruct v1, x; try inversion_is_value.
+    - assert (| Fs ++ [FPlus1 (ELit (-l)); FIf (ELit 0) inf], e1 | ↓) as T1. {
+        destruct H1, H8. apply frame_indep_nil with (Fs' := [FPlus1 (ELit (-l)); FIf (ELit 0) inf]) in H8.
+        assert (⟨ [FPlus1 (ELit (-l)); FIf (ELit 0) inf], ELit l ⟩ -[3]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor.
+          econstructor. constructor. rewrite Z.add_opp_diag_r.
+          econstructor. constructor. constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x + 3). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H6 (Fs ++ [FPlus1 (ELit (-l)); FIf (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H7, H9.
+      apply frame_indep_nil with (Fs' := [FPlus1 (ELit (-l)); FIf (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. inversion H15. subst. inversion H20.
+      + lia.
+      + subst. apply inf_diverges in H21. contradiction.
+    - assert (| Fs ++ [FPlus1 (ELit (-l)); FIf (ELit 0) inf], e1 | ↓) as T1. {
+        destruct H1, H8. apply frame_indep_nil with (Fs' := [FPlus1 (ELit (-l)); FIf (ELit 0) inf]) in H8.
+        assert (⟨ [FPlus1 (ELit (-l)); FIf (ELit 0) inf], ELit l ⟩ -[3]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor.
+          econstructor. constructor. rewrite Z.add_opp_diag_r.
+          econstructor. constructor. constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x0 + 3). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H6 (Fs ++ [FPlus1 (ELit (-l)); FIf (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H7, H9.
+      apply frame_indep_nil with (Fs' := [FPlus1 (ELit (-l)); FIf (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. inversion H15.
+    (* P : CIU e2 e1 -> is used only for the following subgoal for simplicity,
+                        however, it should be possible to avoid it *)
+    - assert (| Fs ++ [FPlus1 (ELit (-l)); FIf (ELit 0) inf], e2 | ↓) as T1. {
+        destruct H7, H8. apply frame_indep_nil with (Fs' := [FPlus1 (ELit (-l)); FIf (ELit 0) inf]) in H8.
+        assert (⟨ [FPlus1 (ELit (-l)); FIf (ELit 0) inf], ELit l ⟩ -[3]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor.
+          econstructor. constructor. rewrite Z.add_opp_diag_r.
+          econstructor. constructor. constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x + 3). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H5 (Fs ++ [FPlus1 (ELit (-l)); FIf (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H1, H9.
+      apply frame_indep_nil with (Fs' := [FPlus1 (ELit (-l)); FIf (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. inversion H15.
+    - intros. unfold equivalent_exps2. intros.
+      assert (⟨ Fs ++ [FApp1 vals] ++ Fs0, e1 ⟩ -->* v0) as T1'. {
+        destruct H1, H13.
+        apply frame_indep_nil with (Fs' := [FApp1 vals] ++ Fs0) in H13.
+        
+        assert (exists k, ⟨ [FApp1 vals] ++ Fs0, EFun vl v1 ⟩ -[k]->
+                ⟨Fs0, v1.[EFun vl v1 .: list_subst vals idsubst]⟩). {
+          apply app1_eval; auto. eapply Forall_impl. 2: exact H8.
+          intros. now apply Valclosed_is_value.
+        }
+        destruct H14.
+        epose proof (transitive_eval _ _ _ _ _ H13 _ _ _ H14).
+        destruct H12, H16.
+        epose proof (transitive_eval _ _ _ _ _ H15 _ _ _ H16).
+        split; auto. eexists; eauto.
+      }
+      eapply ex_intro in T1' as T1.
+      apply terminates_eq_terminates_sem in T1.
+      epose proof (H6 (Fs ++ ([FApp1 vals] ++ Fs0)) _ T1).
+
+      destruct H7, H14.
+      apply frame_indep_nil with (Fs' := [FApp1 vals] ++ Fs0) in H14.
+      assert (exists k, ⟨ [FApp1 vals] ++ Fs0, EFun vl0 x ⟩ -[k]->
+                ⟨Fs0, x.[EFun vl0 x .: list_subst vals idsubst]⟩). {
+        apply app1_eval; auto. eapply Forall_impl. 2: exact H8.
+        intros. now apply Valclosed_is_value.
+      }
+      destruct H15, H13.
+      eapply terminates_step_any_2 in H13. 2: exact H14.
+      eapply terminates_step_any_2 in H13. 2: exact H15.
+      apply terminates_in_k_eq_terminates_in_k_sem in H13. destruct H13, H13.
+      exists x3. split.
+      + split; auto. eexists. eassumption.
+      + eapply IHn.
+        3: { exact T1'. }
+        ** apply Forall_app. split. 2: apply Forall_app; split.
+           all: auto. do 2 constructor. eapply Forall_impl.
+             intros. apply scoped_val. exact H17.
+             auto.
+        ** epose proof (transitive_eval _ _ _ _ _ H14 _ _ _ H15).
+           epose proof (transitive_eval _ _ _ _ _ H17 _ _ _ H13).
+           split; auto. eexists; eauto.
+  Unshelve.
+    all: apply Forall_app; split; auto.
+    1-3: repeat constructor; inversion H8.
+    apply Forall_app; split; auto.
+    do 2 constructor. eapply Forall_impl.
+    intros. apply scoped_val. exact H13.
+    auto.
+Qed.
+
+

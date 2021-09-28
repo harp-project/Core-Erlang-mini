@@ -649,6 +649,19 @@ Proof.
     rewrite <- app_assoc. auto. apply Forall_app. split. auto. constructor; auto.
 Qed.
 
+Lemma app1_eval :
+  forall vals Fs vl e, Forall is_value vals -> length vl = length vals ->
+  exists k : nat,
+  ⟨ [FApp1 vals] ++ Fs, EFun vl e ⟩ -[ k ]-> ⟨ Fs, e.[EFun vl e .: list_subst vals idsubst] ⟩.
+Proof.
+  destruct vals; intros.
+  * apply length_zero_iff_nil in H0. subst. exists 1. econstructor.
+    simpl. constructor. cbn. constructor.
+  * exists (S (S (length vals))). simpl. econstructor. do 2 constructor.
+    inversion H. subst.
+    apply eval_app_partial; auto.
+Qed.
+
 Lemma eval_app_partial_core :
   forall hds' vals vl e e' v Fs hds, (* length vl = length (hds ++ v::hds' ++ vals) -> *)
   Forall is_value hds -> Forall is_value hds' -> is_value v ->
