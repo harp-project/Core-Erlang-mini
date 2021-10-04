@@ -131,6 +131,28 @@ Proof.
     exact H11.
 Qed.
 
+Theorem eta_abstraction Γ e :
+  EXP Γ ⊢ e ->
+  e ≈[Γ]≈ EApp (EFun [] (rename (fun n => S n) e)) [].
+Proof.
+  intros. split; eapply CIU_iff_CTX; intro; intros; simpl; split;
+  [idtac|split|idtac|split].
+  2, 4: constructor. 2, 4: do 2 constructor.
+  all: try apply -> subst_preserves_scope_exp; eauto.
+  3-4: intros; inversion H1.
+  1-2: rewrite renaming_is_subst; apply -> subst_preserves_scope_exp; eauto.
+  1-2: intro; intros; simpl; lia.
+  * intros. destruct H2 as [x H2]. exists (S (S x)).
+    constructor. constructor.
+    rewrite renaming_is_subst, subst_comp, subst_comp, subst_extend, subst_comp.
+    now replace (ren (fun n : nat => S n) >> EFun [] e.[ren (fun n : nat => S n) >> up_subst ξ] .: ξ) with ξ by reflexivity.
+  * intros. destruct H2 as [x H2].
+    inversion H2; subst; try inversion_is_value.
+    inversion H7; subst.
+    rewrite renaming_is_subst, subst_comp, subst_comp, subst_extend, subst_comp in H5.
+    replace (ren (fun n : nat => S n) >> EFun [] e.[ren (fun n : nat => S n) >> up_subst ξ] .: ξ) with ξ in H5 by reflexivity. now exists k0.
+Qed.
+
 Definition naive_equivalent (e1 e2 : Exp) : Prop :=
   forall v F, FSCLOSED F /\ EXPCLOSED e1 /\ EXPCLOSED e2 /\ 
     (⟨ F, e1 ⟩ -->* v -> ⟨ F, e2 ⟩ -->* v).
@@ -145,6 +167,10 @@ Proof.
   intros. apply terminates_eq_terminates_sem in H1 as [v H1].
   apply H in H1. now apply ex_intro, terminates_eq_terminates_sem in H1.
 Qed.
+
+
+
+
 
 (* Definition unfold_app (l : list Var) (l2 : list Exp) (b : Exp) : Exp :=
   fold_right (fun '(x, e) Acc => ELet x e (rename (fun n => S n) Acc)) b (combine l l2). *)
