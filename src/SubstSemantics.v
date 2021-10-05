@@ -678,6 +678,18 @@ Proof.
     apply Forall_app. split; auto. auto.
 Qed.
 
+Lemma full_eval_app_partial : forall e vals vl Fs,
+  length vl = length vals -> Forall is_value vals ->
+  ⟨ Fs, EApp (EFun vl e) vals ⟩ -[2 + length vals]-> ⟨ Fs, e.[EFun vl e .: list_subst vals idsubst] ⟩.
+Proof.
+  destruct vals; intros.
+  - simpl. apply length_zero_iff_nil in H. subst. econstructor. constructor.
+    econstructor. constructor. constructor.
+  - simpl. econstructor. constructor.
+    econstructor. constructor. constructor. inversion H0.
+    apply eval_app_partial; auto.
+Qed.
+
 Theorem transitive_eval_rev : forall Fs Fs' e e' k1,
   ⟨ Fs, e ⟩ -[k1]-> ⟨ Fs', e' ⟩-> 
   forall Fs'' e'' k2,
@@ -1195,3 +1207,28 @@ Proof.
     subst. inversion H5; subst; try inversion_is_value. eexists. eauto.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
 Qed.
+
+Theorem term_app_in_k : forall Fs vl vals e k,
+  length vl = length vals -> Forall is_value vals ->
+  | Fs, e.[EFun vl e .: list_subst vals idsubst] | k ↓ ->
+  | Fs, EApp (EFun vl e) vals | 2 + length vl + k ↓.
+Proof.
+  intros. inversion H0; try inversion_is_value; subst.
+  * apply length_zero_iff_nil in H. subst.
+    do 2 constructor. auto.
+  * destruct (length l) eqn:D1.
+    - apply length_zero_iff_nil in D1. subst. rewrite H. simpl.
+      do 3 constructor; auto.
+    - apply eq_sym, last_element_exists in D1 as D1'. destruct D1' as [l' [l'x EQ]].
+      subst. apply Forall_app in H3 as [H3_1 H3_2]. inversion H3_2. subst.
+      epose proof (eval_app_partial_core l' [] vl e l'x x Fs []
+         ltac:(constructor) H3_1 H2). cbn in H3.
+      assert (⟨ FApp2 (EFun vl e) [] (x :: l') :: Fs, l'x ⟩ -[1]-> ⟨ Fs, e.[EFun vl e .: list_subst (x :: l' ++ [l'x]) idsubst] ⟩). { 
+        econstructor; constructor. all: auto.
+        simpl. simpl in H. rewrite app_length in H. simpl in H. lia.
+      }
+      epose proof (transitive_eval _ _ _ _ _ H3 _ _ _ H4).
+      eapply term_step_term_plus in H7. 2: exact H1.
+      rewrite H. simpl. rewrite app_length. simpl. repeat constructor. exact H7.
+Qed.
+

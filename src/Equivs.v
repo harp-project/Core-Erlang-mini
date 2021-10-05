@@ -1,9 +1,6 @@
 Require Import CTX.
 Import ListNotations.
 
-Notation "e1 ≈[ Γ ]≈ e2" := (CTX Γ e1 e2 /\ CTX Γ e2 e1) (at level 70).
-Notation "e1 ≈ e2" := (CTX 0 e1 e2 /\ CTX 0 e2 e1) (at level 70).
-
 Lemma Equiv_refl :
   forall e Γ, EXP Γ ⊢ e -> e ≈[Γ]≈ e. Proof. intros. split; now apply CTX_refl. Qed.
 
@@ -38,7 +35,7 @@ Proof.
   intros. split; now apply CIU_iff_CTX, CIU_beta_value.
 Qed.
 
-Corollary eta_abs : forall {Γ e vl vals},
+Corollary beta_abs : forall {Γ e vl vals},
   VAL Γ ⊢ EFun vl e -> Forall (fun v => VAL Γ ⊢ v) vals -> length vl = length vals ->
   e.[list_subst (EFun vl e :: vals) idsubst] ≈[Γ]≈ EApp (EFun vl e) vals.
 Proof.
@@ -151,6 +148,53 @@ Proof.
     inversion H7; subst.
     rewrite renaming_is_subst, subst_comp, subst_comp, subst_extend, subst_comp in H5.
     replace (ren (fun n : nat => S n) >> EFun [] e.[ren (fun n : nat => S n) >> up_subst ξ] .: ξ) with ξ in H5 by reflexivity. now exists k0.
+Qed.
+
+Theorem general_eta_abstraction Γ e vl vals :
+  length vl = length vals -> EXP Γ ⊢ e -> Forall (fun v => VALCLOSED v) vals ->
+  e ≈[Γ]≈ EApp (EFun vl (rename (fun n => S (length vl) + n) e)) vals.
+Proof.
+  intros. split; eapply CIU_iff_CTX; intro; intros; simpl; split;
+  [idtac|split|idtac|split].
+  2, 4: constructor. 2, 4: do 2 constructor.
+  1,7: try apply -> subst_preserves_scope_exp; eauto.
+  1-2: rewrite renaming_is_subst, subst_comp; apply -> subst_preserves_scope_exp; eauto.
+  1-2: apply substcomp_scoped with (Δ := S (length vl) + Γ).
+  2, 4 : now apply up_scope, upn_scope.
+  1-2: intro; intros; cbn; lia.
+  1-2: intros; rewrite Forall_nth in H1; apply scoped_val.
+  1-2: now replace (ELit 0) with ((ELit 0).[ξ]) by auto; rewrite map_nth;
+    rewrite map_length in H3;
+    apply vclosed_sub_closed, H1.
+  * intros. destruct H4 as [k H4].
+    assert (Forall is_value vals). { eapply Forall_impl. intros. apply Valclosed_is_value. exact H5. auto. }
+    eexists. apply term_app_in_k.
+    - now rewrite map_length.
+    - eapply Forall_map; auto. intros. destruct H6; constructor.
+    - repeat rewrite renaming_is_subst, subst_comp, subst_comp in *.
+      fold_upn. fold_list_subst.
+      replace (fun n => S (length vl + n)) with (fun n => S (length vl) + n) by auto.
+      rewrite rename_upn_list_subst. exact H4.
+      simpl. rewrite map_length. auto.
+  * intros. destruct H4 as [k H4].
+    epose proof (full_eval_app_partial (rename (fun n : nat => S (Datatypes.length vl + n)) e).[
+          up_subst (upn (Datatypes.length vl) ξ)] (map (subst ξ) vals) vl F _ _).
+    repeat rewrite renaming_is_subst, subst_comp, subst_comp in H5.
+    fold_upn_hyp. fold_list_subst_hyp.
+    replace (fun n => S (length vl + n)) with (fun n => S (length vl) + n) in H5 by auto.
+    rewrite substcomp_assoc in H5.
+    rewrite rename_upn_list_subst in H5.
+    eexists. eapply terminates_step_any_2. exact H4.
+    rewrite renaming_is_subst, subst_comp. exact H5.
+    simpl. rewrite map_length. auto.
+  Unshelve.
+    now rewrite map_length.
+    assert (Forall is_value vals). {
+      eapply Forall_impl. 2: exact H1. intros.
+      now apply Valclosed_is_value.
+    }
+    apply Forall_map; auto.
+    intros. inversion H6; constructor.
 Qed.
 
 Definition naive_equivalent (e1 e2 : Exp) : Prop :=

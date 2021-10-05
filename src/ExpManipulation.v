@@ -478,3 +478,55 @@ Proof.
   intros. extensionality x. unfold ">>>", scons. destruct x; auto.
   rewrite Nat.add_comm. reflexivity.
 Qed.
+
+Lemma ren_up_subst :
+  forall ξ,
+    ren (fun n => S n) >> up_subst ξ = ξ >> ren (fun n => S n).
+Proof.
+  intros. extensionality x; cbn.
+  unfold shift. unfold ">>".
+  break_match_goal; cbn.
+  now rewrite <- renaming_is_subst.
+  reflexivity.
+Qed.
+
+Lemma ren_scons :
+  forall ξ f, forall x, ren (fun n => S (f n)) >> x .: ξ = ren (fun n => f n) >> ξ.
+Proof.
+  intros.
+  extensionality k. cbn. auto.
+Qed.
+
+Lemma rename_upn_list_subst :
+  forall m ξ vals, length vals = m ->
+    ren (fun n => m + n) >> (upn m ξ >> list_subst vals idsubst) = ξ.
+Proof.
+  intros.
+  rewrite (subst_list_extend m ξ vals H).
+  generalize dependent vals. induction m; intros; cbn.
+  - replace (ren (fun n => n)) with idsubst by auto. apply length_zero_iff_nil in H.
+    subst. cbn. now rewrite substcomp_id_l.
+  - assert (length vals = S m) by auto.
+    apply eq_sym, element_exist in H as [x0 [xs H1]]. subst. inversion H0.
+    replace (list_subst (x0 :: xs) ξ) with (x0 .: list_subst xs ξ) by auto.
+    specialize (IHm xs H1).
+    erewrite H1, ren_scons; eauto.
+Qed.
+
+Ltac fold_list_subst :=
+match goal with
+| |- context G [?x .: list_subst ?xs ?ξ] => replace (x .: list_subst xs ξ) with (list_subst (x :: xs) ξ) by auto
+end.
+
+Ltac fold_list_subst_hyp :=
+match goal with
+| [H: context G [?x .: list_subst ?xs ?ξ] |- _] => replace (x .: list_subst xs ξ) with (list_subst (x :: xs) ξ) in H by auto
+end.
+
+Lemma substcomp_assoc :
+  forall ξ σ η, (ξ >> σ) >> η = ξ >> (σ >> η).
+Proof.
+  intros. extensionality x. unfold ">>".
+  destruct (ξ x) eqn:D1; auto.
+  rewrite subst_comp. reflexivity.
+Qed.

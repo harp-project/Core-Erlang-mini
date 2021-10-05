@@ -859,6 +859,19 @@ Proof.
   intros. inversion H; try constructor. 1-2: inversion H0.
 Qed.
 
+Lemma substcomp_scoped :
+  forall ξ σ Γ Δ Ω, SUBSCOPE Γ ⊢ ξ ∷ Δ -> SUBSCOPE Δ ⊢ σ ∷ Ω
+->
+  SUBSCOPE Γ ⊢ ξ >> σ ∷ Ω.
+Proof.
+  intros. intro. intros. unfold subscoped in H.
+  unfold ">>".
+  specialize (H v H1).
+  destruct (ξ v) eqn:D1.
+  * apply -> subst_preserves_scope_val; eassumption.
+  * specialize (H0 n H). auto.
+Qed.
+
 
 Ltac inversion_is_value :=
 match goal with
