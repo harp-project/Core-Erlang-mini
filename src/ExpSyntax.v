@@ -22,7 +22,9 @@ Inductive Exp : Set :=
 | ELetRec (f : FunctionIdentifier) (vl : list Var) (b e : Exp)
 (** Techical helper constructions: 1) simple bif: plus, 2) simple case: if *)
 | EPlus   (e1 e2 : Exp)
-| EIf (e1 e2 e3 : Exp).
+| EIf (e1 e2 e3 : Exp)
+| ECons (e1 e2 : Exp)
+| ENil.
 
 Section correct_exp_ind.
 
@@ -44,6 +46,8 @@ Section correct_exp_ind.
        -> P (EPlus e1 e2))
    (H9 : forall (e1 : Exp), P e1 -> forall e2 : Exp, P e2 -> forall e3 : Exp, P e3
        -> P (EIf e1 e2 e3))
+   (H10 : forall e1, P e1 -> forall e2, P e2 -> P (ECons e1 e2))
+   (H11 : P ENil)
    (H' : forall v : Exp, P v -> forall l:list Exp, Q l -> Q (v :: l))
    (H1' : Q []).
 
@@ -62,6 +66,8 @@ Section correct_exp_ind.
   | ELetRec f vl b e => H7 f vl b (Exp_ind2 b) e (Exp_ind2 e)
   | EPlus e1 e2 => H8 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | EIf e1 e2 e3 => H9 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2) e3 (Exp_ind2 e3)
+  | ECons e1 e2 => H10 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
+  | ENil => H11
   end.
 
 End correct_exp_ind.

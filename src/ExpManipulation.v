@@ -37,6 +37,8 @@ match e with
                                     (rename (upren ρ) e)
  | EPlus e1 e2 => EPlus (rename ρ e1) (rename ρ e2)
  | EIf e1 e2 e3 => EIf (rename ρ e1) (rename ρ e2) (rename ρ e3)
+ | ECons e1 e2 => ECons (rename ρ e1) (rename ρ e2)
+ | ENil => e
 end.
 
 Definition Substitution := nat -> Exp + nat. (** We need to have the names for the
@@ -78,6 +80,8 @@ match base with
                                     (subst (up_subst ξ) e)
  | EPlus e1 e2 => EPlus (subst ξ e1) (subst ξ e2)
  | EIf e1 e2 e3 => EIf (subst ξ e1) (subst ξ e2) (subst ξ e3)
+ | ECons e1 e2 => ECons (subst ξ e1) (subst ξ e2)
+ | ENil => base
 end.
 
 Definition scons {X : Type} (s : X) (σ : nat -> X) (x : nat) : X :=
@@ -155,6 +159,7 @@ Proof.
   * rewrite <- ren_up, <- renn_up, IHe1, IHe2, <- ren_up. auto.
   * rewrite IHe1, IHe2. auto.
   * rewrite IHe1, IHe2, IHe3. auto.
+  * now rewrite IHe1, IHe2.
   * constructor; auto.
   * constructor.
 Qed.
@@ -238,6 +243,7 @@ Proof.
     rewrite <- ren_up, IHe2, upren_subst_up. auto.
   * rewrite IHe1, IHe2. auto.
   * rewrite IHe1, IHe2, IHe3. auto.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Notation "σ >> ξ" := (substcomp σ ξ) (at level 56, left associativity).
@@ -268,6 +274,7 @@ Proof.
   * repeat fold_upn. rewrite IHe1, IHe2, uprenn_comp. auto.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2, IHe3.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Theorem rename_comp :
@@ -280,6 +287,7 @@ Proof.
   * do 2 fold_upn. now rewrite IHe1, IHe2, uprenn_comp, upren_comp.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2, IHe3.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Lemma subst_up_upren : forall σ ξ,
@@ -318,6 +326,7 @@ Proof.
     now rewrite <- IHe2, <- ren_up, <-subst_up_upren.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2, IHe3.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Lemma up_comp ξ η :
@@ -351,6 +360,7 @@ Proof.
   * do 3 fold_upn. now rewrite IHe1, IHe2, upn_comp, up_comp.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2, IHe3.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Theorem rename_subst_core : forall e v,
