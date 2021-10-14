@@ -39,6 +39,7 @@ Definition Vrel_rec (n : nat)
   VALCLOSED v1 /\ VALCLOSED v2 /\
   match v1, v2 with
   | ELit l1, ELit l2 => l1 = l2
+  | ENil, ENil => True
   | EFun vl1 b1, EFun vl2 b2 =>
     if length vl1 =? length vl2 then
      forall m (Hmn : m < n), forall (vals1 vals2 : list Exp),
@@ -49,6 +50,8 @@ Definition Vrel_rec (n : nat)
                  (b1.[list_subst (EFun vl1 b1 :: vals1) idsubst])
                  (b2.[list_subst (EFun vl2 b2 :: vals2) idsubst])
      else False
+  | ECons v1 v2, ECons v1' v2' =>
+    (forall m (Hmn : m < n), Vrel m Hmn v1 v1' /\ Vrel m Hmn v2 v2')
   | _, _ => False
   end
 .
@@ -77,6 +80,7 @@ Proof.
   extensionality v1.
   extensionality v2.
   destruct v1, v2; auto. break_match_goal. 2: auto.
+  
   f_equal. f_equal.
   extensionality m.
   extensionality Hmn.
@@ -89,6 +93,10 @@ Proof.
   extensionality m'.
   extensionality H0.
   trivial.
+  
+  do 2 f_equal.
+  extensionality m. extensionality Hmn.
+  now rewrite H.
 Qed.
 
 Lemma Vrel_Fix_eq : forall {n : nat} {v1 v2 : Exp},
@@ -173,8 +181,10 @@ Proof.
   rewrite Vrel_Fix_eq in H.
   unfold Vrel_rec at 1.
   unfold Vrel_rec at 1 in H.
-  destruct v1, v2; intuition; break_match_hyp; intros.
-  epose (H2 m1 _ vals1 vals2 H1 H3 H4). apply e. contradiction.
+  destruct v1, v2; intuition; try break_match_hyp; intros.
+  epose proof (H2 m1 _ vals1 vals2 H1 H3 H4). apply H5. contradiction.
+  apply H2. lia.
+  apply H2. lia.
   Unshelve. all: lia.
 Qed.
 
@@ -312,8 +322,10 @@ Proof.
   intuition idtac. break_match_goal.
   rewrite Vrel_Fix_eq. unfold Vrel_rec at 1.
   specialize (H0 x H1) as P'. rewrite Heqs in P'.
-  * destruct P'; intuition; cbn; try constructor; auto. inversion H2. inversion H2.
-    break_match_goal; intros; try congruence; try inversion Hmn. rewrite Nat.eqb_refl in Heqb; congruence.
+  * constructor; auto. constructor; auto.
+    destruct e; try inversion_is_value; auto; try lia.
+    break_match_goal; intros; try congruence; try inversion Hmn.
+    rewrite Nat.eqb_refl in Heqb; congruence.
   * specialize (H0 x H1). rewrite Heqs in H0. lia.
 Qed.
 
@@ -348,11 +360,15 @@ Global Hint Resolve Erel_open_scope_r : core.
 Lemma Vrel_possibilities : forall {n v1 v2},
   Vrel n v1 v2 ->
   (exists n, v1 = ELit n /\ v2 = ELit n) \/
-  (exists vl1 vl2 b1 b2, v1 = EFun vl1 b1 /\ v2 = EFun vl2 b2).
+  (exists vl1 vl2 b1 b2, v1 = EFun vl1 b1 /\ v2 = EFun vl2 b2) \/
+  (exists v11 v12 v21 v22, v1 = ECons v11 v12 /\ v2 = ECons v21 v22) \/
+  (v1 = ENil /\ v2 = ENil).
 Proof.
   intros; destruct v1, v2; destruct H as [? [? ?] ]; subst; try contradiction.
   * left. eexists; split; reflexivity.
-  * right. repeat eexists.
+  * right. left. repeat eexists.
+  * right. right. left. repeat eexists.
+  * intuition.
 Qed.
 
 Lemma Vrel_open_closed : forall {Γ e1 e2},
@@ -367,8 +383,11 @@ Proof.
   intuition idtac. break_match_goal.
   rewrite Vrel_Fix_eq. unfold Vrel_rec at 1.
   specialize (H0 x H1) as P'. rewrite Heqs in P'.
-  * destruct P'; intuition; cbn; try constructor; auto. inversion H2. inversion H2.
-    break_match_goal; intros; try congruence; try inversion Hmn. rewrite Nat.eqb_refl in Heqb; congruence.
+  * split; auto. split; auto.
+    break_match_goal; intros; try congruence; try inversion Hmn;
+    try inversion_is_value; try lia.
+    break_match_goal; intros; try congruence; try lia.
+    rewrite Nat.eqb_refl in Heqb; congruence.
   * specialize (H0 x H1). rewrite Heqs in H0. lia.
 Qed.
 
