@@ -24,7 +24,10 @@ Inductive Exp : Set :=
 | EPlus   (e1 e2 : Exp)
 | EIf (e1 e2 e3 : Exp)
 | ECons (e1 e2 : Exp)
-| ENil.
+| ENil
+(** Recursive data structures which are values: *)
+| VCons (e1 e2 : Exp)
+.
 
 Section correct_exp_ind.
 
@@ -48,6 +51,7 @@ Section correct_exp_ind.
        -> P (EIf e1 e2 e3))
    (H10 : forall e1, P e1 -> forall e2, P e2 -> P (ECons e1 e2))
    (H11 : P ENil)
+   (H12 : forall e1, P e1 -> forall e2, P e2 -> P (VCons e1 e2))
    (H' : forall v : Exp, P v -> forall l:list Exp, Q l -> Q (v :: l))
    (H1' : Q []).
 
@@ -68,6 +72,7 @@ Section correct_exp_ind.
   | EIf e1 e2 e3 => H9 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2) e3 (Exp_ind2 e3)
   | ECons e1 e2 => H10 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ENil => H11
+  | VCons e1 e2 => H12 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   end.
 
 End correct_exp_ind.

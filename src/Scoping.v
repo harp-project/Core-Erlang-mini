@@ -41,7 +41,7 @@ with ValScoped (Γ : nat) : Exp -> Prop :=
 | vscoped_cons e1 e2 : 
   VAL Γ ⊢ e1 -> VAL Γ ⊢ e2
 ->
-  VAL Γ ⊢ ECons e1 e2
+  VAL Γ ⊢ VCons e1 e2
 | scoped_nil : VAL Γ ⊢ ENil
 | scoped_var n : n < Γ -> VAL Γ ⊢ EVar n
 | scoped_funid n : n < Γ -> VAL Γ ⊢ EFunId n
@@ -282,14 +282,14 @@ Proof.
   * subst. constructor.
     - eapply IHe1; eauto.
     - eapply IHe2; eauto.
+  * do 2 constructor.
+  * constructor.
   * subst. apply scoped_val, vscoped_cons.
     - eapply IHe1; eauto.
     - eapply IHe2; eauto.
   * subst. constructor.
     - eapply IHe1; eauto.
     - eapply IHe2; eauto.
-  * do 2 constructor.
-  * constructor.
   * constructor; eauto.
   * constructor.
 Qed.
@@ -458,13 +458,13 @@ Proof.
     - eapply IHe1; eauto.
     - eapply IHe2; eauto.
   * do 2 constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
   * constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
   * do 2 constructor.
+    - eapply IHe1; eauto.
+    - eapply IHe2; eauto.
   * constructor.
+    - eapply IHe1; eauto.
+    - eapply IHe2; eauto.
   * constructor; auto.
   * constructor.
 Qed.
@@ -589,14 +589,16 @@ Module SUB_IMPLIES_SCOPE.
       - constructor.
         + eapply IHe1; eauto.
         + eapply IHe2; eauto.
-      - inversion H0. subst. apply scoped_val. constructor.
-        + eapply IHe1; eauto.
-        + eapply IHe2; eauto.
+      - inversion H0.
+    * inversion H.
+    * do 2 constructor.
+    * constructor.
+    * inversion H. inversion H0. subst. do 2 constructor.
+      - eapply IHe1; eauto.
+      - eapply IHe2; eauto.
     * inversion H. subst. constructor.
       - eapply IHe1; eauto.
       - eapply IHe2; eauto.
-    * do 2 constructor.
-    * constructor.
     * constructor; auto.
     * constructor.
   Qed.
@@ -708,7 +710,8 @@ Module SUB_IMPLIES_SCOPE.
       split; intros; inversion H5; subst. 2: inversion H6. now rewrite H, H1, H3.
     * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
       split; intros; inversion H3; subst; try now rewrite H, H1.
-      inversion H4. all: now rewrite H0, H2.
+    * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
+      split; intros; inversion H3; inversion H4; subst; rewrite H0, H2; auto.
   Unshelve. exact (ELit 0).
   Qed.
 
@@ -923,4 +926,6 @@ match goal with
 | [ H: VAL _ ⊢ (EApp _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EVar _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EFunId _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (ECons _ _) |- _ ] => inversion H
 end.
+

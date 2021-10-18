@@ -50,7 +50,7 @@ Definition Vrel_rec (n : nat)
                  (b1.[list_subst (EFun vl1 b1 :: vals1) idsubst])
                  (b2.[list_subst (EFun vl2 b2 :: vals2) idsubst])
      else False
-  | ECons v1 v2, ECons v1' v2' =>
+  | VCons v1 v2, VCons v1' v2' =>
     (forall m (Hmn : m < n), Vrel m Hmn v1 v1' /\ Vrel m Hmn v2 v2')
   | _, _ => False
   end
@@ -361,14 +361,14 @@ Lemma Vrel_possibilities : forall {n v1 v2},
   Vrel n v1 v2 ->
   (exists n, v1 = ELit n /\ v2 = ELit n) \/
   (exists vl1 vl2 b1 b2, v1 = EFun vl1 b1 /\ v2 = EFun vl2 b2) \/
-  (exists v11 v12 v21 v22, v1 = ECons v11 v12 /\ v2 = ECons v21 v22) \/
+  (exists v11 v12 v21 v22, v1 = VCons v11 v12 /\ v2 = VCons v21 v22) \/
   (v1 = ENil /\ v2 = ENil).
 Proof.
   intros; destruct v1, v2; destruct H as [? [? ?] ]; subst; try contradiction.
   * left. eexists; split; reflexivity.
   * right. left. repeat eexists.
-  * right. right. left. repeat eexists.
   * intuition.
+  * right. right. left. repeat eexists.
 Qed.
 
 Lemma Vrel_open_closed : forall {Γ e1 e2},
