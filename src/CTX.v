@@ -47,12 +47,18 @@ Definition CompatibleIf (R : nat -> Exp -> Exp -> Prop) :=
   R Γ e1 e1' -> R Γ e2 e2' -> R Γ e3 e3' ->
   R Γ (EIf e1 e2 e3) (EIf e1' e2' e3').
 
+Definition CompatibleCons (R : nat -> Exp -> Exp -> Prop) :=
+  forall Γ e1 e1' e2 e2',
+  EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e2' ->
+  R Γ e1 e1' -> R Γ e2 e2' ->
+  R Γ (ECons e1 e2) (ECons e1' e2').
+
 Definition IsPreCtxRel (R : nat -> Exp -> Exp -> Prop) :=
   (forall Γ e1 e2, R Γ e1 e2 -> EXP Γ ⊢ e1 /\ EXP Γ ⊢ e2) /\
   Adequate R /\ IsReflexive R /\
   (forall Γ, Transitive (R Γ)) /\
   CompatibleFun R /\ CompatibleApp R /\ CompatibleLet R/\ CompatibleLetRec R /\
-  CompatiblePlus R /\ CompatibleIf R.
+  CompatiblePlus R /\ CompatibleIf R /\ CompatibleCons R.
 
 Definition IsCtxRel (R : nat -> Exp -> Exp -> Prop) :=
   IsPreCtxRel R /\
@@ -124,6 +130,8 @@ Proof.
     intros. now apply Erel_Plus_compat.
   * unfold CompatibleIf.
     intros. now apply Erel_If_compat.
+  * unfold CompatibleCons.
+    intros. now apply Erel_Cons_compat.
 Qed.
 
 Corollary CIU_IsPreCtxRel : IsPreCtxRel CIU_open.
@@ -132,39 +140,42 @@ Proof.
   unfold IsPreCtxRel in *.
   intuition idtac.
   all: unfold Adequate, Transitive, IsReflexive, CompatibleFun,
-    CompatibleApp, CompatibleLet, CompatibleLetRec, CompatiblePlus, CompatibleIf; intros.
+    CompatibleApp, CompatibleLet, CompatibleLetRec, CompatiblePlus, CompatibleIf, CompatibleCons; intros.
   all: try apply CIU_iff_Erel.
-  * apply CIU_iff_Erel in H8.
-    apply H0 in H8.
+  * apply CIU_iff_Erel in H9.
+    apply H0 in H9.
     intuition.
-  * apply CIU_iff_Erel in H8.
-    apply H0 in H8.
+  * apply CIU_iff_Erel in H9.
+    apply H0 in H9.
     intuition.
-  * apply CIU_iff_Erel in H8.
-    apply H in H8. auto.
+  * apply CIU_iff_Erel in H9.
+    apply H in H9. auto.
   * now apply H1.
-  * apply CIU_iff_Erel in H8.
-    apply CIU_iff_Erel in H10.
+  * apply CIU_iff_Erel in H9.
+    apply CIU_iff_Erel in H11.
     eapply H2; eauto.
-  * apply CIU_iff_Erel in H10.
+  * apply CIU_iff_Erel in H11.
     now eapply H3.
-  * apply CIU_iff_Erel in H13.
-    eapply biforall_impl in H14.
+  * apply CIU_iff_Erel in H14.
+    eapply biforall_impl in H15.
     eapply H4; eauto.
     intros. now apply CIU_iff_Erel.
-  * apply CIU_iff_Erel in H13.
-    apply CIU_iff_Erel in H14.
-    now eapply H5.
   * apply CIU_iff_Erel in H14.
     apply CIU_iff_Erel in H15.
-    now eapply H6.
-  * apply CIU_iff_Erel in H13.
-    apply CIU_iff_Erel in H14.
-    now apply H7.
+    now eapply H5.
   * apply CIU_iff_Erel in H15.
     apply CIU_iff_Erel in H16.
+    now eapply H6.
+  * apply CIU_iff_Erel in H14.
+    apply CIU_iff_Erel in H15.
+    now apply H7.
+  * apply CIU_iff_Erel in H16.
     apply CIU_iff_Erel in H17.
-    eapply H9; eauto.
+    apply CIU_iff_Erel in H18.
+    eapply H8; eauto.
+  * apply CIU_iff_Erel in H14.
+    apply CIU_iff_Erel in H15.
+    now apply H10.
 Qed.
 
 Inductive Ctx :=
@@ -180,7 +191,9 @@ Inductive Ctx :=
 | CPlus2     (e1 : Exp) (e2 : Ctx)
 | CIf1      (e1 : Ctx) (e2 e3 : Exp)
 | CIf2      (e1 : Exp) (e2 : Ctx) (e3 : Exp)
-| CIf3      (e1 e2 : Exp) (e3 : Ctx).
+| CIf3      (e1 e2 : Exp) (e3 : Ctx)
+| CCons1    (e1 : Exp) (e2 : Ctx)
+| CCons2    (e1 : Ctx) (e2 : Exp).
 
 Fixpoint plug (C : Ctx) (p : Exp) :=
 match C with
@@ -197,6 +210,8 @@ match C with
 | CIf1 e1 e2 e3 => EIf (plug e1 p) e2 e3
 | CIf2 e1 e2 e3 => EIf e1 (plug e2 p) e3
 | CIf3 e1 e2 e3 => EIf e1 e2 (plug e3 p)
+| CCons1 e1 e2 => ECons e1 (plug e2 p)
+| CCons2 e1 e2 => ECons (plug e1 p) e2
 end.
 
 Fixpoint plugc (Where : Ctx) (p : Ctx) :=
@@ -214,6 +229,8 @@ match Where with
 | CIf1 e1 e2 e3 => CIf1 (plugc e1 p) e2 e3
 | CIf2 e1 e2 e3 => CIf2 e1 (plugc e2 p) e3
 | CIf3 e1 e2 e3 => CIf3 e1 e2 (plugc e3 p)
+| CCons1 e1 e2 => CCons1 e1 (plugc e2 p)
+| CCons2 e1 e2 => CCons2 (plugc e1 p) e2
 end.
 
 Lemma plug_assoc : forall C1 C2 e,
@@ -281,6 +298,14 @@ Inductive EECtxScope (Γh : nat) : nat -> Ctx -> Prop :=
     EXP Γ ⊢ e1 ->
     EXP Γ ⊢ e2 ->
     EECTX Γh ⊢ CIf3 e1 e2 C ∷ Γ
+| CEScope_Cons1 : forall Γ C e1,
+    EECTX Γh ⊢ C ∷ Γ -> 
+    EXP Γ ⊢ e1 ->
+    EECTX Γh ⊢ CCons1 e1 C ∷ Γ
+| CEScope_Cons2 : forall Γ e2 C,
+    EXP Γ ⊢ e2 ->
+    EECTX Γh ⊢ C ∷ Γ -> 
+    EECTX Γh ⊢ CCons2 C e2 ∷ Γ
 | CEScope_val : forall C Γ, VECTX Γh ⊢ C ∷ Γ -> EECTX Γh ⊢ C ∷ Γ
 with VECtxScope (Γh : nat) : nat -> Ctx -> Prop :=
 | CEScope_RecFun : forall Γ vl C,
@@ -360,7 +385,7 @@ Lemma CTX_bigger : forall R' : nat -> Exp -> Exp -> Prop,
     IsPreCtxRel R' -> forall (Γ : nat) (e1 e2 : Exp), R' Γ e1 e2 -> CTX Γ e1 e2.
 Proof.
   intros R' HR.
-  destruct HR as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RLet [RLetRec [RPlus  RIf ] ] ] ] ] ] ] ] ].
+  destruct HR as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RLet [RLetRec [RPlus  [ RIf RCons ] ] ] ] ] ] ] ] ] ].
   unfold CTX.
   intros.
   destruct (Rscope _ _ _ H) as [Hscope_e1 Hscope_e2].
@@ -455,6 +480,16 @@ Proof.
         simpl in H0. inversion H0. auto. inversion H1.
       + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
         simpl in H0. inversion H0. auto. inversion H1.
+    - apply RCons; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+    - apply RCons; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
   }
   now apply H2.
 Qed.
@@ -505,30 +540,102 @@ match e with
  | ELetRec f vl b e => ELetRec dummyf (map (fun _ => dummyv) vl) (default_names b) (default_names e)
  | EPlus e1 e2 => EPlus (default_names e1) (default_names e2)
  | EIf e1 e2 e3 => EIf (default_names e1) (default_names e2) (default_names e3)
+ | ECons e1 e2 => ECons (default_names e1) (default_names e2)
+ | ENil => ENil
+ | VCons e1 e2 => VCons (default_names e1) (default_names e2)
 end.
 
-Lemma default_value : forall v,
-  is_value v <-> is_value (default_names v).
+Lemma default_scope : forall Γ,
+  (forall e, VAL Γ ⊢ e -> VAL Γ ⊢ (default_names e)) /\
+  (forall e, EXP Γ ⊢ e -> EXP Γ ⊢ (default_names e)).
 Proof.
-  split; intros; destruct v; simpl in H; try inversion_is_value; try constructor.
-  all: inversion H.
+  apply scoped_ind; intros; cbn; constructor; auto.
+  * now rewrite map_length.
+  * intros. replace (ELit 0) with (default_names (ELit 0)) by auto. rewrite map_nth.
+    apply H0. now rewrite map_length in H1.
+  * now rewrite map_length.
 Qed.
 
-Lemma default_value_impl : forall v,
-  is_value v -> is_value (default_names v).
+Corollary default_value : forall Γ,
+  forall e, VAL Γ ⊢ e -> VAL Γ ⊢ (default_names e).
 Proof.
-  apply default_value.
+  intros. now apply default_scope.
 Qed.
 
-Global Hint Resolve default_value_impl : core.
-
-Lemma default_value_rev : forall v,
-  is_value (default_names v) -> is_value v.
+Corollary default_exp : forall Γ,
+  forall e, EXP Γ ⊢ e -> EXP Γ ⊢ (default_names e).
 Proof.
-  apply default_value.
+  intros. now apply default_scope.
 Qed.
 
-Lemma default_names_helper l:
+Global Hint Resolve default_value : core.
+Global Hint Resolve default_exp : core.
+
+Lemma default_scope_rev : forall e Γ,
+  (VAL Γ ⊢ default_names e -> VAL Γ ⊢ e) /\
+  (EXP Γ ⊢ default_names e -> EXP Γ ⊢ e).
+Proof.
+  induction e using Exp_ind2 with 
+    (Q := fun l => Forall (fun e => forall Γ, 
+                                 (VAL Γ ⊢ default_names e -> VAL Γ ⊢ e) /\
+                                 (EXP Γ ⊢ default_names e -> EXP Γ ⊢ e)) 
+                          l);
+    intros; auto; split; intro; simpl in *; try inversion_is_value.
+  * constructor. inversion H. subst. rewrite map_length in H1. now apply IHe in H1.
+  * do 2 constructor.
+    inversion H. inversion H0. subst. rewrite map_length in H3. now apply IHe in H3.
+  * inversion H; subst. constructor.
+    - now apply IHe in H2.
+    - intros. rewrite map_length in H3. specialize (H3 i H0).
+      rewrite indexed_to_forall in IHe0.
+      replace (ELit 0) with (default_names (ELit 0)) in H3 by auto.
+      rewrite map_nth in H3. now apply IHe0 in H3.
+    - inversion_is_value.
+  * inversion H; subst. constructor.
+    - now apply IHe1 in H2.
+    - now apply IHe2 in H4.
+    - inversion_is_value.
+  * inversion H; subst. constructor.
+    - rewrite map_length in H2. now apply IHe1 in H2.
+    - now apply IHe2 in H5.
+    - inversion_is_value.
+  * inversion H; subst. constructor.
+    - now apply IHe1 in H2.
+    - now apply IHe2 in H3.
+    - inversion_is_value.
+  * inversion H; subst. constructor.
+    - now apply IHe1 in H3.
+    - now apply IHe2 in H4.
+    - now apply IHe3 in H5.
+    - inversion_is_value.
+  * inversion H; subst. constructor.
+    - now apply IHe1 in H2.
+    - now apply IHe2 in H3.
+    - inversion_is_value.
+  * inversion H; subst. constructor.
+    - now apply IHe1 in H2.
+    - now apply IHe2 in H3.
+  * inversion H; inversion H0; subst. do 2 constructor.
+    - now apply IHe1 in H4.
+    - now apply IHe2 in H5.
+Qed.
+
+Corollary default_value_rev : forall Γ,
+  (forall e, VAL Γ ⊢ default_names e -> VAL Γ ⊢ e).
+Proof.
+  intros. now apply default_scope_rev.
+Qed.
+
+Corollary default_exp_rev : forall Γ,
+  (forall e, EXP Γ ⊢ default_names e -> EXP Γ ⊢ e).
+Proof.
+  intros. now apply default_scope_rev.
+Qed.
+
+Global Hint Resolve default_value_rev : core.
+Global Hint Resolve default_exp_rev : core.
+
+(* Lemma default_names_helper l:
   (forall e : Exp, In e l -> is_value e)
 ->
   (forall e : Exp, In e (map default_names l) -> is_value e).
@@ -538,7 +645,7 @@ Proof.
   * apply IHl. intros. apply H. now constructor 2. clear P. auto.
   * inversion H0. 2: congruence. subst.
     epose proof (H a _). now apply -> default_value. Unshelve. constructor. auto.
-Qed.
+Qed. *)
 
 Definition default_name_frame (f : Frame) : Frame :=
 match f with
@@ -549,6 +656,8 @@ match f with
  | FPlus1 e2 => FPlus1 (default_names e2)
  | FPlus2 v => FPlus2 (default_names v)
  | FIf e2 e3 => FIf (default_names e2) (default_names e3)
+ | FCons1 e => FCons1 (default_names e)
+ | FCons2 e => FCons2 (default_names e)
 end.
 
 Lemma double_default e :
@@ -561,6 +670,8 @@ Proof.
   * simpl. rewrite <- IHe1, <- IHe2, map_map. auto.
   * simpl. rewrite <- IHe1, <- IHe2. auto.
   * simpl. rewrite <- IHe1, <- IHe2, <- IHe3. auto.
+  * simpl. rewrite <- IHe1, <- IHe2. auto.
+  * simpl. rewrite <- IHe1, <- IHe2. auto.
 Qed.
 
 Definition default_names_sub (ξ : Substitution) : Substitution :=
@@ -579,6 +690,8 @@ Proof.
   * now rewrite map_length, IHe1, IHe2.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2, IHe3.
+  * now rewrite IHe1, IHe2.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Lemma default_names_up :
@@ -607,33 +720,8 @@ Proof.
   * rewrite map_length. now rewrite default_names_upn, default_names_up, IHe2_1, default_names_up, IHe2_2.
   * now rewrite IHe2_1, IHe2_2.
   * now rewrite IHe2_1, IHe2_2, IHe2_3.
-Qed.
-
-Lemma is_value_alpha :
-  forall v, is_value v <-> is_value (default_names v).
-Proof.
-  split; intros. induction H; constructor.
-  induction v; try constructor; inversion H.
-Qed.
-
-Lemma Forall_map T (l : list T) : forall (P : T -> Prop) (f : T -> T),
-  (forall x, P x -> P (f x))
-->
-  Forall P l -> Forall P (map f l).
-Proof.
-  induction l; intros; constructor;
-  inversion H0; subst. auto.
-  apply IHl; auto.
-Qed.
-
-Lemma map_Forall T (l : list T) : forall (P : T -> Prop) (f : T -> T),
-  (forall x, P (f x) -> P x)
-->
-  Forall P (map f l) -> Forall P l.
-Proof.
-  induction l; intros; constructor;
-  inversion H0; subst. auto.
-  eapply IHl; eauto.
+  * now rewrite IHe2_1, IHe2_2.
+  * now rewrite IHe2_1, IHe2_2.
 Qed.
 
 Lemma alpha_list_subst :
@@ -663,9 +751,10 @@ Proof.
   split.
   { generalize dependent e. generalize dependent fs.
     induction k; intros; simpl; inversion H; subst.
-    * constructor. now apply -> default_value.
+    * constructor. now apply default_value.
     * constructor. auto.
-    * constructor; auto. destruct e; try inversion_is_value; simpl; try congruence.
+    * constructor; auto.
+      destruct e; try inversion_is_value; simpl; try congruence.
     * simpl. econstructor; auto.
       replace (FPlus2 (default_names e) :: map default_name_frame fs0) with
                 (map default_name_frame (FPlus2 e ::fs0)) by auto.
@@ -698,6 +787,9 @@ Proof.
                               idsubst)). auto.
         replace [default_names e] with (map default_names [e]) by auto.
         rewrite <- map_app, alpha_list_subst. auto.
+    * simpl. constructor; auto. apply IHk in H4. exact H4.
+    * simpl. constructor; auto. apply IHk in H5. exact H5.
+    * simpl. constructor; auto. apply IHk in H3. exact H3.
     * simpl. constructor; auto. apply IHk in H3. exact H3.
     * simpl. constructor; auto. apply IHk in H3. exact H3.
     * simpl. constructor; auto. apply IHk in H3. exact H3.
@@ -705,7 +797,7 @@ Proof.
   }
   { generalize dependent e. generalize dependent fs.
     induction k; intros; simpl; inversion H; subst.
-    * apply eq_sym, map_eq_nil in H0. subst. constructor. now apply default_value.
+    * apply eq_sym, map_eq_nil in H0. subst. constructor. auto.
     * destruct e; inversion H1. destruct fs; inversion H0.
       destruct f; inversion H5. constructor. subst. apply IHk. auto.
     * destruct fs; inversion H0. destruct f; inversion H4. subst.
@@ -713,10 +805,12 @@ Proof.
       simpl in H3. congruence.
       all: constructor; try congruence; try inversion H2.
       all: constructor.
+      all: auto.
+      rewrite map_length in H6. auto.
     * destruct fs; inversion H0. destruct f; inversion H3. subst.
       replace (FPlus2 (default_names e) :: map default_name_frame fs) with
               (map default_name_frame (FPlus2 e::fs)) in H4 by auto. apply IHk in H4.
-      constructor; auto. now apply default_value.
+      constructor; auto.
     * destruct e; inversion H1. destruct fs; inversion H0.
       destruct f; inversion H5. subst. destruct v; inversion H7. subst.
       constructor. now apply IHk.
@@ -726,19 +820,27 @@ Proof.
     * destruct e; inversion H0; subst. constructor. apply IHk.
       now rewrite alpha_helper, <- scons_alpha.
     * destruct fs; inversion H0. destruct f; inversion H3. destruct l; inversion H6.
-      subst. apply term_app_start; auto. now apply default_value.
+      subst. apply term_app_start; auto.
     * destruct e; inversion H1. destruct fs; inversion H0. destruct f; inversion H6.
       subst. destruct l; inversion H8. inversion H1. destruct vl; inversion H4.
       constructor. apply IHk. now rewrite alpha_helper, <- scons_alpha.
     * destruct fs; inversion H0. destruct f; inversion H4. destruct l1; inversion H8.
       subst. apply default_value in H2. apply default_value in H'.
-      constructor; auto. eapply map_Forall; eauto. apply default_value.
+      constructor; auto. eapply map_Forall; eauto.
       apply IHk. simpl. rewrite map_app. auto.
     * destruct fs; inversion H0. destruct f; inversion H5. destruct l1; inversion H9.
       destruct v; inversion H8. subst. apply default_value in H4. constructor; auto.
-      eapply map_Forall. 2: exact H2. apply default_value.
+      eapply map_Forall. 2: exact H2.
       do 2 rewrite map_length in H3. auto.
+      do 2 rewrite map_length in H3. lia.
       apply IHk. rewrite alpha_helper, alpha_list_subst. simpl. now rewrite map_app.
+    * destruct fs; simpl in H0; inversion H0. subst.
+      destruct f; inversion H3; subst. apply default_value_rev in H2.
+      constructor; auto.
+    * destruct fs; simpl in H0; inversion H0. subst.
+      destruct f; inversion H4; subst. apply default_value_rev in H3.
+      constructor; auto.
+    * destruct e; inversion H0. constructor. subst. now apply IHk.
     * destruct e; inversion H0. constructor. subst. now apply IHk.
     * destruct e; inversion H0. constructor. subst. now apply IHk.
     * destruct e; inversion H0. constructor. subst. now apply IHk.
@@ -903,6 +1005,25 @@ Proof.
     }
     apply H11 in HC_e3. 2: { rewrite <- plug_assoc in *; simpl in *; auto. }
     rewrite <- plug_assoc in HC_e3. simpl in HC_e3. auto.
+  * unfold CompatibleCons.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: constructor; auto.
+    clear H4 H8 H5 H9.
+    assert (EECTX Γ ⊢ plugc C (CCons1 e1 CHole) ∷ 0) as HC_e1.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H7 in HC_e1. 2: rewrite <- plug_assoc; simpl; auto.
+    assert (EECTX Γ ⊢ plugc C (CCons2 CHole e2') ∷ 0) as HC_e2.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H6 in HC_e2. 2: rewrite <- plug_assoc in *; simpl; auto.
+    rewrite <- plug_assoc in HC_e2. simpl in HC_e2; auto.
 Unshelve.
   2-3: exact (ELit 0).
   apply alpha_eval in H4; apply alpha_eval; rewrite default_context in *;
@@ -955,13 +1076,13 @@ Proof.
                              apply -> subst_preserves_scope_exp; eauto ].
   destruct H3. exists (S (S x0)). simpl. apply term_let.
   pose proof (subst_preserves_scope_val v Γ). destruct H4.
-  clear H5. specialize (H4 H0 0 ξ H1). apply Valclosed_is_value in H4. constructor; auto.
+  clear H5. specialize (H4 H0 0 ξ H1). constructor; auto.
   rewrite subst_comp, subst_extend.
   now rewrite subst_comp, scons_substcomp, substcomp_id_l in H3.
 
   destruct H3. simpl in H3. inversion H3; try inversion_is_value. subst.
   pose proof (subst_preserves_scope_val v Γ). destruct H4.
-  clear H5. specialize (H4 H0 0 ξ H1). apply Valclosed_is_value in H4.
+  clear H5. specialize (H4 H0 0 ξ H1).
   inversion H9; subst.
   rewrite subst_comp, subst_extend in H12.
   rewrite subst_comp, scons_substcomp, substcomp_id_l. eexists. exact H12.
@@ -1051,30 +1172,37 @@ Proof.
       generalize dependent e2. generalize dependent e1. generalize dependent F.
       induction F; intros.
       * destruct HR'. destruct H, H. apply (H4 CHole); auto. constructor.
-      * apply put_back in H2. destruct H2. apply put_back_rev; auto.
-        eapply IHF. 2: exact H0. now inversion H1.
-        destruct HR'. inversion H1; subst. inversion H. inversion H5.
-        destruct a; inversion H7; subst.
+      * inversion H1. subst.
+        assert (EXPCLOSED e1) as EC1 by apply H.
+        assert (EXPCLOSED e2) as EC2 by apply H.
+        apply put_back in H2; auto. destruct H2. apply put_back_rev; auto.
+        eapply IHF; auto. exists x. exact H0.
+        destruct HR'. inversion H. clear H6.
+        destruct a; inversion H4; subst.
         -- simpl. apply CTX_IsPreCtxRel; auto. apply forall_biforall_refl.
-           apply Forall_forall. intros. apply CTX_refl. rewrite Forall_forall in H12.
-           now apply H12.
+           apply Forall_forall. intros. apply CTX_refl. rewrite Forall_forall in H8.
+           now apply H8.
         -- simpl. apply CTX_IsPreCtxRel; auto.
-           ++ apply Forall_app. split; auto. eapply Forall_impl. 2: exact H16.
+           ++ apply Forall_app. split; auto. eapply Forall_impl. 2: exact H12.
               intros. now constructor.
-           ++ apply Forall_app. split; auto. eapply Forall_impl. 2: exact H16.
+           ++ apply Forall_app. split; auto. eapply Forall_impl. 2: exact H12.
               intros. now constructor.
            ++ now constructor.
            ++ now constructor.
            ++ apply CTX_refl. now constructor.
            ++ apply biforall_app. 2: constructor; auto.
               all: apply forall_biforall_refl; apply Forall_forall; 
-                   intros; apply CTX_refl; rewrite Forall_forall in H15, H16.
-              constructor. now apply H16.
-              now apply H15.
+                   intros; apply CTX_refl; rewrite Forall_forall in H11, H12.
+              constructor. now apply H12.
+              now apply H11.
         -- simpl. apply CTX_IsPreCtxRel; auto. now apply CTX_refl.
         -- simpl. apply CTX_IsPreCtxRel; auto. now apply CTX_refl.
         -- simpl. apply CTX_IsPreCtxRel; auto. 3: apply CTX_refl. all: now constructor.
         -- simpl. apply CTX_IsPreCtxRel; auto. 1-2: now apply CTX_refl.
+        -- simpl. apply CTX_IsPreCtxRel; auto. now apply CTX_refl.
+        -- simpl. apply CTX_IsPreCtxRel; auto.
+           3: apply CTX_refl.
+           all: apply scoped_val; auto.
 Qed.
 
 Theorem Erel_IsCtxRel : IsCtxRel Erel_open.
