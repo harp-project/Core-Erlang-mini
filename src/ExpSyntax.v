@@ -10,6 +10,12 @@ Definition Var : Set := string.
 
 Definition FunctionIdentifier : Set := string * nat.
 
+Inductive Pat : Set :=
+| PLit (l : Z)
+| PVar (** will be assigned in increasing order *)
+| PNil
+| PCons (p1 p2 : Pat).
+
 Inductive Exp : Set :=
 | ELit    (l : Z)
 | EVar    (n : nat) (** (v : Var) <- these will be assigned by a naming function *)
@@ -22,12 +28,13 @@ Inductive Exp : Set :=
 | ELetRec (f : FunctionIdentifier) (vl : list Var) (b e : Exp)
 (** Techical helper constructions: 1) simple bif: plus, 2) simple case: if *)
 | EPlus   (e1 e2 : Exp)
-| EIf (e1 e2 e3 : Exp)
+(** Eliminator *)
+| ECase (e : Exp) (p : Pat) (e1 e2 : Exp)
+(** Lists *)
 | ECons (e1 e2 : Exp)
 | ENil
 (** Recursive data structures which are values: *)
-| VCons (e1 e2 : Exp)
-.
+| VCons (e1 e2 : Exp).
 
 Section correct_exp_ind.
 
@@ -47,8 +54,7 @@ Section correct_exp_ind.
        -> P (ELetRec f vl b e))
    (H8 : forall (e1 : Exp), P e1 -> forall e2 : Exp, P e2 
        -> P (EPlus e1 e2))
-   (H9 : forall (e1 : Exp), P e1 -> forall e2 : Exp, P e2 -> forall e3 : Exp, P e3
-       -> P (EIf e1 e2 e3))
+   (H9 : forall (e1 : Exp), P e1 ->  forall e2, P e2 -> forall e3, P e3 -> forall p, P (ECase e1 p e2 e3))
    (H10 : forall e1, P e1 -> forall e2, P e2 -> P (ECons e1 e2))
    (H11 : P ENil)
    (H12 : forall e1, P e1 -> forall e2, P e2 -> P (VCons e1 e2))
@@ -69,7 +75,7 @@ Section correct_exp_ind.
   | ELet v e1 e2 => H6 v e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ELetRec f vl b e => H7 f vl b (Exp_ind2 b) e (Exp_ind2 e)
   | EPlus e1 e2 => H8 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
-  | EIf e1 e2 e3 => H9 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2) e3 (Exp_ind2 e3)
+  | ECase e p e1 e2 => H9 e (Exp_ind2 e) e1 (Exp_ind2 e1) e2 (Exp_ind2 e2) p
   | ECons e1 e2 => H10 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ENil => H11
   | VCons e1 e2 => H12 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
@@ -90,7 +96,7 @@ Definition F0 : FunctionIdentifier := ("f"%string, 0).
 Definition F1 : FunctionIdentifier := ("f"%string, 1).
 
 Definition inc (n : Z) := ELet XVar (ELit n) (EPlus (EVar 0) (ELit 1)).
-Definition sum (n : Z) := ELetRec F1 [XVar] (EIf (EVar 1) (EVar 1) (
+Definition sum (n : Z) := ELetRec F1 [XVar] (ECase (EVar 1) (PLit 0) (EVar 1) (
                                             (EPlus (EVar 1)
                                             (EApp (EFunId 0) [EPlus (EVar 1) (ELit (-1))]))))
                         (EApp (EFunId 0) [ELit n]).
@@ -244,3 +250,11 @@ Qed.
 Global Hint Resolve in_list_sound : core.
 Global Hint Resolve not_in_list_sound : core.
 
+Fixpoint match_pattern (p : Pat) (e : Exp) : bool :=
+match e, p with
+| ENil, PNil => true
+| ELit l, PLit l0 => Z.eqb l l0
+| ECons v1 v2, PCons p1 p2 => match_pattern p1 v1 && match_pattern p2 v2
+| _, PVar => true
+| _, _ => false
+end.

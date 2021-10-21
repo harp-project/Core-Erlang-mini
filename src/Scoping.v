@@ -26,10 +26,10 @@ Inductive ExpScoped (Γ : nat) : Exp -> Prop :=
   EXP Γ ⊢ e1 -> EXP Γ ⊢ e2
 ->
   EXP Γ ⊢ EPlus e1 e2
-| scoped_if e1 e2 e3 :
+| scoped_if e1 e2 e3 p :
   EXP Γ ⊢ e1 -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e3
 ->
-  EXP Γ ⊢ EIf e1 e2 e3
+  EXP Γ ⊢ ECase e1 p e2 e3
 | escoped_cons e1 e2 :
   EXP Γ ⊢ e1 -> EXP Γ ⊢ e2
 ->
@@ -818,7 +818,7 @@ Inductive Frame : Set :=
 | FLet (v : Var) (e2 : Exp) (* let v = □ in e2 *)
 | FPlus1 (e2 : Exp) (* □ + e2 *)
 | FPlus2 (v : Exp) (* (p : is_value v) *) (* v + □ *)
-| FIf (e2 e3 : Exp) (* if □ then e2 else e3 *)
+| FCase (p : Pat) (e2 e3 : Exp) (* if □ then e2 else e3 *)
 | FCons1 (e1 : Exp) (* [e1 | □] *)
 | FCons2 (v2 : Exp) (* [□ | v2] *).
 
@@ -828,7 +828,7 @@ Inductive frame_wf : Frame -> Prop :=
 | wf_let v e : frame_wf (FLet v e)
 | wf_plus1 e : frame_wf (FPlus1 e)
 | wf_plus2 v : VALCLOSED v -> frame_wf (FPlus2 v)
-| wf_if e2 e3 : frame_wf (FIf e2 e3)
+| wf_if p e2 e3 : frame_wf (FCase p e2 e3)
 | wf_cons1 e : frame_wf (FCons1 e)
 | wf_cons2 v : VALCLOSED v -> frame_wf (FCons2 v).
 
@@ -839,7 +839,7 @@ match F with
  | FLet v e2 => ELet v e e2
  | FPlus1 e2 => EPlus e e2
  | FPlus2 v => EPlus v e
- | FIf e2 e3 => EIf e e2 e3
+ | FCase p e2 e3 => ECase e p e2 e3
  | FCons1 e1 => ECons e1 e
  | FCons2 v2 => ECons e v2
 end.
@@ -867,10 +867,10 @@ Inductive FCLOSED : Frame -> Prop :=
   VALCLOSED v1
 ->
   FCLOSED (FPlus2 v1)
-| fclosed_if e2 e3:
+| fclosed_if e2 e3 p:
   EXPCLOSED e2 -> EXPCLOSED e3
 ->
-  FCLOSED (FIf e2 e3)
+  FCLOSED (FCase p e2 e3)
 | fclosed_cons1 e1:
   EXPCLOSED e1
 ->
@@ -922,7 +922,7 @@ match goal with
 | [ H: VAL _ ⊢ (ELet _ _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (ELetRec _ _ _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EPlus _ _) |- _ ] => inversion H
-| [ H: VAL _ ⊢ (EIf _ _ _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (ECase _ _ _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EApp _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EVar _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EFunId _) |- _ ] => inversion H

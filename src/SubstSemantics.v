@@ -70,11 +70,10 @@ match clock with
             | Res _, r => r
             | r, _     => r
             end
-         | EIf e1 e2 e3 =>
+         | ECase e1 p e2 e3 =>
             match eval n e1 with
-            | Res (ELit 0) => eval n e2
-            | Res _        => eval n e3
-            | r            => r
+            | Res v => if match_pattern p v then eval n e2 else eval n e3
+            | r     => r
             end
         end
 end.
@@ -164,11 +163,14 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 
 | red_let val e2 xs v (H : VALCLOSED val) : ⟨ (FLet v e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
 
-| red_if_true e2 e3 xs : ⟨ (FIf e2 e3)::xs, ELit 0 ⟩ --> ⟨ xs, e2 ⟩
+| red_case_true e2 e3 v p xs : 
+  VALCLOSED v -> match_pattern p v = true
+->
+  ⟨ (FCase p e2 e3)::xs, v ⟩ --> ⟨ xs, e2 ⟩
 
-| red_if_false e2 e3 v xs (H : VALCLOSED v) :
-  v <> ELit 0 ->
-  ⟨ (FIf e2 e3)::xs, v ⟩ --> ⟨ xs, e3 ⟩
+| red_case_false e2 e3 p v xs (H : VALCLOSED v) :
+  VALCLOSED v -> match_pattern p v = false ->
+  ⟨ (FCase p e2 e3)::xs, v ⟩ --> ⟨ xs, e3 ⟩
 
 | red_plus_left e2 xs v (H : VALCLOSED v): ⟨ (FPlus1 e2)::xs, v ⟩ --> ⟨ (FPlus2 v (* H *))::xs, e2 ⟩
 
@@ -188,7 +190,7 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 | step_let xs v e1 e2 : ⟨ xs, ELet v e1 e2 ⟩ --> ⟨ (FLet v e2)::xs, e1 ⟩
 | step_app xs e el: ⟨ xs, EApp e el ⟩ --> ⟨ (FApp1 el)::xs, e ⟩
 | step_plus xs e1 e2 : ⟨ xs, EPlus e1 e2⟩ --> ⟨ (FPlus1 e2)::xs, e1⟩
-| step_if xs e1 e2 e3 : ⟨ xs, EIf e1 e2 e3⟩ --> ⟨ (FIf e2 e3)::xs, e1⟩
+| step_case xs e1 p e2 e3 : ⟨ xs, ECase e1 p e2 e3⟩ --> ⟨ (FCase p e2 e3)::xs, e1⟩
 
 (** Special step rules: need to "determinize them" *)
 | step_cons xs e1 e2: ⟨ xs, ECons e1 e2 ⟩ --> ⟨ (FCons1 e1) :: xs, e2 ⟩
@@ -230,7 +232,7 @@ Qed.
 Local Goal ⟨ [], sum 1 ⟩ -->* ELit 1.
 Proof.
   assert (VALCLOSED (EFun [XVar]
-             (EIf (EVar 1) (EVar 1)
+             (ECase (EVar 1) (PLit 0) (EVar 1)
                 (EPlus (EVar 1) (EApp (EFunId 0) [EPlus (EVar 1) (ELit (-1))]))))). {
     do 4 constructor.
     1-4: repeat constructor. intros. inversion H; subst; cbn. 2: inversion H1.
@@ -244,8 +246,8 @@ Proof.
   econstructor. constructor. cbn. econstructor. constructor. auto.
   econstructor.
   eapply red_app2. constructor.
-  simpl. econstructor. econstructor. econstructor. eapply step_if.
-  econstructor. eapply red_if_false. constructor. cbn. congruence.
+  simpl. econstructor. econstructor. econstructor. cbn. eapply step_case.
+  econstructor. eapply red_case_false. constructor. constructor. cbn. congruence.
   econstructor. eapply step_plus.
   econstructor. eapply red_plus_left.
   econstructor. cbn. econstructor. eapply step_app.
@@ -256,8 +258,8 @@ Proof.
   econstructor. eapply red_plus_left.
   econstructor. econstructor. eapply red_plus_right. simpl Z.add.
   econstructor. eapply red_app2. constructor.
-  simpl. econstructor. econstructor. econstructor. eapply step_if.
-  econstructor. eapply red_if_true.
+  simpl. econstructor. econstructor. econstructor. cbn. eapply step_case.
+  econstructor. eapply red_case_true. constructor. reflexivity.
   econstructor. eapply red_plus_right.
   econstructor.
 Qed.
@@ -295,8 +297,8 @@ Proof.
   * inversion H0; subst; try inversion H'; try (proof_irr_many; auto).
   * inversion H1; subst; try inversion H; auto.
   * inversion H0; subst; auto; try inversion H.
-  * inversion H; subst; auto. congruence.
-  * inversion H1; subst; auto; try congruence; try inversion H.
+  * inversion H1; subst; auto; try inversion_is_value. congruence.
+  * inversion H2; subst; auto; try inversion_is_value. congruence.
   * inversion H0; subst; try inversion H; try (proof_irr; auto).
   * inversion H; subst. auto.
   * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
@@ -351,8 +353,8 @@ Proof.
     simpl. rewrite H0, app_length. simpl. lia.
   * inversion H0. inversion H4. 
     subst. split; auto. apply -> subst_preserves_scope_exp; eauto.
-  * inversion H. inversion H3. subst. split; auto.
   * inversion H1. inversion H5. subst. split; auto.
+  * inversion H2. inversion H6. subst. split; auto.
   * inversion H0. inversion H4; subst. split; auto. constructor; auto.
     constructor. destruct v; inversion H; inversion H1; auto.
   * inversion H. inversion H3. subst. split; auto. constructor. constructor.
@@ -398,8 +400,14 @@ Reserved Notation "| fs , e | k ↓" (at level 80).
 Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
 
 | term_value v : VALCLOSED v -> | [] , v | 0 ↓
-| term_if_true fs e1 e2 k : | fs , e1 | k ↓ -> | (FIf e1 e2)::fs , ELit 0 | S k ↓
-| term_if_false fs e1 e2 v k : VALCLOSED v -> v <> ELit 0 -> | fs , e2 | k ↓ -> | (FIf e1 e2)::fs , v | S k ↓
+| term_case_true fs e1 e2 k v p :
+  VALCLOSED v ->  match_pattern p v = true -> | fs , e1 | k ↓
+ ->
+  | (FCase p e1 e2)::fs , v | S k ↓
+| term_case_false fs e1 e2 v k p :
+  VALCLOSED v ->  match_pattern p v = false -> | fs , e2 | k ↓ 
+ -> 
+  | (FCase p e1 e2)::fs , v | S k ↓
 | term_plus_left e2 v fs (H : VALCLOSED v) k : | (FPlus2 v)::fs , e2 | k ↓ -> | (FPlus1 e2)::fs, v | S k ↓
 | term_plus_right n m fs k : | fs , ELit (n + m) | k ↓ -> | (FPlus2 (ELit n))::fs, ELit m | S k ↓
 | term_let_subst v e2 fs k x : VALCLOSED v -> | fs, e2.[v/] | k ↓ -> | (FLet x e2)::fs, v | S k ↓
@@ -418,7 +426,7 @@ Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
 | term_cons2 v1 v2 fs k (H: VALCLOSED v2) (H0 : VALCLOSED v1):
   | fs, VCons v1 v2 | k ↓ -> | FCons2 v2 :: fs, v1 | S k ↓
 
-| term_if e e1 e2 fs k : | (FIf e1 e2)::fs, e | k ↓ -> | fs, EIf e e1 e2 | S k ↓
+| term_case e e1 e2 fs k p : | (FCase p e1 e2)::fs, e | k ↓ -> | fs, ECase e p e1 e2 | S k ↓
 | term_plus e1 e2 fs k : | (FPlus1 e2)::fs, e1 | k ↓ -> | fs, EPlus e1 e2 | S k ↓
 | term_app e vs fs k : | (FApp1 vs)::fs, e | k ↓ -> | fs, EApp e vs | S k ↓
 | term_let v e1 e2 fs k : | (FLet v e2)::fs, e1 | k ↓ -> | fs, ELet v e1 e2 | S k ↓
@@ -441,25 +449,37 @@ Proof.
       inversion H. clear H. inversion H0; inversion H; subst.
       assert (terminates_in_k_sem fs' e' k). { econstructor. eauto. } apply IHk in H2.
       clear H0. inversion H3; subst.
-      all: try econstructor; eauto.
+      1-5, 8-17: try econstructor; eauto.
+      constructor; auto.
+      apply term_case_false; auto.
     }
     {
-      inversion H; subst;
-      try match goal with
-      | [ H1 : | _, _ | k ↓ |- _] => 
+      inversion H; subst; clear H.
+      3-12: try match goal with
+      | [ H1 : | _, _ | _ ↓ |- _] => 
          apply IHk in H1; destruct H1 as [e0 [H1e H1k]]; econstructor; split; 
            [ econstructor; [ constructor | eauto ] | auto ]
       end.
       all : auto.
-      * apply IHk in H3. destruct H3, H0.
+      * apply IHk in H5. destruct H5, H.
+        econstructor; split. econstructor. constructor. all: eauto.
+      * apply IHk in H5. destruct H5, H.
+        econstructor; split. econstructor. apply red_case_false. all: eauto.
+      * apply IHk in H3. destruct H3, H.
         econstructor; split. econstructor. constructor. eauto. auto.
-      * apply IHk in H3. destruct H3, H0.
+      * apply IHk in H3. destruct H3, H.
         econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H6. destruct H6, H0.
+      * apply IHk in H6. destruct H6, H.
         econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H0.
+      * apply IHk in H3. destruct H3, H.
         econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H0.
+      * apply IHk in H3. destruct H3, H.
+        econstructor; split. econstructor. constructor. all: eauto.
+      * apply IHk in H3. destruct H3, H.
+        econstructor; split. econstructor. constructor. all: eauto.
+      * apply IHk in H3. destruct H3, H.
+        econstructor; split. econstructor. constructor. all: eauto.
+      * apply IHk in H3. destruct H3, H.
         econstructor; split. econstructor. constructor. all: eauto.
     }
 Qed.
@@ -684,8 +704,9 @@ Proof.
   induction k; intros.
   * inversion H. subst. constructor.
   * inversion H. subst. inversion H1; subst.
-    all: simpl; econstructor; try constructor; auto.
-    all: eapply IHk in H4; simpl in H4; exact H4.
+    1-6, 8-17: simpl; econstructor; try constructor; auto.
+    all: try (eapply IHk in H4; simpl in H4; exact H4).
+    econstructor. apply red_case_false; auto. apply IHk; auto.
 Qed.
 
 Theorem frame_indep_nil : forall k e Fs v,
@@ -765,7 +786,7 @@ Theorem term_eval : forall x Fs e (P : EXPCLOSED e), | Fs, e | x ↓ ->
 Proof.
   induction x using lt_wf_ind. destruct x; intros; inversion H0; subst; try congruence.
   * exists e, 0. now repeat constructor.
-  * exists (ELit 0), 0. split; [ constructor | do 2 constructor ].
+  * exists e, 0. split; [ auto | do 2 constructor ].
   * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor].
   * exists (ELit m), 0. split; [ constructor | do 2 constructor].
@@ -784,14 +805,14 @@ Proof.
   * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
     eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
     inversion H2'; subst; try inversion_is_value.
-    - apply H in H8. 2: lia. destruct H8, H3, H3.
-      exists x0, (S (x1 + S x2)). split. auto.
-      econstructor. constructor. eapply transitive_eval; eauto.
-      econstructor. constructor. auto. now inversion P.
-    - apply H in H11. 2: lia. destruct H11, H3, H3.
+    - apply H in H12. 2: lia. destruct H12, H3, H3.
       exists x2, (S (x1 + S x3)). split. auto.
       econstructor. constructor. eapply transitive_eval; eauto.
-      econstructor. constructor; auto. auto. now inversion P.
+      econstructor. constructor. all: auto. now inversion P.
+    - apply H in H12. 2: lia. destruct H12, H3, H3.
+      exists x2, (S (x1 + S x3)). split. auto.
+      econstructor. constructor. eapply transitive_eval; eauto.
+      econstructor. apply red_case_false; auto. auto. now inversion P.
     - now inversion P.
   * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
     eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
@@ -974,7 +995,7 @@ Theorem term_eval_empty : forall x Fs e (P : EXPCLOSED e), | Fs, e | x ↓ ->
 Proof.
   induction x using lt_wf_ind. destruct x; intros; inversion H0; subst; try congruence.
   * exists e, 0. now repeat constructor.
-  * exists (ELit 0), 0. split; [ constructor | do 2 constructor ].
+  * exists e, 0. split; [ auto | do 2 constructor ].
   * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor].
   * exists (ELit m), 0. split; [ constructor | do 2 constructor].
@@ -993,16 +1014,16 @@ Proof.
     eapply frame_indep_nil in H2 as H2_1.
     eapply (terminates_step_any_2 _ _ _ _ H4) in H2_1 as H2'.
     inversion H2'; subst; try inversion_is_value.
-    - apply H in H8. 2: lia. destruct H8, H3, H3.
-      exists x0, (S (x1 + S x2)). split. auto.
-      econstructor. constructor. eapply transitive_eval; eauto.
-      eapply frame_indep_nil in H2. exact H2.
-      econstructor. constructor. auto. now inversion P.
-    - apply H in H11. 2: lia. destruct H11, H3, H3.
+    - apply H in H12. 2: lia. destruct H12, H3, H3.
       exists x2, (S (x1 + S x3)). split. auto.
       econstructor. constructor. eapply transitive_eval; eauto.
       eapply frame_indep_nil in H2. exact H2.
-      econstructor. constructor; auto. auto. now inversion P.
+      econstructor. constructor. all: auto. now inversion P.
+    - apply H in H12. 2: lia. destruct H12, H3, H3.
+      exists x2, (S (x1 + S x3)). split. auto.
+      econstructor. constructor. eapply transitive_eval; eauto.
+      eapply frame_indep_nil in H2. exact H2.
+      econstructor. apply red_case_false; auto. auto. now inversion P.
     - now inversion P.
   * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
     eapply frame_indep_nil in H2 as H2_1.
@@ -1312,7 +1333,7 @@ Proof.
       inversion H8; subst; try inversion_is_value. eexists. eauto.
     - inversion H0; subst; try inversion_is_value.
       inversion H8; subst; try inversion_is_value.
-      Search "term" "app". inversion H6; subst.
+      inversion H6; subst.
       apply app_term_conditions in H11 as COND.
       2: now constructor.
       2: apply Forall_app; split; [ | constructor]; auto.

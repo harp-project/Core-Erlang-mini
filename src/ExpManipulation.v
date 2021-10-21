@@ -36,7 +36,7 @@ match e with
  | ELetRec f vl b e => ELetRec f vl (rename (uprenn (1 + length vl) ρ) b) 
                                     (rename (upren ρ) e)
  | EPlus e1 e2 => EPlus (rename ρ e1) (rename ρ e2)
- | EIf e1 e2 e3 => EIf (rename ρ e1) (rename ρ e2) (rename ρ e3)
+ | ECase e1 p e2 e3 => ECase (rename ρ e1) p (rename ρ e2) (rename ρ e3)
  | ECons e1 e2 => ECons (rename ρ e1) (rename ρ e2)
  | ENil => e
  | VCons e1 e2 => VCons (rename ρ e1) (rename ρ e2)
@@ -80,7 +80,7 @@ match base with
  | ELetRec f vl b e => ELetRec f vl (subst (upn (1 + length vl) ξ) b)
                                     (subst (up_subst ξ) e)
  | EPlus e1 e2 => EPlus (subst ξ e1) (subst ξ e2)
- | EIf e1 e2 e3 => EIf (subst ξ e1) (subst ξ e2) (subst ξ e3)
+ | ECase e1 p e2 e3 => ECase (subst ξ e1) p (subst ξ e2) (subst ξ e3)
  | ECons e1 e2 => ECons (subst ξ e1) (subst ξ e2)
  | ENil => base
  | VCons e1 e2 => VCons (subst ξ e1) (subst ξ e2)
