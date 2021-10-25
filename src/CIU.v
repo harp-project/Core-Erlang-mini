@@ -115,3 +115,100 @@ Proof.
   intuition (auto using CIU_implies_Erel, Erel_implies_CIU).
 Qed.
 
+Theorem CIU_eval : forall e1 v,
+  EXPCLOSED e1 ->
+  ⟨ [], e1 ⟩ -->* v -> CIU e1 v /\ CIU v e1.
+Proof.
+  intros. split. split. 2: split. auto.
+  apply step_any_closedness in H0; auto. 1-2: now constructor.
+  intros. destruct H2, H0, H3. eapply frame_indep_nil in H3.
+  eapply terminates_step_any. 2: exact H3. eexists. exact H2.
+
+  split. 2: split. 2: auto.
+  apply step_any_closedness in H0; auto. 1-2: now constructor.
+  intros. destruct H2, H0, H3. eapply frame_indep_nil in H3.
+  exists (x + x0).
+  eapply term_step_term. exact H3. 2: lia. replace (x + x0 - x0) with x by lia. exact H2.
+Qed.
+
+Theorem CIU_list_parts : forall e1 e2 e1' e2',
+  VALCLOSED e1 -> VALCLOSED e2 -> VALCLOSED e1' -> VALCLOSED e2' ->
+  CIU (ECons e1 e2) (ECons e1' e2')
+->
+  CIU e1 e1' /\ CIU e2 e2'.
+Proof.
+  intros. destruct H3 as [? [? ?]].
+  split; split.
+  1, 3: constructor; auto.
+  all: split. 1, 3: constructor; auto.
+  * intros. (* smarter pattern matching needed *)
+Qed.
+
+Theorem CIU_implies_Vrel :
+  forall e1 e2, VALCLOSED e1 -> VALCLOSED e2 -> CIU e1 e2 -> CIU e2 e1 (* for comfort *)
+ -> 
+  forall n, Vrel n e1 e2.
+Proof.
+  induction e1; destruct e2; intros; try inversion_is_value; rewrite Vrel_Fix_eq;
+    simpl; destruct H1 as [Ecl1 [Ecl2 H1]]; destruct H2 as [Ecl1' [Ecl2' H2]]; try lia.
+  * split. 2: split. 1-2: constructor.
+    epose proof (H1 [FCase (PLit l) (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    now apply Z.eqb_eq in H11.
+    now apply inf_diverges in H12.
+  * epose proof (H1 [FCase (PLit l) (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * epose proof (H1 [FCase (PLit l) (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * epose proof (H1 [FCase (PLit l) (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * epose proof (H2 [FCase (PLit l) (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * admit.
+  * epose proof (H2 [FCase PNil (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * epose proof (H2 [FCase PNil (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * epose proof (H1 [FCase PNil (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * epose proof (H1 [FCase PNil (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * split; constructor; auto.
+  * epose proof (H1 [FCase PNil (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * epose proof (H1 [FCase (PCons PVar PVar) (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * epose proof (H1 [FCase (PCons PVar PVar) (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * epose proof (H1 [FCase (PCons PVar PVar) (ELit 0) inf] _ _).
+    destruct H3. inversion H3; subst; try inversion_is_value.
+    inversion H11.
+    now apply inf_diverges in H12.
+  * split. 2: split. 1-2: auto. inversion H. inversion H0. subst.
+    assert (CIU e1_1 e2_1). {
+      apply CIU_eval; auto. constructor. auto.
+      split. auto. exists 0. constructor.
+    specialize (IHe1_1 e2_1 H5 H9).
+Qed.

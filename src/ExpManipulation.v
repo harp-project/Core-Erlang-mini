@@ -20,7 +20,7 @@ Definition upren (ρ : Renaming) : Renaming :=
 Fixpoint iterate {A : Type} (f : A -> A) n a :=
   match n with
     | 0 => a
-    | S n' => f(iterate f n' a)
+    | S n' => f (iterate f n' a)
   end.
 
 Notation uprenn := (iterate upren).
@@ -36,7 +36,7 @@ match e with
  | ELetRec f vl b e => ELetRec f vl (rename (uprenn (1 + length vl) ρ) b) 
                                     (rename (upren ρ) e)
  | EPlus e1 e2 => EPlus (rename ρ e1) (rename ρ e2)
- | ECase e1 p e2 e3 => ECase (rename ρ e1) p (rename ρ e2) (rename ρ e3)
+ | ECase e1 p e2 e3 => ECase (rename ρ e1) p (rename (uprenn (pat_vars p) ρ) e2) (rename ρ e3)
  | ECons e1 e2 => ECons (rename ρ e1) (rename ρ e2)
  | ENil => e
  | VCons e1 e2 => VCons (rename ρ e1) (rename ρ e2)
@@ -80,7 +80,7 @@ match base with
  | ELetRec f vl b e => ELetRec f vl (subst (upn (1 + length vl) ξ) b)
                                     (subst (up_subst ξ) e)
  | EPlus e1 e2 => EPlus (subst ξ e1) (subst ξ e2)
- | ECase e1 p e2 e3 => ECase (subst ξ e1) p (subst ξ e2) (subst ξ e3)
+ | ECase e1 p e2 e3 => ECase (subst ξ e1) p (subst (upn (pat_vars p) ξ) e2) (subst ξ e3)
  | ECons e1 e2 => ECons (subst ξ e1) (subst ξ e2)
  | ENil => base
  | VCons e1 e2 => VCons (subst ξ e1) (subst ξ e2)
@@ -160,7 +160,7 @@ Proof.
   * rewrite IHe1. rewrite <- ren_up, IHe2. auto.
   * rewrite <- ren_up, <- renn_up, IHe1, IHe2, <- ren_up. auto.
   * rewrite IHe1, IHe2. auto.
-  * rewrite IHe1, IHe2, IHe3. auto.
+  * rewrite IHe1, IHe3, <- renn_up, IHe2. auto.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
   * constructor; auto.
@@ -245,7 +245,7 @@ Proof.
   * rewrite <- renn_up, <- ren_up. rewrite IHe1, upren_subst_up, uprenn_subst_upn.
     rewrite <- ren_up, IHe2, upren_subst_up. auto.
   * rewrite IHe1, IHe2. auto.
-  * rewrite IHe1, IHe2, IHe3. auto.
+  * now rewrite IHe1, IHe3, <- renn_up, IHe2, uprenn_subst_upn.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
 Qed.
@@ -277,7 +277,7 @@ Proof.
   * rewrite IHe1. do 2 fold_upn. rewrite IHe2. auto.
   * repeat fold_upn. rewrite IHe1, IHe2, uprenn_comp. auto.
   * now rewrite IHe1, IHe2.
-  * now rewrite IHe1, IHe2, IHe3.
+  * now rewrite IHe1, IHe2, IHe3, <- uprenn_comp.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
 Qed.
@@ -291,7 +291,7 @@ Proof.
   * now rewrite IHe1, IHe2, upren_comp.
   * do 2 fold_upn. now rewrite IHe1, IHe2, uprenn_comp, upren_comp.
   * now rewrite IHe1, IHe2.
-  * now rewrite IHe1, IHe2, IHe3.
+  * now rewrite IHe1, IHe3, rename_up.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
 Qed.
@@ -331,7 +331,7 @@ Proof.
     replace (up_subst (ξ >> ren σ)) with (up_subst ξ >> ren (upren σ)) by apply subst_up_upren. (* rewrite does not work here for some reason *)
     now rewrite <- IHe2, <- ren_up, <-subst_up_upren.
   * now rewrite IHe1, IHe2.
-  * now rewrite IHe1, IHe2, IHe3.
+  * now rewrite IHe1, <- renn_up, <- subst_upn_uprenn, IHe2, IHe3.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
 Qed.
@@ -366,7 +366,7 @@ Proof.
   * now rewrite IHe1, IHe2, up_comp.
   * do 3 fold_upn. now rewrite IHe1, IHe2, upn_comp, up_comp.
   * now rewrite IHe1, IHe2.
-  * now rewrite IHe1, IHe2, IHe3.
+  * now rewrite IHe1, IHe2, upn_comp, IHe3.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
 Qed.
@@ -419,6 +419,13 @@ Lemma substcomp_scons v ξ η :
   up_subst ξ >> v .: η = v .: (ξ >> η).
 Proof.
   apply substcomp_scons_core.
+Qed.
+
+Corollary substcomp_list l ξ η :
+  upn (length l) ξ >> list_subst l η = list_subst l (ξ >> η).
+Proof.
+  induction l; simpl; auto.
+  * now rewrite substcomp_scons, IHl.
 Qed.
 
 Theorem subst_extend_core : forall ξ v,

@@ -250,11 +250,35 @@ Qed.
 Global Hint Resolve in_list_sound : core.
 Global Hint Resolve not_in_list_sound : core.
 
-Fixpoint match_pattern (p : Pat) (e : Exp) : bool :=
+Fixpoint match_pattern (p : Pat) (e : Exp) : option (list Exp) :=
 match e, p with
-| ENil, PNil => true
-| ELit l, PLit l0 => Z.eqb l l0
-| ECons v1 v2, PCons p1 p2 => match_pattern p1 v1 && match_pattern p2 v2
-| _, PVar => true
-| _, _ => false
+| ENil, PNil => Some []
+| ELit l, PLit l0 => if Z.eqb l l0 then Some [] else None
+| VCons v1 v2, PCons p1 p2 => 
+  match match_pattern p1 v1, match_pattern p2 v2 with
+  | Some l1, Some l2 => Some (l1 ++ l2)
+  | _      , _       => None
+  end
+| _, PVar => Some [e]
+| _, _ => None
 end.
+
+Fixpoint pat_vars (p : Pat) : nat :=
+match p with
+ | PLit l => 0
+ | PVar => 1
+ | PNil => 0
+ | PCons p1 p2 => pat_vars p1 + pat_vars p2
+end.
+
+Lemma match_pattern_length : forall p v l,
+  match_pattern p v = Some l -> pat_vars p = length l.
+Proof.
+  induction p; intros.
+  * simpl in *. destruct v; inversion H. break_match_hyp; now inversion H.
+  * simpl in *. destruct v; inversion H; subst; auto.
+  * simpl in *. destruct v; inversion H. subst. auto.
+  * simpl. simpl in H. destruct v; try congruence.
+    break_match_hyp; try congruence. break_match_hyp; try congruence. inversion H.
+    subst. erewrite app_length, IHp1, IHp2. reflexivity. all: eauto.
+Qed.

@@ -26,8 +26,8 @@ Inductive ExpScoped (Γ : nat) : Exp -> Prop :=
   EXP Γ ⊢ e1 -> EXP Γ ⊢ e2
 ->
   EXP Γ ⊢ EPlus e1 e2
-| scoped_if e1 e2 e3 p :
-  EXP Γ ⊢ e1 -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e3
+| scoped_case e1 e2 e3 p :
+  EXP Γ ⊢ e1 -> EXP pat_vars p + Γ ⊢ e2 -> EXP Γ ⊢ e3
 ->
   EXP Γ ⊢ ECase e1 p e2 e3
 | escoped_cons e1 e2 :
@@ -277,7 +277,7 @@ Proof.
     - eapply IHe2; eauto.
   * subst. constructor.
     - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
+    - eapply IHe2; eauto. intros. eapply uprenn_scope; eauto.
     - eapply IHe3; eauto.
   * subst. constructor.
     - eapply IHe1; eauto.
@@ -452,7 +452,7 @@ Proof.
     - eapply IHe2; eauto.
   * constructor.
     - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
+    - eapply IHe2; eauto. apply upn_scope. auto.
     - eapply IHe3; eauto.
   * constructor.
     - eapply IHe1; eauto.
@@ -583,6 +583,7 @@ Module SUB_IMPLIES_SCOPE.
     * inversion H. 2: inversion H0. constructor.
       - eapply IHe1; eauto.
       - eapply IHe2; eauto.
+        rewrite upn_magic in H5. exact H5.
       - eapply IHe3; eauto.
     * inversion H.
     * inversion H.
@@ -705,9 +706,12 @@ Module SUB_IMPLIES_SCOPE.
       rewrite upn_magic_2, up_magic_2 in H6. now rewrite <- Nat.add_succ_comm.
     * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
       split; intros; inversion H3; subst. 2: inversion H4. now rewrite H, H1.
-    * specialize (IHe1 Γ'). specialize (IHe2 Γ'). specialize (IHe3 Γ').
+    * rewrite upn_magic, upn_magic_2.
+      specialize (IHe1 Γ'). specialize (IHe2 (pat_vars p + Γ')). specialize (IHe3 Γ').
       destruct IHe1, IHe2, IHe3.
-      split; intros; inversion H5; subst. 2: inversion H6. now rewrite H, H1, H3.
+      split; intros; inversion H5; subst. 2: inversion H6.
+      rewrite <- plus_n_Sm.
+      now rewrite H, H1, H3.
     * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
       split; intros; inversion H3; subst; try now rewrite H, H1.
     * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
@@ -868,7 +872,7 @@ Inductive FCLOSED : Frame -> Prop :=
 ->
   FCLOSED (FPlus2 v1)
 | fclosed_if e2 e3 p:
-  EXPCLOSED e2 -> EXPCLOSED e3
+  EXP pat_vars p ⊢ e2 -> EXPCLOSED e3
 ->
   FCLOSED (FCase p e2 e3)
 | fclosed_cons1 e1:
@@ -916,6 +920,21 @@ Proof.
   * specialize (H0 n H). auto.
 Qed.
 
+Theorem match_pattern_scoped : forall p v l Γ,
+  VAL Γ ⊢ v -> match_pattern p v = Some l
+->
+  Forall (fun v => VAL Γ ⊢ v) l.
+Proof.
+  induction p; intros.
+  * simpl in *. destruct v; inversion H0. break_match_hyp; inversion H0. auto.
+  * simpl in *. destruct v; inversion H0; subst; auto.
+  * simpl in *. destruct v; inversion H0. subst. auto.
+  * simpl. simpl in H0. destruct v; try congruence.
+    break_match_hyp; try congruence. break_match_hyp; try congruence. inversion H0.
+    subst. apply Forall_app. split.
+    - inversion H. subst. eapply IHp1. exact H3. auto.
+    - inversion H. subst. eapply IHp2. exact H4. auto.
+Qed.
 
 Ltac inversion_is_value :=
 match goal with

@@ -72,7 +72,10 @@ match clock with
             end
          | ECase e1 p e2 e3 =>
             match eval n e1 with
-            | Res v => if match_pattern p v then eval n e2 else eval n e3
+            | Res v => match match_pattern p v with
+                       | Some l => eval n e2.[list_subst l idsubst]
+                       | None   => eval n e3
+                       end
             | r     => r
             end
         end
@@ -84,6 +87,10 @@ Goal eval 10 (sum 2) = Res (ELit 3). Proof. simpl. auto. Qed.
 Goal eval 100 (sum 10) = Res (ELit 55). Proof. simpl. auto. Qed.
 Goal eval 100 (simplefun2 10 10) = Res (ELit 20). Proof. simpl. auto. Qed.
 Goal eval 100 (ECons (ELit 1) (ECons (EPlus (ELit 1) (ELit 1)) ENil)) = Res (VCons (ELit 1) (VCons (ELit 2) ENil)). Proof. cbn. reflexivity. Qed.
+Goal eval 100 (ECase (ECons (ELit 1) ENil) PNil (ELit 0) (ELit 1)) =
+        Res (ELit 1). Proof. reflexivity. Qed.
+Goal eval 100 (ECase (ECons (ELit 0) ENil) (PCons PVar PVar) (EVar 0) (ELit 1)) =
+        Res (ELit 0). Proof. reflexivity. Qed.
 
 Theorem list_eval_eq_length (el : list Exp) : forall clock vl,
   eval_list (eval clock) el = Res vl -> length el = length vl.
@@ -163,13 +170,13 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 
 | red_let val e2 xs v (H : VALCLOSED val) : ⟨ (FLet v e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
 
-| red_case_true e2 e3 v p xs : 
-  VALCLOSED v -> match_pattern p v = true
+| red_case_true e2 e3 v p xs l : 
+  VALCLOSED v -> match_pattern p v = Some l
 ->
-  ⟨ (FCase p e2 e3)::xs, v ⟩ --> ⟨ xs, e2 ⟩
+  ⟨ (FCase p e2 e3)::xs, v ⟩ --> ⟨ xs, e2.[list_subst l idsubst] ⟩
 
 | red_case_false e2 e3 p v xs (H : VALCLOSED v) :
-  VALCLOSED v -> match_pattern p v = false ->
+  VALCLOSED v -> match_pattern p v = None ->
   ⟨ (FCase p e2 e3)::xs, v ⟩ --> ⟨ xs, e3 ⟩
 
 | red_plus_left e2 xs v (H : VALCLOSED v): ⟨ (FPlus1 e2)::xs, v ⟩ --> ⟨ (FPlus2 v (* H *))::xs, e2 ⟩
@@ -297,7 +304,8 @@ Proof.
   * inversion H0; subst; try inversion H'; try (proof_irr_many; auto).
   * inversion H1; subst; try inversion H; auto.
   * inversion H0; subst; auto; try inversion H.
-  * inversion H1; subst; auto; try inversion_is_value. congruence.
+  * inversion H1; subst; auto; try inversion_is_value.
+    rewrite H0 in H10. inversion H10. auto. congruence.
   * inversion H2; subst; auto; try inversion_is_value. congruence.
   * inversion H0; subst; try inversion H; try (proof_irr; auto).
   * inversion H; subst. auto.
@@ -354,6 +362,9 @@ Proof.
   * inversion H0. inversion H4. 
     subst. split; auto. apply -> subst_preserves_scope_exp; eauto.
   * inversion H1. inversion H5. subst. split; auto.
+    apply -> subst_preserves_scope_exp; eauto.
+    rewrite (match_pattern_length _ v l H0).
+    apply scoped_list_idsubst. eapply match_pattern_scoped; eauto.
   * inversion H2. inversion H6. subst. split; auto.
   * inversion H0. inversion H4; subst. split; auto. constructor; auto.
     constructor. destruct v; inversion H; inversion H1; auto.
@@ -367,7 +378,8 @@ Proof.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
     constructor. rewrite indexed_to_forall. exact H4.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto. now constructor.
-  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto. now constructor.
+  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
+    constructor. rewrite Nat.add_0_r in H6. auto. auto.
   * inversion H0; subst; split; auto. 1-2: constructor; auto; now constructor.
     now inversion H1.
 Qed.
@@ -400,12 +412,12 @@ Reserved Notation "| fs , e | k ↓" (at level 80).
 Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
 
 | term_value v : VALCLOSED v -> | [] , v | 0 ↓
-| term_case_true fs e1 e2 k v p :
-  VALCLOSED v ->  match_pattern p v = true -> | fs , e1 | k ↓
+| term_case_true fs e1 e2 k v p l :
+  VALCLOSED v ->  match_pattern p v = Some l -> | fs , e1.[list_subst l idsubst] | k ↓
  ->
   | (FCase p e1 e2)::fs , v | S k ↓
 | term_case_false fs e1 e2 v k p :
-  VALCLOSED v ->  match_pattern p v = false -> | fs , e2 | k ↓ 
+  VALCLOSED v ->  match_pattern p v = None -> | fs , e2 | k ↓ 
  -> 
   | (FCase p e1 e2)::fs , v | S k ↓
 | term_plus_left e2 v fs (H : VALCLOSED v) k : | (FPlus2 v)::fs , e2 | k ↓ -> | (FPlus1 e2)::fs, v | S k ↓
@@ -450,7 +462,7 @@ Proof.
       assert (terminates_in_k_sem fs' e' k). { econstructor. eauto. } apply IHk in H2.
       clear H0. inversion H3; subst.
       1-5, 8-17: try econstructor; eauto.
-      constructor; auto.
+      eapply term_case_true; eauto.
       apply term_case_false; auto.
     }
     {
@@ -705,7 +717,7 @@ Proof.
   * inversion H. subst. constructor.
   * inversion H. subst. inversion H1; subst.
     1-6, 8-17: simpl; econstructor; try constructor; auto.
-    all: try (eapply IHk in H4; simpl in H4; exact H4).
+    all: try (eapply IHk in H4; simpl in H4; exact H4); auto.
     econstructor. apply red_case_false; auto. apply IHk; auto.
 Qed.
 
@@ -808,7 +820,13 @@ Proof.
     - apply H in H12. 2: lia. destruct H12, H3, H3.
       exists x2, (S (x1 + S x3)). split. auto.
       econstructor. constructor. eapply transitive_eval; eauto.
-      econstructor. constructor. all: auto. now inversion P.
+      econstructor. constructor. all: auto. exact H11. now inversion P.
+      inversion P. subst. rewrite Nat.add_0_r in H13.
+      apply -> subst_preserves_scope_exp; eauto.
+      erewrite (match_pattern_length _ _ _ H11).
+      eapply scoped_list_idsubst, match_pattern_scoped.
+      2: exact H11. auto.
+      now inversion H3.
     - apply H in H12. 2: lia. destruct H12, H3, H3.
       exists x2, (S (x1 + S x3)). split. auto.
       econstructor. constructor. eapply transitive_eval; eauto.
@@ -1018,7 +1036,10 @@ Proof.
       exists x2, (S (x1 + S x3)). split. auto.
       econstructor. constructor. eapply transitive_eval; eauto.
       eapply frame_indep_nil in H2. exact H2.
-      econstructor. constructor. all: auto. now inversion P.
+      econstructor. constructor. all: eauto. inversion P. 2: inversion_is_value.
+      subst. apply -> subst_preserves_scope_exp. exact H13.
+      rewrite (match_pattern_length _ _ _ H11), Nat.add_0_r.
+      eapply scoped_list_idsubst, match_pattern_scoped. exact H9. eauto.
     - apply H in H12. 2: lia. destruct H12, H3, H3.
       exists x2, (S (x1 + S x3)). split. auto.
       econstructor. constructor. eapply transitive_eval; eauto.
@@ -1255,7 +1276,7 @@ Proof.
       + split; right; intro; inversion H1. congruence. inversion_is_value.
     - split; right; intro; inversion H0. congruence. inversion_is_value.
   * destruct (IHe1 Γ) as [[P1 | P2] ?].
-    - destruct (IHe2 Γ) as [[P1' | P2'] ?].
+    - destruct (IHe2 (pat_vars p + Γ)) as [[P1' | P2'] ?].
       + destruct (IHe3 Γ) as [[P1'' | P2''] ?].
         ** split. left. constructor; auto. right. intro. inversion_is_value.
         ** split; right; intro; inversion H2. congruence. inversion_is_value.
