@@ -2,8 +2,8 @@
 src/Basics.v
 src/ExpSyntax.v
 src/ExpManipulation.v
-src/SubstSemantics.v
 src/Scoping.v
+src/SubstSemantics.v
 src/LogRel.v
 src/Compatibility.v
 src/CIU.v
