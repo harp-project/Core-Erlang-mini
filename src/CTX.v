@@ -43,8 +43,9 @@ Definition CompatiblePlus (R : nat -> Exp -> Exp -> Prop) :=
 
 Definition CompatibleCase (R : nat -> Exp -> Exp -> Prop) :=
   forall Γ e1 e1' e2 e2' e3 e3' p,
-  EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e2' -> EXP Γ ⊢ e3 -> EXP Γ ⊢ e3' ->
-  R Γ e1 e1' -> R Γ e2 e2' -> R Γ e3 e3' ->
+  EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP pat_vars p + Γ ⊢ e2 -> EXP pat_vars p + Γ ⊢ e2' -> 
+  EXP Γ ⊢ e3 -> EXP Γ ⊢ e3' ->
+  R Γ e1 e1' -> R (pat_vars p + Γ) e2 e2' -> R Γ e3 e3' ->
   R Γ (ECase e1 p e2 e3) (ECase e1' p e2' e3').
 
 Definition CompatibleCons (R : nat -> Exp -> Exp -> Prop) :=
@@ -285,18 +286,18 @@ Inductive EECtxScope (Γh : nat) : nat -> Ctx -> Prop :=
     EECTX Γh ⊢ CPlus2 e1 C ∷ Γ
 | CEScope_Case1 : forall Γ C e2 e3 p,
     EECTX Γh ⊢ C ∷ Γ -> 
-    EXP Γ ⊢ e2 ->
+    EXP pat_vars p + Γ ⊢ e2 ->
     EXP Γ ⊢ e3 ->
     EECTX Γh ⊢ CCase1 C p e2 e3 ∷ Γ
 | CEScope_Case2 : forall Γ C e1 e3 p,
-    EECTX Γh ⊢ C ∷ Γ -> 
+    EECTX Γh ⊢ C ∷ pat_vars p + Γ -> 
     EXP Γ ⊢ e1 ->
     EXP Γ ⊢ e3 ->
     EECTX Γh ⊢ CCase2 e1 p C e3 ∷ Γ
 | CEScope_Case3 : forall Γ C e1 e2 p,
     EECTX Γh ⊢ C ∷ Γ -> 
     EXP Γ ⊢ e1 ->
-    EXP Γ ⊢ e2 ->
+    EXP pat_vars p + Γ ⊢ e2 ->
     EECTX Γh ⊢ CCase3 e1 p e2 C ∷ Γ
 | CEScope_Cons1 : forall Γ C e1,
     EECTX Γh ⊢ C ∷ Γ -> 
@@ -719,7 +720,7 @@ Proof.
   * now rewrite IHe2_1, default_names_up, IHe2_2.
   * rewrite map_length. now rewrite default_names_upn, default_names_up, IHe2_1, default_names_up, IHe2_2.
   * now rewrite IHe2_1, IHe2_2.
-  * now rewrite IHe2_1, IHe2_2, IHe2_3.
+  * now rewrite IHe2_1, default_names_upn, IHe2_2, IHe2_3.
   * now rewrite IHe2_1, IHe2_2.
   * now rewrite IHe2_1, IHe2_2.
 Qed.
@@ -746,14 +747,49 @@ Proof.
 Qed.
 
 Lemma match_pattern_default :
-  forall e p, match_pattern p e = match_pattern p (default_names e).
+  forall e p l Γ, VAL Γ ⊢ e -> match_pattern p e = Some l ->
+   match_pattern p (default_names e) = Some (map default_names l).
 Proof.
-  induction e; intros; destruct p; cbn; auto.
-  * destruct p0; cbn; auto.
-  * destruct p0; cbn; auto.
-  * destruct p0; cbn; auto.
-  * destruct p0; cbn; auto.
-  * rewrite IHe1, IHe2; auto.
+  induction e; intros; destruct p; cbn; auto; inversion H0; auto; try inversion_is_value.
+  * break_match_hyp; subst. inversion H2. subst; auto. congruence.
+  * break_match_hyp. break_match_hyp. 2-3: congruence.
+    inversion H. subst.
+    inversion H2. subst. eapply IHe1 in Heqo; eauto. eapply IHe2 in Heqo0; eauto.
+    now rewrite Heqo, Heqo0, map_app.
+Qed.
+
+Lemma nomatch_pattern_default :
+  forall e p Γ, VAL Γ ⊢ e -> match_pattern p e = None <->
+   match_pattern p (default_names e) = None.
+Proof.
+  induction e; intros; destruct p; cbn; auto; split; intro; inversion H0; auto; try inversion_is_value.
+  * break_match_hyp; inversion H0; auto.
+  * break_match_hyp; inversion H0; auto.
+  * break_match_hyp. break_match_hyp. congruence.
+    - inversion H. subst. eapply IHe2 in Heqo0; eauto. rewrite Heqo0. break_match_goal; auto.
+    - inversion H. subst. eapply IHe1 in Heqo; eauto. rewrite Heqo. auto.
+  * break_match_hyp. break_match_hyp. congruence.
+    - inversion H. subst. eapply IHe2 in Heqo0; eauto. rewrite Heqo0. break_match_goal; auto.
+    - inversion H. subst. eapply IHe1 in Heqo; eauto. rewrite Heqo. auto.
+Qed.
+
+Lemma match_pattern_default_exists :
+  forall e p l Γ, VAL Γ ⊢ e -> match_pattern p (default_names e) = Some l ->
+  exists l', l = map default_names l' /\ match_pattern p e = Some l'.
+Proof.
+  induction e; intros; destruct p; cbn; auto; inversion H0; auto; try inversion_is_value.
+  * break_match_hyp; inversion H2; subst. now exists [].
+  * now exists [ELit l].
+  * now exists [EVar n].
+  * now exists [EFunId n].
+  * now exists [EFun vl e].
+  * now exists [ENil].
+  * now exists [].
+  * now exists [VCons e1 e2].
+  * break_match_hyp. break_match_hyp. 2-3: congruence. inversion H2.
+    inversion H. subst. eapply IHe1 in Heqo; eauto. eapply IHe2 in Heqo0; eauto.
+    destruct Heqo, Heqo0, H1, H3. subst. exists (x ++ x0). rewrite map_app. split; auto.
+    rewrite H4, H7. auto.
 Qed.
 
 Theorem alpha_eval_k :
@@ -763,9 +799,10 @@ Proof.
   { generalize dependent e. generalize dependent fs.
     induction k; intros; simpl; inversion H; subst.
     * constructor. now apply default_value.
-    * constructor. auto. now rewrite <- match_pattern_default.
-      now apply IHk.
-    * apply term_case_false; auto. now rewrite <- match_pattern_default.
+    * simpl. eapply term_case_true. auto. eapply match_pattern_default. exact H1. exact H2.
+      apply IHk in H5. rewrite alpha_helper in H5. rewrite alpha_list_subst in H5.
+      now replace (default_names_sub idsubst) with idsubst in H5.
+    * apply term_case_false; auto. apply -> nomatch_pattern_default. exact H2. eauto.
     * simpl. econstructor; auto.
       replace (FPlus2 (default_names e) :: map default_name_frame fs0) with
                 (map default_name_frame (FPlus2 e ::fs0)) by auto.
@@ -810,10 +847,15 @@ Proof.
     induction k; intros; simpl; inversion H; subst.
     * apply eq_sym, map_eq_nil in H0. subst. constructor. auto.
     * destruct fs; inversion H0. destruct f; inversion H4.
-      subst. apply IHk in H5. constructor; auto. now rewrite match_pattern_default.
+      subst. eapply match_pattern_default_exists in H3 as H3'.
+      2: { apply default_value_rev in H2. exact H2. } destruct H3' as [l' [EQ1 EQ2]]. subst.
+      replace idsubst with (default_names_sub idsubst) in H5 by auto.
+      rewrite  <- alpha_list_subst, <- alpha_helper in H5.
+      apply IHk in H5. eapply term_case_true; auto.
+      2: exact H5. auto.
     * destruct fs; inversion H0. destruct f; inversion H4.
       subst. apply IHk in H5. apply term_case_false; auto.
-      now rewrite match_pattern_default.
+      rewrite nomatch_pattern_default; eauto.
     * destruct fs; inversion H0. destruct f; inversion H3. subst.
       replace (FPlus2 (default_names e) :: map default_name_frame fs) with
               (map default_name_frame (FPlus2 e::fs)) in H4 by auto. apply IHk in H4.
@@ -999,7 +1041,7 @@ Proof.
       constructor.
     }
     apply H9 in HC_e1. 2: rewrite <- plug_assoc; simpl; auto.
-    assert (EECTX Γ ⊢ plugc C (CCase2 e1' p CHole e3) ∷ 0) as HC_e2.
+    assert (EECTX pat_vars p + Γ ⊢ plugc C (CCase2 e1' p CHole e3) ∷ 0) as HC_e2.
     { eapply plugc_preserves_scope_exp; eauto.
       constructor; auto.
       constructor.
@@ -1205,7 +1247,8 @@ Proof.
         -- simpl. apply CTX_IsPreCtxRel; auto. now apply CTX_refl.
         -- simpl. apply CTX_IsPreCtxRel; auto. now apply CTX_refl.
         -- simpl. apply CTX_IsPreCtxRel; auto. 3: apply CTX_refl. all: now constructor.
-        -- simpl. apply CTX_IsPreCtxRel; auto. 1-2: now apply CTX_refl.
+        -- simpl. apply CTX_IsPreCtxRel; auto.
+           1-2: now rewrite Nat.add_0_r. 1-2: apply CTX_refl; auto; now rewrite Nat.add_0_r.
         -- simpl. apply CTX_IsPreCtxRel; auto. now apply CTX_refl.
         -- simpl. apply CTX_IsPreCtxRel; auto.
            3: apply CTX_refl.
@@ -1457,7 +1500,7 @@ Proof.
       repeat constructor; auto.
 Qed.
 
-Theorem Vrel_list_parts : forall Γ e1 e2 e1' e2',
+(* Theorem Vrel_list_parts : forall Γ e1 e2 e1' e2',
   Vrel_open Γ (VCons e1 e2) (VCons e1' e2')
 ->
   Vrel_open Γ e1 e1' /\ Vrel_open Γ e2 e2'.
@@ -1549,7 +1592,7 @@ Proof.
     epose proof (CIU_closed_implies_Erel_closed _ _ CIU2' n).
     
   }
-Qed.
+Qed.*)
 
 Definition eq_exps (e1 e2 : Exp) := forall n, equivalent_exps e1 e2 (equivalent_values n).
 
@@ -1577,7 +1620,7 @@ Proof.
         destruct H3, H5. eapply frame_indep_nil in H5.
         eapply terminates_step_any_2 in H11. 2: exact H5.
         inversion H11.
-        ** now apply Z.eqb_eq in H14.
+        ** simpl in H14. break_match_hyp. now apply Z.eqb_eq in Heqb. congruence.
         ** apply inf_diverges in H15. contradiction.
       + epose proof (H1 (CCase1 CHole (PLit l) (ELit 0) inf) _ _).
         simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.

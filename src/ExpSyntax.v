@@ -251,16 +251,25 @@ Global Hint Resolve in_list_sound : core.
 Global Hint Resolve not_in_list_sound : core.
 
 Fixpoint match_pattern (p : Pat) (e : Exp) : option (list Exp) :=
-match e, p with
-| ENil, PNil => Some []
-| ELit l, PLit l0 => if Z.eqb l l0 then Some [] else None
-| VCons v1 v2, PCons p1 p2 => 
-  match match_pattern p1 v1, match_pattern p2 v2 with
-  | Some l1, Some l2 => Some (l1 ++ l2)
-  | _      , _       => None
+match p with
+| PVar => Some [e]
+| PNil => match e with
+          | ENil => Some []
+          | _    => None
+          end
+| PLit l0 => match e with
+             | ELit l => if Z.eqb l l0 then Some [] else None
+             | _      => None
+             end
+| PCons p1 p2 => 
+  match e with
+  | VCons v1 v2 =>
+    match match_pattern p1 v1, match_pattern p2 v2 with
+    | Some l1, Some l2 => Some (l1 ++ l2)
+    | _      , _       => None
+    end
+  | _           => None
   end
-| _, PVar => Some [e]
-| _, _ => None
 end.
 
 Fixpoint pat_vars (p : Pat) : nat :=
