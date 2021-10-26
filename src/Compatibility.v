@@ -32,14 +32,58 @@ Qed.
 
 Global Hint Resolve Vrel_Lit_compat_closed : core.
 
-Lemma Vrel_Lit_compat_open :
+Lemma Vrel_Lit_compat :
   forall Γ n,
   Vrel_open Γ (ELit n) (ELit n).
 Proof.
   unfold Vrel_open. intros. simpl. auto.
 Qed.
 
-Global Hint Resolve Vrel_Lit_compat_open : core.
+Global Hint Resolve Vrel_Lit_compat : core.
+
+Lemma Vrel_Nil_compat_closed:
+  forall m, Vrel m ENil ENil.
+Proof.
+  split; constructor; constructor.
+Qed.
+
+Global Hint Resolve Vrel_Nil_compat_closed : core.
+
+Lemma Vrel_Nil_compat :
+  forall Γ, Vrel_open Γ ENil ENil.
+Proof.
+  unfold Vrel_open. intros. simpl. auto.
+Qed.
+
+Global Hint Resolve Vrel_Nil_compat : core.
+
+Lemma Vrel_Cons_compat_closed :
+  forall m v1 v1' v2 v2', Vrel m v1 v1' -> Vrel m v2 v2'
+ ->
+  Vrel m (VCons v1 v2) (VCons v1' v2').
+Proof.
+  intros. rewrite Vrel_Fix_eq. split. 2: split. 1-2: constructor.
+  * apply Vrel_closed in H. apply H.
+  * apply Vrel_closed in H0. apply H0.
+  * apply Vrel_closed in H. apply H.
+  * apply Vrel_closed in H0. apply H0.
+  * intros. rewrite Vrel_Fix_eq in H. rewrite Vrel_Fix_eq in H0.
+    split; [apply H | apply H0].
+  Unshelve. all: lia.
+Qed.
+
+Global Hint Resolve Vrel_Cons_compat_closed : core.
+
+Lemma Vrel_Cons_compat :
+  forall Γ v1 v1' v2 v2', Vrel_open Γ v1 v1' -> Vrel_open Γ v2 v2'
+ ->
+  Vrel_open Γ (VCons v1 v2) (VCons v1' v2').
+Proof.
+  intros. unfold Vrel_open. intros. simpl.
+  apply Vrel_Cons_compat_closed; [apply H | apply H0]; auto.
+Qed.
+
+Global Hint Resolve Vrel_Cons_compat : core.
 
 Lemma Vrel_Fun_compat :
   forall Γ vl1 vl2 b1 b2, length vl1 = length vl2 ->
@@ -65,7 +109,11 @@ Proof.
   - break_match_goal.
     2: { apply Nat.eqb_neq in Heqb. congruence. }
     + intros. unfold Erel_open, Erel in H0.
-      do 2 rewrite subst_comp. apply H0.
+      do 2 rewrite subst_comp. epose proof (nH0 := H0 m _ _ _).
+      destruct nH0 as [nCl1 [nCl2 nH0]].
+      split. 2: split. exact nCl1. exact nCl2. intros. eapply nH0. 3: exact H9.
+      lia. auto.
+    Unshelve.
       split. 2: split.
       1-2: fold_upn; rewrite subst_list_extend; auto.
       1: rewrite <- H5. 2: apply Nat.eqb_eq in Heqb; rewrite <- Heqb in H6; rewrite <- H6.
@@ -121,11 +169,13 @@ Proof.
   unfold Erel, exp_rel.
   pose proof (Vrel_possibilities H).
   intuition eauto.
-  1-2, 4, 5: apply Vrel_closed in H; destruct H.
-  1-6: repeat try constructor; auto.
-  do 2 unfold_hyps. subst. destruct H0, H1. eapply H3; eauto.
-  do 5 unfold_hyps. subst.
-  destruct H0, H1. subst. eapply H3; eauto. eapply Vrel_downclosed. eauto.
+  1-2, 4, 5, 7-8, 10-11: apply Vrel_closed in H; destruct H.
+  1-8: repeat try constructor; auto.
+  * do 2 unfold_hyps. subst. destruct H0, H1. eapply H3; eauto.
+  * do 5 unfold_hyps. subst.
+    destruct H1, H1. subst. eapply H3; eauto. eapply Vrel_downclosed. eauto.
+  * destruct H0, H3. eapply H4; eauto. eapply Vrel_downclosed. eauto.
+  * subst. destruct H1, H1. eapply H2; eauto.
 Unshelve. all: auto.
 Qed.
 
@@ -152,11 +202,6 @@ Qed.
 
 Global Hint Resolve Vrel_open_Erel_open : core.
 
-Lemma Vrel_is_value : forall v1 v2 m, Vrel m v1 v2 -> is_value v1 /\ is_value v2.
-Proof.
-  intros. rewrite Vrel_Fix_eq in H. destruct H, H0, v1, v2; try inversion H; try inversion H0. all: repeat constructor; contradiction.
-Qed.
-
 Lemma Erel_Plus_compat_closed : forall n e1 e2 e1' e2',
     Erel n e1 e1' -> Erel n e2 e2' ->
     Erel n (EPlus e1 e2) (EPlus e1' e2').
@@ -172,55 +217,116 @@ Proof.
   Unshelve. lia.
   split. 2: split.
   1-2: constructor; auto; constructor; auto.
-  intros. apply Vrel_is_value in H9 as v. destruct v.
+  intros. assert (VALCLOSED v1) by (eapply Vrel_closed in H9; apply H9).
   inversion H10; subst. 2-6: inversion H12.
-  epose (H4 k _ (FPlus2 v1 (* H14 *) :: F1) (FPlus2 v2 (* H13 *) :: F2) _ H19). destruct t.
+  epose (H4 k _ (FPlus2 v1 (* H14 *) :: F1) (FPlus2 v2 (* H13 *) :: F2) _ H18). destruct t.
   exists (S x). econstructor; eauto.
+  inversion_is_value.
 
   Unshelve. lia.
   split. 2: split.
   1-2: constructor; apply Vrel_closed in H9; destruct H9; auto; constructor; auto.
-  intros. apply Vrel_is_value in H14 as v. destruct v. inversion H15; subst.
-  2-6 : inversion H17.
-  eapply H8 in H24. destruct H24. exists (S x).
+  intros. assert (VALCLOSED v0) by (eapply Vrel_closed in H13; apply H13).
+  inversion H14; subst.
+  2-6 : inversion H16.
+  eapply H8 in H22. destruct H22. exists (S x).
   (** LHS, RHS is literal: *)
-  rewrite Vrel_Fix_eq in H14. destruct H14, H21. destruct v3; inversion H22. subst.
-  rewrite Vrel_Fix_eq in H9. destruct H9, H22. destruct v2; inversion H24. subst.
-  apply term_plus_right. subst. exact H20. lia. apply Vrel_Lit_compat_closed.
+  rewrite Vrel_Fix_eq in H13. destruct H13, H19. destruct v3; inversion H20. subst.
+  rewrite Vrel_Fix_eq in H9. destruct H9, H20. destruct v2; inversion H22. subst.
+  apply term_plus_right. subst. exact H17. lia. apply Vrel_Lit_compat_closed.
+  inversion_is_value.
 Qed.
 
-
-Lemma Erel_If_compat_closed : forall n e1 e2 e1' e2' e3 e3',
-    Erel n e1 e1' -> Erel n e2 e2' -> Erel n e3 e3' ->
-    Erel n (EIf e1 e2 e3) (EIf e1' e2' e3').
+Lemma match_pattern_Vrel : forall p v1 v2 n,
+  Vrel n v1 v2 ->
+  (forall l1, 
+        (match_pattern p v1 = Some l1 ->
+         exists l2, match_pattern p v2 = Some l2 /\ list_biforall (Vrel n) l1 l2)).
 Proof.
   intros.
-  destruct H, H0, H1, H2, H3, H4.
+  assert (VALCLOSED v1) by (eapply Vrel_closed in H; apply H).
+  assert (VALCLOSED v2) by (eapply Vrel_closed in H; apply H).
+  generalize dependent v2. revert n. generalize dependent v1. revert l1. generalize dependent p.
+  induction p; destruct v1, v2; intros; try inversion_is_value; rewrite Vrel_Fix_eq in H; destruct H as [Cl1 [Cl2 H]]; try contradiction; simpl in H0; try congruence.
+  * break_match_hyp. 2: congruence. inversion H0. subst. exists [].
+    split. apply Z.eqb_eq in Heqb. subst. simpl. rewrite Z.eqb_refl. auto.
+    constructor.
+  * inversion H0. subst. exists [ELit l0]. simpl. split; constructor.
+    rewrite Vrel_Fix_eq. simpl; auto. constructor.
+  * inversion H0. subst. exists [EFun vl0 v2]; simpl; split; auto.
+    constructor. 2: constructor. rewrite Vrel_Fix_eq; simpl; auto.
+  * inversion H0; subst. exists [ENil]; split; auto.
+    constructor. 2: constructor. apply Vrel_Nil_compat_closed.
+  * inversion H0. subst. exists [VCons v2_1 v2_2]; split; auto.
+    constructor. 2: constructor. rewrite Vrel_Fix_eq; simpl; auto.
+  * inversion H0. subst. exists []. split; auto. constructor.
+  * inversion Cl1. inversion Cl2. subst. destruct H.
+    rewrite <- Vrel_Fix_eq in H. rewrite <- Vrel_Fix_eq in H3.
+    break_match_hyp; try congruence. break_match_hyp; try congruence.
+    inversion H0. subst.
+    apply (IHp1 l) in H. apply (IHp2 l0) in H3. all: auto.
+    destruct H as [l11 [Hb Hbif]]. destruct H3 as [l12 [Hb2 Hbif2]].
+    exists (l11 ++ l12). split; simpl. now rewrite Hb, Hb2.
+    apply biforall_app; auto.
+Qed.
+
+Lemma nomatch_pattern_Vrel : forall p v1 v2 n,
+  Vrel n v1 v2 ->
+  match_pattern p v1 = None -> match_pattern p v2 = None.
+Proof.
+  intros.
+  assert (VALCLOSED v1) by (eapply Vrel_closed in H; apply H).
+  assert (VALCLOSED v2) by (eapply Vrel_closed in H; apply H).
+  generalize dependent v2. revert n. generalize dependent v1.
+  induction p; destruct v1, v2; intros; try inversion_is_value; rewrite Vrel_Fix_eq in H; destruct H as [Cl1 [Cl2 H]]; try contradiction; simpl in H0; try congruence; auto.
+  * break_match_hyp. congruence. simpl. subst. now rewrite Heqb.
+  * inversion Cl1. inversion Cl2. subst. destruct H.
+    rewrite <- Vrel_Fix_eq in H. rewrite <- Vrel_Fix_eq in H3.
+    break_match_hyp; try congruence. break_match_hyp; try congruence.
+    - simpl. eapply IHp2 in Heqo0. 3: exact H3. all: auto.
+      rewrite Heqo0. break_match_goal; auto.
+    - simpl. eapply IHp1 in Heqo. 3: exact H. all: auto.
+      rewrite Heqo; auto.
+Qed.
+
+Lemma Erel_Case_compat_closed : forall n e1 e2 e1' e2' e3 e3' p,
+    Erel n e1 e1' -> EXP pat_vars p ⊢ e2 -> EXP pat_vars p ⊢ e2' ->
+    (forall m (Hmn : m <= n) vl vl', length vl = pat_vars p ->
+        list_biforall (Vrel m) vl vl' -> 
+                          Erel m e2.[list_subst vl idsubst ]
+                                 e2'.[list_subst vl' idsubst])
+    -> Erel n e3 e3' ->
+    Erel n (ECase e1 p e2 e3) (ECase e1' p e2' e3').
+Proof.
+  intros.
+  destruct H, H3, H4, H5.
   split. 2: split. 1-2: constructor; auto.
+  1-2: now rewrite Nat.add_0_r.
   intros. destruct H8, H10.
-  destruct m. inversion H9. inversion H12.
-  inversion H9; try inversion_is_value. subst.
-  epose (H5 m _ (FIf e2 e3 ::F1) (FIf e2' e3' ::F2) _ H14).
-  destruct t. exists (S x). constructor. auto.
+  inversion H9; subst; try inversion_is_value.
+  epose proof (H6 k _ (FCase p e2 e3 ::F1) (FCase p e2' e3' ::F2) _ H18) as T.
+  destruct T. exists (S x). constructor. auto.
 
   Unshelve. lia.
   split. 2: split.
   1-2: constructor; auto; now constructor.
-  intros. apply Vrel_is_value in H12 as v. destruct v.
-  inversion H13; subst. 3-7: inversion H15.
-  * rewrite Vrel_Fix_eq in H12. destruct H12, H17. destruct v2; inversion H18. subst.
-    epose (H6 k _ F1 F2 _ H22). destruct t.
-    exists (S x). econstructor; eauto.
-  * epose (H7 k _ F1 F2 _ H24). destruct t.
-    exists (S x). econstructor; eauto.
-    rewrite Vrel_Fix_eq in H12. destruct H12, H18. destruct v1, v2; subst; auto.
-    congruence.
-
-  Unshelve.
-  1, 3: lia.
-  split. 2: split. all: auto. intros. eapply (H11 m0 _ _ _ H18 H20).
-  split. 2: split. all: auto. intros. eapply (H11 m0 _ _ _ H17 H18).
-  Unshelve. all: lia.
+  intros. assert (VALCLOSED v1) by (apply Vrel_closed in H12; apply H12).
+  inversion H13; subst; try inversion_is_value.
+  * eapply match_pattern_Vrel in H23 as H23_2. 2: exact H12.
+    destruct H23_2 as [l2 [M2 Bif]].
+    inversion H13; subst; try inversion_is_value. 2: congruence.
+    rewrite H26 in H23. inversion H23. subst.
+    apply match_pattern_length in H26 as H26_2.
+    eapply biforall_impl in Bif. 2: intros; eapply Vrel_downclosed; exact H15.
+    specialize (H2 k0 ltac:(lia) l l2 (eq_sym H26_2) Bif).
+    destruct H2 as [Cl1 [Cl2 H2]]. eapply H2 in H27.
+    destruct H27. exists (S x). eapply term_case_true; eauto.
+    lia. split. 2: split. all: auto. intros. eapply H11. 3: exact H16. lia. auto.
+  * eapply nomatch_pattern_Vrel in H23 as H23_2. 2: exact H12.
+    inversion H13; subst; try inversion_is_value. congruence.
+    eapply H7 in H24. destruct H24. exists (S x). apply term_case_false; eauto.
+    lia. split. 2: split. all: auto. intros. eapply H11. 3: exact H16. lia. auto.
+  Unshelve. lia.
 Qed.
 
 Lemma Erel_Var_compat :
@@ -286,11 +392,12 @@ Proof.
     apply Erel_closed_r, subst_implies_scope_exp_1 in H' as e2H.
     destruct H1, H6.
     split. 2: split. 1-2: constructor; auto; now constructor.
-    intros. apply Vrel_is_value in H8 as v. destruct v.
+    intros. assert (VALCLOSED v1) by (apply Vrel_closed in H8; apply H8). assert (VALCLOSED v2) by (apply Vrel_closed in H8; apply H8).
     inversion H9; subst. 2-6: inversion H10. eapply H in H18. destruct H18.
     exists (S x0). constructor. auto. exact H12. 2: exact H8. lia. lia.
 
     split. 2: split. all: auto. intros. eapply H7. 3: exact H15. lia. auto.
+    inversion_is_value.
 Qed.
 
 Global Hint Resolve Erel_Let_compat_closed : core.
@@ -404,14 +511,52 @@ Qed.
 
 Global Hint Resolve Erel_LetRec_compat : core.
 
-Ltac filter_hyps :=
-match goal with
-| [H : VAL _ ⊢ EApp _ _ |- _]  => inversion H
-| [H : VAL _ ⊢ ELet _ _ _ |- _]  => inversion H
-| [H : VAL _ ⊢ EIf _ _ _ |- _]  => inversion H
-| [H : VAL _ ⊢ EPlus _ _ |- _]  => inversion H
-| [H : VAL _ ⊢ ELetRec _ _ _ _ |- _] => inversion H
-end.
+Lemma Erel_Cons_compat_closed :
+  forall m e1 e1' e2 e2', Erel m e1 e1' -> Erel m e2 e2'
+ ->
+  Erel m (ECons e1 e2) (ECons e1' e2').
+Proof.
+  intros. destruct H, H0, H1, H2.
+  split. 2: split. 1-2: constructor; auto.
+  intros. destruct H5, H7.
+  destruct m0. inversion H6. inversion H9.
+  inversion H6; try inversion_is_value. subst.
+  epose (H4 m0 _ (FCons1 e1 ::F1) (FCons1 e1' ::F2) _ H11).
+  destruct t. exists (S x). constructor. auto.
+
+  Unshelve. lia.
+  split. 2: split.
+  1-2: constructor; auto; constructor; auto.
+  intros. assert (VALCLOSED v1) by (apply Vrel_closed in H9; apply H9).
+  inversion H10; subst; try inversion_is_value.
+  epose (H3 k _ (FCons2 v1 :: F1) (FCons2 v2 :: F2) _ H18). destruct t.
+  exists (S x). econstructor; eauto.
+
+  Unshelve. lia.
+  split. 2: split.
+  1-2: constructor; apply Vrel_closed in H9; destruct H9; auto; constructor; auto.
+  intros. assert (VALCLOSED v0) by (apply Vrel_closed in H13; apply H13).
+  inversion H14; subst; try inversion_is_value.
+  eapply H8 in H24. destruct H24. exists (S x).
+  constructor; eauto. lia.
+
+  eapply Vrel_Cons_compat_closed.
+  eapply Vrel_downclosed. eassumption.
+  eapply Vrel_downclosed. eassumption.
+  Unshelve. all: lia.
+Qed.
+
+Global Hint Resolve Erel_Cons_compat_closed : core.
+
+Lemma Erel_Cons_compat :
+  forall Γ v1 v1' v2 v2', Erel_open Γ v1 v1' -> Erel_open Γ v2 v2'
+ ->
+  Erel_open Γ (ECons v1 v2) (ECons v1' v2').
+Proof.
+  unfold Erel_open. intros. simpl. apply Erel_Cons_compat_closed; [apply H | apply H0]; auto.
+Qed.
+
+Global Hint Resolve Erel_Cons_compat : core.
 
 Lemma Vrel_Fun_right : forall m v2 vl b,
   Vrel m (EFun vl b) v2 -> exists b' vl', length vl = length vl' /\ v2 = EFun vl' b'.
@@ -433,54 +578,59 @@ Lemma Erel_App_compat_ind : forall hds hds' tl tl' F1 F2 k0 v1 v2 (* P1 P1' P2 P
   (FApp2 v2 (* P1' *) hds' tl' (* P2' *) :: F2).
 Proof.
   induction hds; intros.
-  * inversion H. subst. apply Vrel_is_value in H1 as v. destruct v. apply Vrel_closed in H1 as v. destruct v.
-    apply biforall_vrel_closed in H0 as v. destruct v. split. 2: split.
-    1-2: constructor; auto; now constructor.
-    intros. apply Vrel_is_value in H11 as v. destruct v. apply Vrel_closed in H11 as v. destruct v.
-    inversion H12; subst.
-    - inversion H13.
-    - apply Vrel_Fun_right in H1 as v; destruct v, H17, H17. subst.
-      rewrite Vrel_Fix_eq in H1. destruct H1, H18. apply Nat.eqb_eq in H17. rewrite H17 in H19.
-      epose (H19 k _ (tl ++ [v0]) (tl' ++ [v3]) _ _ _). destruct e0, H23. eapply H26 in H25.
-      destruct H25. exists (S x1). constructor.
-      + eapply Forall_impl. 2: exact H10. intros. now apply Valclosed_is_value.
-      + apply biforall_length in H0. apply Nat.eqb_eq in H17. lia.
-      + auto.
-      + exact H25.
+  * inversion H. subst. apply biforall_length in H0 as LEN.
+    assert (list_biforall (Vrel k0) tl tl') as BF by auto.
+    apply biforall_vrel_closed in H0 as [H0_1 H0_2]. split. 2: split.
+    1-2: constructor; auto; constructor; auto; apply Vrel_closed in H1; apply H1.
+    intros.
+    inversion H5; subst.
+    - inversion H0. inversion H7.
+    - apply Vrel_Fun_right in H1 as v; destruct v as [e1 [vl1 [? ?]]]. subst.
+      rewrite Vrel_Fix_eq in H1. destruct H1 as [VCL1 [VCL2 H1]].
+      rewrite H6, Nat.eqb_refl in H1.
+      epose proof (H1 k _ (tl ++ [v0]) (tl' ++ [v3]) _ _ _) as E.
+      destruct E as [E1CL [E2CL ?]]. eapply H7 in H14.
+      destruct H14. exists (S x). constructor.
+      + exact H0_2.
       + lia.
-      + split. 2: split. all: auto. intros. eapply H4 in H28. exact H28. lia. auto.
-    - inversion H13.
-    - inversion H13.
-    - inversion H13.
-    - inversion H13.
-  * inversion H. subst. apply biforall_vrel_closed in H0 as v. destruct v.
+      + apply Vrel_closed in H0; apply H0.
+      + exact H8.
+      + lia.
+      + split. 2: split. all: auto. intros. eapply H4 in H11. exact H11. lia. auto.
+    - inversion H0. inversion H7.
+    - inversion H0. inversion H7.
+    - inversion H0. inversion H7.
+    - inversion H0. inversion H7.
+    - assert (VALCLOSED (ECons e1 e2)) by apply H0. inversion_is_value.
+  * inversion H. subst.
+    apply biforall_length in H0 as LEN.
+    apply biforall_vrel_closed in H0 as v. destruct v.
     apply biforall_erel_closed in H as v. destruct v.
     apply Vrel_closed in H1 as v. destruct v. split. 2: split.
     1-2: constructor; auto; now constructor.
-    intros. apply Vrel_is_value in H13 as v. destruct v.
-    apply Vrel_closed in H13 as v. destruct v. inversion H14; subst.
-    - inversion H15.
-    - eapply H7 in H28. destruct H28. exists (S x). econstructor.
-      now apply Valclosed_is_value.
-      eapply Forall_impl. 2: exact H6. intros. now apply Valclosed_is_value.
-      auto.
-      exact H19. lia.
+    intros. inversion H14; subst.
+    - inversion H13. inversion H16.
+    - eapply H7 in H24. destruct H24. exists (S x). econstructor; auto.
+      apply Vrel_closed in H13; apply H13.
+      exact H15.
+      lia.
       apply IHhds; auto.
-      + inversion H. eapply biforall_impl in H29. exact H29. intros. eapply Erel_downclosed; eauto.
+      + inversion H. eapply biforall_impl in H25. exact H25. intros. eapply Erel_downclosed; eauto.
       + apply biforall_app. eapply biforall_impl in H0. exact H0. intros. eapply Vrel_downclosed; eauto.
         constructor. 2: constructor. eapply Vrel_downclosed; eauto.
       + eapply Vrel_downclosed; eauto.
-      + intros. eapply H4 in H23. exact H23. lia. auto.
-    - inversion H15.
-    - inversion H15.
-    - inversion H15.
-    - inversion H15.
+      + intros. eapply H4 in H19. exact H19. lia. auto.
+    - inversion H13. inversion H16.
+    - inversion H13. inversion H16.
+    - inversion H13. inversion H16.
+    - inversion H13. inversion H16.
+    - assert (VALCLOSED (ECons e1 e2)) by apply H13. inversion_is_value.
 Unshelve.
   all: auto; try lia.
-  ** apply Nat.eqb_eq in H17. rewrite app_length. simpl. lia.
-  ** apply Nat.eqb_eq in H17. rewrite app_length. simpl. apply biforall_length in H0. lia.
+  ** rewrite app_length. simpl. lia.
+  ** rewrite app_length. simpl. lia.
   ** apply biforall_app.
-    -- eapply biforall_impl in H0. exact H0. intros. eapply Vrel_downclosed; eauto.
+    -- eapply biforall_impl in BF. exact BF. intros. eapply Vrel_downclosed; eauto.
     -- constructor. eapply Vrel_downclosed. eauto. constructor.
 Unshelve. all: lia.
 Qed.
@@ -493,32 +643,36 @@ Lemma Erel_App_compat_helper : forall es es' k F1 F2 (FCL1 : FSCLOSED F1) (FCL2 
 Proof.
   destruct es; intros.
   * apply biforall_length in H0 as L. apply eq_sym, length_zero_iff_nil in L. subst.
-    apply Vrel_is_value in H2 as v. destruct v. inversion H3; subst.
-    - inversion H4.
-    - apply Vrel_Fun_right in H2 as v; destruct v, H6, H6.
-      apply eq_sym, length_zero_iff_nil in H6. subst.
-      rewrite Vrel_Fix_eq in H2. destruct H2, H6. rewrite Nat.eqb_refl in H8.
-      specialize (H8 k0 ltac:(lia) [] [] (eq_refl _) (eq_refl _) ltac:(constructor)). simpl in H8.
-      unfold exp_rel in H8. destruct H8, H9. eapply H10 in H7.
-      destruct H7. exists (S x0). constructor. eauto. lia. split. 2: split. all: auto.
-      intros. eapply H. 3: exact H12. lia. auto.
-    - inversion H4.
-    - inversion H4.
-    - inversion H4.
-    - inversion H4.
-  * apply Vrel_is_value in H2 as v. destruct v. inversion H3; subst.
-    - inversion H4.
-    - inversion H0. subst. destruct H8, H7. eapply H8 in H12. destruct H12. exists (S x).
-      econstructor. auto. exact H9. lia. apply Vrel_closed in H2 as v. destruct v.
+    inversion H3; subst.
+    - inversion H2. inversion H5.
+    - apply Vrel_Fun_right in H2 as v; destruct v as [e1 [vl1 [? ?]]].
+      apply eq_sym, length_zero_iff_nil in H4. subst.
+      rewrite Vrel_Fix_eq in H2. destruct H2 as [VCL1 [VCL2 ?]].
+      rewrite Nat.eqb_refl in H2.
+      specialize (H2 k0 ltac:(lia) [] [] (eq_refl _) (eq_refl _) ltac:(constructor)). simpl in H2.
+      destruct H2 as [ECL1 [ECL2 ?]]. eapply H2 in H5.
+      destruct H5. exists (S x). constructor. eauto. lia. split. 2: split. all: auto.
+      intros. eapply H. 2: exact H4. lia. auto.
+    - inversion H2. inversion H5.
+    - inversion H2. inversion H5.
+    - inversion H2. inversion H5.
+    - inversion H2. inversion H5.
+    - inversion H2. inversion_is_value. 
+  * inversion H3; subst.
+    - inversion H2. inversion H5.
+    - inversion H0. subst.
+      destruct H6 as [ECL1 [ECL2 ?]]. eapply H4 in H10. destruct H10. exists (S x).
+      econstructor. apply Vrel_closed in H2; apply H2. exact H5. lia. apply Vrel_closed in H2 as v. destruct v.
       eapply Erel_App_compat_ind; auto.
-      + eapply biforall_impl in H10; eauto. intros. eapply Erel_downclosed; eauto.
+      + eapply biforall_impl in H8; eauto. intros. eapply Erel_downclosed; eauto.
       + constructor.
       + eapply Vrel_downclosed; eauto.
-      + intros. eapply H in H16; eauto. lia.
-    - inversion H4.
-    - inversion H4.
-    - inversion H4.
-    - inversion H4.
+      + intros. eapply H in H12; eauto. lia.
+    - inversion H2. inversion H5.
+    - inversion H2. inversion H5.
+    - inversion H2. inversion H5.
+    - inversion H2. inversion H5.
+    - inversion H2. inversion_is_value.
 Unshelve.
   auto. all: lia.
 Qed.
@@ -577,18 +731,28 @@ Qed.
 
 Global Hint Resolve Erel_Plus_compat : core.
 
-Lemma Erel_If_compat : forall Γ e1 e2 e1' e2' e3 e3',
-    Erel_open Γ e1 e1' -> Erel_open Γ e2 e2' -> Erel_open Γ e3 e3' ->
-    Erel_open Γ (EIf e1 e2 e3) (EIf e1' e2' e3').
+Lemma Erel_Case_compat : forall Γ e1 e2 e1' e2' e3 e3' p,
+    Erel_open Γ e1 e1' -> Erel_open (pat_vars p + Γ) e2 e2' -> Erel_open Γ e3 e3' ->
+    Erel_open Γ (ECase e1 p e2 e3) (ECase e1' p e2' e3').
 Proof.
   intros.
   unfold Erel_open.
-  intros.
-  cbn.
-  eapply Erel_If_compat_closed; auto.
+  intros. cbn.
+  eapply Erel_Case_compat_closed; auto.
+  * apply Erel_open_scope_l in H0. apply -> subst_preserves_scope_exp. exact H0.
+    rewrite <- (Nat.add_0_r (pat_vars p)) at 2. apply upn_scope. apply H2.
+  * apply Erel_open_scope_r in H0. apply -> subst_preserves_scope_exp. exact H0.
+    rewrite <- (Nat.add_0_r (pat_vars p)) at 2. apply upn_scope. apply H2.
+  * intros.
+    rewrite <- H3. apply biforall_length in H4 as H4'.
+    rewrite subst_comp, substcomp_list, substcomp_id_r.
+    rewrite H4'.
+    rewrite subst_comp, substcomp_list, substcomp_id_r. apply H0.
+    rewrite <- H3. apply Grel_list; auto. eapply Grel_downclosed. exact H2.
+ Unshelve. lia.
 Qed.
 
-Global Hint Resolve Erel_If_compat : core.
+Global Hint Resolve Erel_Case_compat : core.
 
 Theorem Erel_Vrel_Fundamental_helper :
   forall (e : Exp),
@@ -598,7 +762,7 @@ Proof.
   induction e using Exp_ind2 with
    (Q := fun l => Forall (fun e => (forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e) /\
                                    (forall Γ, VAL Γ ⊢ e -> Vrel_open Γ e e)) l);
-  intuition auto; try filter_hyps.
+  intuition auto; try inversion_is_value.
   * apply Erel_Val_compat, Vrel_Var_compat. inversion H. now inversion H0.
   * apply Vrel_Var_compat. now inversion H.
   * apply Erel_Val_compat, Vrel_FunId_compat. inversion H. now inversion H0.
@@ -616,7 +780,11 @@ Proof.
   * inversion H3. subst. 2: inversion H4. apply Erel_Let_compat. now apply H. now apply H1.
   * inversion H3. subst. 2: inversion H4. apply Erel_LetRec_compat. auto. now apply H. now apply H1.
   * inversion H3. subst. 2: inversion H4. apply Erel_Plus_compat. now apply H. now apply H1.
-  * inversion H5. subst. 2: inversion H6. apply Erel_If_compat. now apply H. now apply H1. now apply H3.
+  * inversion H5. subst. 2: inversion H6. apply Erel_Case_compat. now apply H. now apply H1. now apply H3.
+  * inversion H3. subst. 2: inversion H4. apply Erel_Cons_compat. now apply H. now apply H1.
+  * inversion H3. inversion H4. subst. apply Erel_Val_compat.
+    apply Vrel_Cons_compat. now apply H0. now apply H2.
+  * inversion H3. subst. apply Vrel_Cons_compat. now apply H0. now apply H2.
 Qed.
 
 Theorem Erel_Fundamental :
@@ -691,35 +859,31 @@ Qed.
 
 Global Hint Resolve Grel_Fundamental : core.
 
-Lemma Frel_If :
-    forall n (e2 e2' e3 e3' : Exp),
-    (forall m, m <= n -> Erel m e2 e2') ->
+Lemma Frel_Case :
+    forall n (e2 e2' e3 e3' : Exp) p (CL1 : EXP pat_vars p ⊢ e2) (CL2 : EXP pat_vars p ⊢ e2'),
+    (forall m, m <= n -> forall vl1 vl2, length vl1 = pat_vars p -> list_biforall (Vrel m) vl1 vl2 -> Erel m e2.[list_subst vl1 idsubst] e2'.[list_subst vl2 idsubst]) ->
     (forall m, m <= n -> Erel m e3 e3') ->
-    forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FIf e2 e3::F1) (FIf e2' e3'::F2).
+    forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FCase p e2 e3::F1) (FCase p e2' e3'::F2).
 Proof.
   intros. destruct H2, H3.
-  specialize (H m H1) as H'. specialize (H0 m H1) as H0'.
-  apply Erel_closed in H' as v. destruct v. apply Erel_closed in H0' as v. destruct v.
+  specialize (H0 m H1) as H0'.
+  apply Erel_closed in H0' as v. destruct v.
   split. 2: split. 1-2: constructor; auto; now constructor.
-  intros. apply Vrel_is_value in H9 as v. destruct v.
-  apply Vrel_closed in H9 as v. destruct v.
-  inversion H10; subst; try inversion_is_value.
-  * apply Vrel_possibilities in H9. destruct H9. 2: destruct H9.
-    2: destruct H9, H9, H9, H9. 2: inversion H9.
-    destruct H9, H9, H9. subst. eapply H' in H20. destruct H20. exists (S x0).
-    constructor. exact H9. lia.
-
-    split. 2: split. all: auto. intros. eapply H4 in H17. exact H17. lia. auto.
-  * eapply H0' in H22. destruct H22. exists (S x).
-    constructor; auto.
-
-     apply Vrel_possibilities in H9. destruct H9. 2: destruct H9.
-     2: destruct H9, H9, H9, H9.
-     destruct H9, H9. 1-2: subst; congruence.
-
-    exact H15. lia.
-
-    split. 2: split. all: auto. intros. eapply H4 in H19. exact H19. lia. auto.
+  intros.
+  apply Vrel_closed in H7 as v. destruct v.
+  inversion H8; subst; try inversion_is_value.
+  * eapply match_pattern_Vrel in H18 as H18'. 2: apply H7. destruct H18' as [l2 [M2 Bif]].
+    apply match_pattern_length in H18.
+    eapply biforall_impl in Bif. 2: { intros; eapply Vrel_downclosed; exact H11. }
+    specialize (H k ltac:(lia) l l2 (eq_sym H18) Bif) as [? [? ?]].
+    eapply H12 in H19. destruct H19. exists (S x). eapply term_case_true; auto. exact M2.
+    exact H13.
+    lia. split; [ auto | split ]; auto. intros. eapply H4. 3: exact H14. lia. auto.
+  * eapply nomatch_pattern_Vrel in H18 as H18'. 2: apply H7.
+    destruct H0' as [? [? ?]]. eapply H13 in H19.
+    destruct H19. exists (S x). apply term_case_false; auto. exact H14.
+    lia. split; [ auto | split ]; auto. intros. eapply H4. 3: exact H15. lia. auto.
+  Unshelve. lia.
 Qed.
 
 Lemma Frel_Plus_lhs :
@@ -730,24 +894,32 @@ Proof.
   intros. destruct H1, H2. specialize (H m H0) as H'.
   apply Erel_closed in H' as v. destruct v. split. 2: split.
   1-2: constructor; auto; now constructor. intros.
-  apply Vrel_closed in H6 as v. destruct v. apply Vrel_is_value in H6 as v. destruct v.
+  apply Vrel_closed in H6 as v. destruct v.
   inversion H7; subst; try inversion_is_value.
-  eapply H' in H17. destruct H17. exists (S x). econstructor. auto. exact H12. lia.
+  eapply H' in H15. destruct H15. exists (S x). econstructor. auto. exact H10. lia.
 
   split. 2: split. 1-2: constructor; auto; now constructor. intros.
-  apply Vrel_closed in H15 as v. destruct v. apply Vrel_is_value in H15 as v. destruct v.
-  inversion H16; subst; try inversion_is_value.
+  apply Vrel_closed in H13 as v. destruct v.
+  inversion H14; subst; try inversion_is_value.
 
-  apply Vrel_possibilities in H15. destruct H15. 2: destruct H15.
-  2: destruct H15, H15, H15, H15.
-  destruct H15, H15. 2: subst; congruence. subst.
+  apply Vrel_possibilities in H13. destruct H13.
+  2: { do 2 destruct H13.
+    * do 4 destruct H13; congruence.
+    * do 5 destruct H13; congruence.
+    * destruct H13; congruence.
+  }
+  destruct H13, H13. subst.
 
-  apply Vrel_possibilities in H6. destruct H6. 2: destruct H6.
-  2: destruct H6, H6, H6, H6.
-  destruct H6, H6. 2: subst; congruence. subst.
+  apply Vrel_possibilities in H6. destruct H6. 
+  2: { do 2 destruct H6.
+    * do 4 destruct H6; congruence.
+    * do 5 destruct H6; congruence.
+    * destruct H6; congruence.
+  }
+  destruct H6, H6. subst.
 
-  inversion H15. inversion H6. eapply H3 in H26. subst. destruct H26. exists (S x1).
-  constructor. exact H22. lia. subst. eapply Vrel_Lit_compat_closed.
+  inversion H13. inversion H6. eapply H3 in H22. subst. destruct H22. exists (S x1).
+  constructor. exact H18. lia. subst. eapply Vrel_Lit_compat_closed.
 Qed.
 
 Lemma Frel_Plus_rhs :
@@ -759,18 +931,26 @@ Proof.
   apply Vrel_closed in H' as v. destruct v. split. 2: split.
   1-2: constructor; auto; now constructor.
   intros. apply Vrel_closed in H6 as v. destruct v.
-  apply Vrel_is_value in H6 as v. destruct v. inversion H7; subst; try inversion_is_value.
+  inversion H7; subst; try inversion_is_value.
 
-  apply Vrel_possibilities in H'. destruct H'. 2: destruct H12.
-  2: destruct H12, H12, H12, H12.
-  destruct H12, H12. 2: subst; congruence. subst.
+  apply Vrel_possibilities in H'. destruct H'.
+  2: { do 2 destruct H10.
+    * do 4 destruct H10; congruence.
+    * do 5 destruct H10; congruence.
+    * destruct H10; congruence.
+  }
+  do 2 destruct H10. subst.
 
-  apply Vrel_possibilities in H6. destruct H6. 2: destruct H6.
-  2: destruct H6, H6, H6, H6.
-  destruct H6, H6. 2: subst; congruence. subst.
+  apply Vrel_possibilities in H6. destruct H6. 
+  2: { do 2 destruct H6.
+    * do 4 destruct H6; congruence.
+    * do 5 destruct H6; congruence.
+    * destruct H6; congruence.
+  }
+  destruct H6, H6. subst.
 
-  eapply H3 in H16. destruct H16. exists (S x1). constructor. exact H13. lia.
-  inversion H6. inversion H12. apply Vrel_Lit_compat_closed.
+  eapply H3 in H14. destruct H14. exists (S x1). constructor. exact H11. lia.
+  inversion H6. inversion H10. apply Vrel_Lit_compat_closed.
 Qed.
 
 Lemma Frel_Let :
@@ -783,13 +963,13 @@ Proof.
   apply Erel_closed in H' as v. destruct v.
   apply subst_implies_scope_exp_1 in H4. apply subst_implies_scope_exp_1 in H5.
   split. 2: split. 1-2: constructor; auto; now constructor.
-  intros. apply Vrel_closed in H6 as v. destruct v. apply Vrel_is_value in H6 as v. destruct v.
+  intros. apply Vrel_closed in H6 as v. destruct v.
   inversion H7; subst; try inversion_is_value.
-  eapply (H k) in H18. destruct H18. exists (S x0). constructor. auto.
-  exact H12. lia. eapply Vrel_downclosed. eauto. lia.
+  eapply (H k) in H16. destruct H16. exists (S x0). constructor. auto.
+  exact H10. lia. eapply Vrel_downclosed. eauto. lia.
 
   split. 2: split. 1-2: easy. intros.
-  eapply H3 in H15. exact H15. lia. auto.
+  eapply H3 in H13. exact H13. lia. auto.
 Unshelve. lia.
 Qed.
 
@@ -801,24 +981,25 @@ Proof.
   intros. destruct H1, H2. split. 2: split.
   * constructor; auto. constructor. eapply biforall_impl in H. apply biforall_erel_closed in H. apply H. intros. apply H4. exact H0.
   * constructor; auto. constructor. eapply biforall_impl in H. apply biforall_erel_closed in H. apply H. intros. apply H4. exact H0.
-  * intros. destruct (Vrel_closed H4). destruct (Vrel_is_value _ _ _ H4).
+  * intros. destruct (Vrel_closed H4).
     inversion H5; subst; try inversion_is_value.
-    - inversion H. subst. eapply H13 in H15. destruct H15. exists (S x).
-      econstructor. auto. exact H10. exact H0. lia.
+    - inversion H. subst. eapply H11 in H13. destruct H13. exists (S x).
+      econstructor. auto. exact H8. exact H0. lia.
       apply Erel_App_compat_ind; auto.
-      + eapply biforall_impl. 2: exact H16. intros. eapply H14. lia.
+      + eapply biforall_impl. 2: exact H14. intros. eapply H12. lia.
       + constructor.
       + eapply Vrel_downclosed. eauto.
-      + intros. eapply H3 in H18. exact H18. lia. auto.
-    - inversion H. subst. apply Vrel_Fun_right in H4 as v. destruct v, H10, H10.
-      apply eq_sym, length_zero_iff_nil in H10. subst.
-      rewrite Vrel_Fix_eq in H4. destruct H4, H10.
-      rewrite Nat.eqb_refl in H11.
-      specialize (H11 k ltac:(lia) [] [] (eq_refl _) (eq_refl _) ltac:(constructor)).
-      eapply H11 in H14. destruct H14.
-      exists (S x0). constructor. exact H12. lia.
+      + intros. eapply H3 in H16. exact H16. lia. auto.
+    - inversion H. subst. apply Vrel_Fun_right in H4 as v. destruct v, H8, H8.
+      apply eq_sym, length_zero_iff_nil in H8. subst.
+      rewrite Vrel_Fix_eq in H4. destruct H4, H8.
+      rewrite Nat.eqb_refl in H9.
+      specialize (H9 k ltac:(lia) [] [] (eq_refl _) (eq_refl _) ltac:(constructor)).
+      eapply H9 in H12. destruct H12.
+      exists (S x0). constructor. exact H10. lia.
 
-      split. 2: split. 1-2: auto. intros. eapply H3 in H16. exact H16. lia. auto.
+      split. 2: split. 1-2: auto. intros. eapply H3 in H14. exact H14.
+      lia. auto.
 Unshelve. auto.
 Qed.
 
@@ -840,6 +1021,48 @@ Proof.
   * intros. eapply H5 in H8. exact H8. lia. auto.
 Qed.
 
+Lemma Frel_Cons_tail :
+    forall n (e2 e2' : Exp),
+    (forall m, m <= n -> Erel m e2 e2') ->
+    forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FCons1 e2::F1) (FCons1 e2'::F2).
+Proof.
+  intros. destruct H1, H2. specialize (H m H0) as H'.
+  apply Erel_closed in H' as v. destruct v. split. 2: split.
+  1-2: constructor; auto; now constructor. intros.
+  apply Vrel_closed in H6 as v. destruct v.
+  inversion H7; subst; try inversion_is_value.
+  eapply H' in H15. destruct H15. exists (S x). econstructor. auto. exact H10. lia.
+
+  split. 2: split. 1-2: constructor; auto; now constructor. intros.
+  apply Vrel_closed in H13 as v. destruct v.
+  inversion H14; subst; try inversion_is_value.
+
+  eapply H3 in H24. subst. destruct H24. exists (S x).
+  constructor; auto. exact H18. lia. subst. eapply Vrel_Cons_compat_closed.
+  eapply Vrel_downclosed; eassumption.
+  eapply Vrel_downclosed; eassumption.
+Unshelve. all: lia.
+Qed.
+
+Lemma Frel_Cons_head :
+    forall n (v1 v1' : Exp),
+    (forall m, m <= n -> Vrel m v1 v1') ->
+    forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FCons2 v1::F1) (FCons2 v1'::F2).
+Proof.
+  intros. destruct H1, H2. specialize (H m H0) as H'.
+  apply Vrel_closed in H' as v. destruct v. split. 2: split.
+  1-2: constructor; auto; now constructor. intros.
+  apply Vrel_closed in H6 as v. destruct v.
+  inversion H7; subst; try inversion_is_value.
+  eapply H3 in H16. 2: lia. destruct H16. exists (S x).
+  econstructor; auto. exact H10.
+
+  eapply Vrel_Cons_compat_closed.
+  eapply Vrel_downclosed; eassumption.
+  eapply Vrel_downclosed; eassumption.
+Unshelve. all: lia.
+Qed.
+
 Theorem Frel_Fundamental_closed :
   forall (F : FrameStack) (n : nat),
     FSCLOSED F ->
@@ -847,7 +1070,7 @@ Theorem Frel_Fundamental_closed :
 Proof.
   induction F; intros.
   * cbn. split. 2: split. 1-2: constructor. intros.
-    apply Vrel_is_value in H0. destruct H0. exists 0. constructor. auto.
+    exists 0. constructor. apply Vrel_closed in H0; apply H0.
   * split. 2: split. all: auto. intros. destruct a; inversion H; inversion H4.
     - eapply Frel_App1; eauto. subst. eapply forall_biforall_refl, Forall_impl.
       2: exact H7. intros. auto.
@@ -861,7 +1084,14 @@ Proof.
       intros. inversion H6; subst. 2: inversion H11. simpl. auto.
     - eapply Frel_Plus_lhs; eauto.
     - eapply Frel_Plus_rhs; eauto.
-    - eapply Frel_If; eauto.
+    - eapply Frel_Case; eauto.
+      intros. subst. eapply Erel_Fundamental; eauto.
+      rewrite <- H12. eapply (Grel_list _ _ _ _ _ 0) in H13.
+      rewrite Nat.add_0_r in H13. exact H13. apply Grel_Fundamental.
+      apply scope_idsubst.
+    - eapply Frel_Cons_tail; eauto.
+    - eapply Frel_Cons_head; eauto.
 Qed.
 
 Global Hint Resolve Frel_Fundamental_closed : core.
+

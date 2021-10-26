@@ -229,3 +229,23 @@ Proof.
   auto.
   simpl. rewrite IHl. auto.
 Qed.
+
+Lemma Forall_map T (l : list T) : forall (P : T -> Prop) (f : T -> T),
+  (forall x, P x -> P (f x))
+->
+  Forall P l -> Forall P (map f l).
+Proof.
+  induction l; intros; constructor;
+  inversion H0; subst. auto.
+  apply IHl; auto.
+Qed.
+
+Lemma map_Forall T (l : list T) : forall (P : T -> Prop) (f : T -> T),
+  (forall x, P (f x) -> P x)
+->
+  Forall P (map f l) -> Forall P l.
+Proof.
+  induction l; intros; constructor;
+  inversion H0; subst. auto.
+  eapply IHl; eauto.
+Qed.

@@ -33,12 +33,13 @@ Definition exp_rel (n : nat)
      | F1, e1 | m ↓ -> | F2, e2 | ↓
 .
 
-Definition Vrel_rec (n : nat)
+Fixpoint   Vrel_rec (n : nat)
                     (Vrel : forall m, m < n -> Exp -> Exp -> Prop)
                     (v1 v2 : Exp) : Prop :=
   VALCLOSED v1 /\ VALCLOSED v2 /\
   match v1, v2 with
   | ELit l1, ELit l2 => l1 = l2
+  | ENil, ENil => True
   | EFun vl1 b1, EFun vl2 b2 =>
     if length vl1 =? length vl2 then
      forall m (Hmn : m < n), forall (vals1 vals2 : list Exp),
@@ -49,6 +50,7 @@ Definition Vrel_rec (n : nat)
                  (b1.[list_subst (EFun vl1 b1 :: vals1) idsubst])
                  (b2.[list_subst (EFun vl2 b2 :: vals2) idsubst])
      else False
+  | VCons v1 v2, VCons v1' v2' => Vrel_rec n Vrel v1 v1' /\ Vrel_rec n Vrel v2 v2'
   | _, _ => False
   end
 .
@@ -75,8 +77,12 @@ Proof.
   intros.
   unfold Vrel_rec.
   extensionality v1.
-  extensionality v2.
-  destruct v1, v2; auto. break_match_goal. 2: auto.
+  extensionality v2. generalize dependent v2.
+  induction v1; try destruct v2; intros; auto.
+  f_equal. f_equal.
+
+  cbn. break_match_goal. 2: auto.
+  
   f_equal. f_equal.
   extensionality m.
   extensionality Hmn.
@@ -84,11 +90,14 @@ Proof.
   extensionality v2'.
   rewrite H.
   extensionality l1. extensionality l2.
-  extensionality x.
+  extensionality bif.
   f_equal.
   extensionality m'.
   extensionality H0.
   trivial.
+
+  do 2 f_equal.
+  rewrite IHv1_1, IHv1_2; auto.
 Qed.
 
 Lemma Vrel_Fix_eq : forall {n : nat} {v1 v2 : Exp},
@@ -124,7 +133,7 @@ Section Tests.
   Proof.
     split. 2: split.
     1-2: repeat constructor. intros.
-    destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
+    destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. cbn. repeat constructor.
   Qed.
   
   Goal Erel 3 e1 e1.
@@ -140,7 +149,7 @@ Section Tests.
     1-2: repeat constructor. intros.
     destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
     apply length_zero_iff_nil in H3. apply length_zero_iff_nil in H4. subst. intros. cbn. cbn in H4.
-    destruct H3, H6. eapply H7; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
+    destruct H3, H6. eapply H7; eauto. rewrite Vrel_Fix_eq. cbn. repeat constructor.
   Qed.
 
   Goal Erel 3 e2 e3.
@@ -153,6 +162,7 @@ Section Tests.
     destruct H3, H6. epose (H7 m1 _ (ELit 0) (ELit 0) _ H4).
     destruct t. exists (S (S (S x))). constructor. econstructor. constructor.
     constructor. assumption.
+    
     Unshelve.
     all: repeat constructor.
   Qed.
@@ -169,13 +179,25 @@ Proof.
   induction 1 using le_dep_ind;
     intros;
     eauto.
+  generalize dependent v2.
+  induction v1; destruct v2; intros; intuition; try break_match_hyp; intros.
   rewrite Vrel_Fix_eq.
   rewrite Vrel_Fix_eq in H.
   unfold Vrel_rec at 1.
-  unfold Vrel_rec at 1 in H.
-  destruct v1, v2; intuition; break_match_hyp; intros.
-  epose (H2 m1 _ vals1 vals2 H1 H3 H4). apply e. contradiction.
-  Unshelve. all: lia.
+  unfold Vrel_rec at 1 in H. intuition.
+
+  try break_match_hyp; intros. 2: contradiction.
+  simpl.
+  epose proof (H2 m1 _ vals1 vals2 H1 H3 H4). apply H5; auto.
+
+  rewrite Vrel_Fix_eq.
+  rewrite Vrel_Fix_eq in H. destruct H as [cl1 [cl2 H]].
+  split. 2: split. 1-2: auto.
+  simpl. simpl in H. intros.
+  specialize (IHv1_1 v2_1). specialize (IHv1_2 v2_2).
+  do 2 rewrite Vrel_Fix_eq in IHv1_1. do 2 rewrite Vrel_Fix_eq in IHv1_2.
+  split. apply IHv1_1, H. apply IHv1_2, H.
+Unshelve. lia.
 Qed.
 
 Lemma Erel_downclosed :
@@ -194,9 +216,11 @@ Lemma Vrel_closed : forall {n : nat} {v1 v2 : Exp},
     Vrel n v1 v2 ->
     VALCLOSED v1 /\ VALCLOSED v2.
 Proof.
-  intros.
-  destruct H as [? [? ?] ].
-  destruct v1, v2; intuition.
+  intros. rewrite Vrel_Fix_eq in H.
+  Search "pointwise" "Vrel".
+  destruct v1, v2; destruct H as [Cl1 [Cl2 H]]; try inversion_is_value;
+  split; try contradiction.
+  all: auto.
 Qed.
 
 Lemma Vrel_closed_l : forall {n : nat} {v1 v2 : Exp},
@@ -310,10 +334,16 @@ Proof.
   apply H; auto.
   unfold Grel.
   intuition idtac. break_match_goal.
-  rewrite Vrel_Fix_eq. unfold Vrel_rec at 1.
-  specialize (H0 x H1) as P'. rewrite Heqs in P'.
-  * destruct P'; intuition; cbn; try constructor; auto. inversion H2. inversion H2.
-    break_match_goal; intros; try congruence; try inversion Hmn. rewrite Nat.eqb_refl in Heqb; congruence.
+  (* rewrite Vrel_Fix_eq. unfold Vrel_rec at 1. *)
+  specialize (H0 x H1) as P'. rewrite Heqs in P'. clear dependent ξ.
+  * rewrite Vrel_Fix_eq. unfold Vrel_rec at 1.
+    induction e; intros; try inversion_is_value; auto; try lia.
+    constructor; auto. constructor; auto.
+    break_match_goal; intros; try congruence; try inversion Hmn.
+    rewrite Nat.eqb_refl in Heqb; congruence.
+
+    split. 2: split. auto. auto. intros. inversion P'. subst.
+    split. eapply IHe1; auto. eapply IHe2; auto.
   * specialize (H0 x H1). rewrite Heqs in H0. lia.
 Qed.
 
@@ -348,11 +378,15 @@ Global Hint Resolve Erel_open_scope_r : core.
 Lemma Vrel_possibilities : forall {n v1 v2},
   Vrel n v1 v2 ->
   (exists n, v1 = ELit n /\ v2 = ELit n) \/
-  (exists vl1 vl2 b1 b2, v1 = EFun vl1 b1 /\ v2 = EFun vl2 b2).
+  (exists vl1 vl2 b1 b2, v1 = EFun vl1 b1 /\ v2 = EFun vl2 b2) \/
+  (exists v11 v12 v21 v22, v1 = VCons v11 v12 /\ v2 = VCons v21 v22) \/
+  (v1 = ENil /\ v2 = ENil).
 Proof.
   intros; destruct v1, v2; destruct H as [? [? ?] ]; subst; try contradiction.
-  * left. eexists; split; reflexivity.
-  * right. repeat eexists.
+  * left. eexists; split. reflexivity. reflexivity.
+  * right. left. repeat eexists.
+  * intuition.
+  * right. right. left. repeat eexists.
 Qed.
 
 Lemma Vrel_open_closed : forall {Γ e1 e2},
@@ -365,11 +399,15 @@ Proof.
   apply H; auto.
   unfold Grel.
   intuition idtac. break_match_goal.
-  rewrite Vrel_Fix_eq. unfold Vrel_rec at 1.
   specialize (H0 x H1) as P'. rewrite Heqs in P'.
-  * destruct P'; intuition; cbn; try constructor; auto. inversion H2. inversion H2.
-    break_match_goal; intros; try congruence; try inversion Hmn. rewrite Nat.eqb_refl in Heqb; congruence.
-  * specialize (H0 x H1). rewrite Heqs in H0. lia.
+  rewrite Vrel_Fix_eq. clear dependent ξ.
+  induction e; intros; try congruence; try inversion Hmn;
+    try inversion_is_value; try lia.
+  1-4: split;[auto|split; auto].
+  * break_match_goal; intros; try congruence; try lia.
+    rewrite Nat.eqb_refl in Heqb; congruence.
+  * inversion P'. split. apply IHe1; auto. apply IHe2; auto.
+  * epose proof (H0 x H1). rewrite Heqs in H2. lia.
 Qed.
 
 Lemma Vrel_open_scope : forall {Γ e1 e2},
@@ -485,4 +523,22 @@ Proof.
   * specialize (IHvals1 _ _ H4); apply IHvals1.
   * eapply Erel_closed_r; eauto.
   * eapply IHvals1; eauto.
+Qed.
+
+Lemma Grel_scons : forall n v1 v2 ξ₁ ξ₂ Γ,
+  Grel n Γ ξ₁ ξ₂ -> Vrel n v1 v2 -> Grel n (S Γ) (v1.:ξ₁) (v2.:ξ₂).
+Proof.
+  intros. split. 2: split.
+  1-2: apply cons_scope; auto.
+  2, 4: apply H. 1-2: now apply Vrel_closed in H0.
+  intros. destruct x; simpl; auto.
+  apply H. lia.
+Qed.
+
+Corollary Grel_list : forall n vl1 vl2 ξ₁ ξ₂ Γ,
+  Grel n Γ ξ₁ ξ₂ -> list_biforall (Vrel n) vl1 vl2 ->
+  Grel n (length vl1 + Γ) (list_subst vl1 ξ₁) (list_subst vl2 ξ₂).
+Proof.
+  induction vl1; intros; inversion H0; subst; simpl; auto.
+  apply Grel_scons; auto.
 Qed.

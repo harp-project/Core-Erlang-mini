@@ -4,11 +4,6 @@ Export Classes.RelationClasses.
 
 Import ListNotations.
 
-
-Inductive is_value : Exp -> Prop :=
-| ELit_val : forall l, is_value (ELit l)
-| EFun_val : forall vl e, is_value (EFun vl e).
-
 Reserved Notation "'EXP' Γ ⊢ e"
          (at level 69, no associativity).
 Reserved Notation "'VAL' Γ ⊢ v"
@@ -31,14 +26,23 @@ Inductive ExpScoped (Γ : nat) : Exp -> Prop :=
   EXP Γ ⊢ e1 -> EXP Γ ⊢ e2
 ->
   EXP Γ ⊢ EPlus e1 e2
-| scoped_if e1 e2 e3 :
-  EXP Γ ⊢ e1 -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e3
+| scoped_case e1 e2 e3 p :
+  EXP Γ ⊢ e1 -> EXP pat_vars p + Γ ⊢ e2 -> EXP Γ ⊢ e3
 ->
-  EXP Γ ⊢ EIf e1 e2 e3
+  EXP Γ ⊢ ECase e1 p e2 e3
+| escoped_cons e1 e2 :
+  EXP Γ ⊢ e1 -> EXP Γ ⊢ e2
+->
+  EXP Γ ⊢ ECons e1 e2
 | scoped_val v :
   VAL Γ ⊢ v -> EXP Γ ⊢ v
 with ValScoped (Γ : nat) : Exp -> Prop :=
 | scoped_lit lit : VAL Γ ⊢ ELit lit
+| vscoped_cons e1 e2 : 
+  VAL Γ ⊢ e1 -> VAL Γ ⊢ e2
+->
+  VAL Γ ⊢ VCons e1 e2
+| scoped_nil : VAL Γ ⊢ ENil
 | scoped_var n : n < Γ -> VAL Γ ⊢ EVar n
 | scoped_funid n : n < Γ -> VAL Γ ⊢ EFunId n
 | scoped_fun vl e : EXP (S (length vl) + Γ) ⊢ e -> VAL Γ ⊢ EFun vl e
@@ -100,6 +104,8 @@ Theorem scoped_ignores_sub : forall Γ,
 Proof.
   apply scoped_ind.
   * intros. reflexivity.
+  * intros. cbn. rewrite H, H0; auto.
+  * auto.
   * intros. specialize (H n l). simpl. rewrite H. auto.
   * intros. specialize (H n l). simpl. rewrite H. auto.
   * intros. simpl. epose (H _ _). rewrite e1. reflexivity.
@@ -110,6 +116,7 @@ Proof.
     apply subst_preserves_up, subst_preserves_upn. auto.
   * intros. simpl. rewrite H, H0; auto.
   * intros. simpl. rewrite H, H0, H1; auto.
+  * intros. simpl. rewrite H, H0; auto.
   * intros. eapply H; eauto.
 Qed.
 
@@ -270,8 +277,19 @@ Proof.
     - eapply IHe2; eauto.
   * subst. constructor.
     - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
+    - eapply IHe2; eauto. intros. eapply uprenn_scope; eauto.
     - eapply IHe3; eauto.
+  * subst. constructor.
+    - eapply IHe1; eauto.
+    - eapply IHe2; eauto.
+  * do 2 constructor.
+  * constructor.
+  * subst. apply scoped_val, vscoped_cons.
+    - eapply IHe1; eauto.
+    - eapply IHe2; eauto.
+  * subst. constructor.
+    - eapply IHe1; eauto.
+    - eapply IHe2; eauto.
   * constructor; eauto.
   * constructor.
 Qed.
@@ -434,8 +452,19 @@ Proof.
     - eapply IHe2; eauto.
   * constructor.
     - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
+    - eapply IHe2; eauto. apply upn_scope. auto.
     - eapply IHe3; eauto.
+  * constructor.
+    - eapply IHe1; eauto.
+    - eapply IHe2; eauto.
+  * do 2 constructor.
+  * constructor.
+  * do 2 constructor.
+    - eapply IHe1; eauto.
+    - eapply IHe2; eauto.
+  * constructor.
+    - eapply IHe1; eauto.
+    - eapply IHe2; eauto.
   * constructor; auto.
   * constructor.
 Qed.
@@ -554,8 +583,23 @@ Module SUB_IMPLIES_SCOPE.
     * inversion H. 2: inversion H0. constructor.
       - eapply IHe1; eauto.
       - eapply IHe2; eauto.
+        rewrite upn_magic in H5. exact H5.
       - eapply IHe3; eauto.
     * inversion H.
+    * inversion H.
+      - constructor.
+        + eapply IHe1; eauto.
+        + eapply IHe2; eauto.
+      - inversion H0.
+    * inversion H.
+    * do 2 constructor.
+    * constructor.
+    * inversion H. inversion H0. subst. do 2 constructor.
+      - eapply IHe1; eauto.
+      - eapply IHe2; eauto.
+    * inversion H. subst. constructor.
+      - eapply IHe1; eauto.
+      - eapply IHe2; eauto.
     * constructor; auto.
     * constructor.
   Qed.
@@ -662,9 +706,16 @@ Module SUB_IMPLIES_SCOPE.
       rewrite upn_magic_2, up_magic_2 in H6. now rewrite <- Nat.add_succ_comm.
     * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
       split; intros; inversion H3; subst. 2: inversion H4. now rewrite H, H1.
-    * specialize (IHe1 Γ'). specialize (IHe2 Γ'). specialize (IHe3 Γ').
+    * rewrite upn_magic, upn_magic_2.
+      specialize (IHe1 Γ'). specialize (IHe2 (pat_vars p + Γ')). specialize (IHe3 Γ').
       destruct IHe1, IHe2, IHe3.
-      split; intros; inversion H5; subst. 2: inversion H6. now rewrite H, H1, H3.
+      split; intros; inversion H5; subst. 2: inversion H6.
+      rewrite <- plus_n_Sm.
+      now rewrite H, H1, H3.
+    * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
+      split; intros; inversion H3; subst; try now rewrite H, H1.
+    * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
+      split; intros; inversion H3; inversion H4; subst; rewrite H0, H2; auto.
   Unshelve. exact (ELit 0).
   Qed.
 
@@ -771,15 +822,19 @@ Inductive Frame : Set :=
 | FLet (v : Var) (e2 : Exp) (* let v = □ in e2 *)
 | FPlus1 (e2 : Exp) (* □ + e2 *)
 | FPlus2 (v : Exp) (* (p : is_value v) *) (* v + □ *)
-| FIf (e2 e3 : Exp) (* if □ then e2 else e3 *).
+| FCase (p : Pat) (e2 e3 : Exp) (* if □ then e2 else e3 *)
+| FCons1 (e1 : Exp) (* [e1 | □] *)
+| FCons2 (v2 : Exp) (* [□ | v2] *).
 
 Inductive frame_wf : Frame -> Prop :=
 | wf_app1 l : frame_wf (FApp1 l)
-| wf_app2 vl b l1 l2 :  Forall is_value l2 -> frame_wf (FApp2 (EFun vl b) l1 l2)
+| wf_app2 vl b l1 l2 :  Forall (fun v => VALCLOSED v) l2 -> frame_wf (FApp2 (EFun vl b) l1 l2)
 | wf_let v e : frame_wf (FLet v e)
 | wf_plus1 e : frame_wf (FPlus1 e)
-| wf_plus2 v : is_value v -> frame_wf (FPlus2 v)
-| wf_if e2 e3 : frame_wf (FIf e2 e3).
+| wf_plus2 v : VALCLOSED v -> frame_wf (FPlus2 v)
+| wf_if p e2 e3 : frame_wf (FCase p e2 e3)
+| wf_cons1 e : frame_wf (FCons1 e)
+| wf_cons2 v : VALCLOSED v -> frame_wf (FCons2 v).
 
 Definition plug_f (F : Frame) (e : Exp) : Exp :=
 match F with
@@ -788,21 +843,12 @@ match F with
  | FLet v e2 => ELet v e e2
  | FPlus1 e2 => EPlus e e2
  | FPlus2 v => EPlus v e
- | FIf e2 e3 => EIf e e2 e3
+ | FCase p e2 e3 => ECase e p e2 e3
+ | FCons1 e1 => ECons e1 e
+ | FCons2 v2 => ECons e v2
 end.
 
 Definition FrameStack := list Frame.
-
-Lemma empty_is_value : forall e, In e [] -> is_value e. Proof. firstorder. Qed.
-Lemma step_value : forall l v,
-  (forall e, In e l -> is_value e) -> is_value v
-->
-  (forall e, In e (l ++ [v]) -> is_value e).
-Proof.
-  intros. apply in_app_or in H1. destruct H1.
-  * apply H. auto.
-  * firstorder. subst. auto.
-Qed.
 
 Inductive FCLOSED : Frame -> Prop :=
 | fclosed_app1 l:
@@ -825,10 +871,18 @@ Inductive FCLOSED : Frame -> Prop :=
   VALCLOSED v1
 ->
   FCLOSED (FPlus2 v1)
-| fclosed_if e2 e3:
-  EXPCLOSED e2 -> EXPCLOSED e3
+| fclosed_if e2 e3 p:
+  EXP pat_vars p ⊢ e2 -> EXPCLOSED e3
 ->
-  FCLOSED (FIf e2 e3).
+  FCLOSED (FCase p e2 e3)
+| fclosed_cons1 e1:
+  EXPCLOSED e1
+->
+  FCLOSED (FCons1 e1)
+| fclosed_cons2 v:
+  VALCLOSED v
+->
+  FCLOSED (FCons2 v).
 
 Definition FSCLOSED (fs : FrameStack) := Forall FCLOSED fs.
 
@@ -853,12 +907,6 @@ Proof.
   * simpl. apply IHvals; auto. lia.
 Qed.
 
-Lemma Valclosed_is_value v :
-  VALCLOSED v -> is_value v.
-Proof.
-  intros. inversion H; try constructor. 1-2: inversion H0.
-Qed.
-
 Lemma substcomp_scoped :
   forall ξ σ Γ Δ Ω, SUBSCOPE Γ ⊢ ξ ∷ Δ -> SUBSCOPE Δ ⊢ σ ∷ Ω
 ->
@@ -872,21 +920,31 @@ Proof.
   * specialize (H0 n H). auto.
 Qed.
 
+Theorem match_pattern_scoped : forall p v l Γ,
+  VAL Γ ⊢ v -> match_pattern p v = Some l
+->
+  Forall (fun v => VAL Γ ⊢ v) l.
+Proof.
+  induction p; intros.
+  * simpl in *. destruct v; inversion H0. break_match_hyp; inversion H0. auto.
+  * simpl in *. destruct v; inversion H0; subst; auto.
+  * simpl in *. destruct v; inversion H0. subst. auto.
+  * simpl. simpl in H0. destruct v; try congruence.
+    break_match_hyp; try congruence. break_match_hyp; try congruence. inversion H0.
+    subst. apply Forall_app. split.
+    - inversion H. subst. eapply IHp1. exact H3. auto.
+    - inversion H. subst. eapply IHp2. exact H4. auto.
+Qed.
 
 Ltac inversion_is_value :=
 match goal with
-| [ H: is_value (ELet _ _ _) |- _ ] => inversion H
-| [ H: is_value (ELetRec _ _ _ _) |- _ ] => inversion H
-| [ H: is_value (EPlus _ _) |- _ ] => inversion H
-| [ H: is_value (EIf _ _ _) |- _ ] => inversion H
-| [ H: is_value (EApp _ _) |- _ ] => inversion H
-| [ H: is_value (EVar _) |- _ ] => inversion H
-| [ H: is_value (EFunId _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (ELet _ _ _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (ELetRec _ _ _ _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (EPlus _ _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (ECase _ _ _ _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (EApp _ _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (EVar _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (EFunId _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (ECons _ _) |- _ ] => inversion H
 end.
 
-Lemma is_value_subst :
-  forall v ξ, is_value v -> is_value (v.[ξ]).
-Proof.
-  intros. destruct v; try inversion_is_value.
-  all: simpl; constructor.
-Qed.
