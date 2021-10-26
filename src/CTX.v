@@ -1467,36 +1467,34 @@ match n with
   end
 end.
 
-Corollary CIU_iff_CTX_empty v1 v2 :
-  CIU v1 v2 <-> CTX 0 v1 v2.
+Corollary CIU_iff_CIU_open v1 v2 :
+  CIU v1 v2 <-> CIU_open 0 v1 v2.
 Proof.
   split; intros.
-  * apply CIU_iff_CTX. intro. intros.
+  * intro. intros.
     rewrite eclosed_ignores_sub. rewrite eclosed_ignores_sub.
     auto. apply H. apply H.
-  * apply CIU_iff_CTX in H. unfold CIU_open in H.
+  * unfold CIU_open in H.
     specialize (H idsubst (scope_idsubst 0)).
     now do 2 rewrite idsubst_is_id in H.
 Qed.
 
-Theorem CTX_vlist e1 e2:
+Theorem CIU_vlist e1 e2:
   VALCLOSED e1 -> VALCLOSED e2 ->
-  CTX 0 (ECons e1 e2) (VCons e1 e2) /\ CTX 0 (VCons e1 e2) (ECons e1 e2).
+  CIU (ECons e1 e2) (VCons e1 e2) /\ CIU (VCons e1 e2) (ECons e1 e2).
 Proof.
   intros. split.
-  * apply CIU_iff_CTX. intro. intros. cbn. repeat rewrite vclosed_ignores_sub; auto.
-    split. 2: split.
+  * split. 2: split.
     - repeat constructor; auto.
     - repeat constructor; auto.
-    - intros. destruct H3.
-      inversion H3; try inversion_is_value; subst.
-      inversion H8; subst; try inversion_is_value.
-      inversion H10; subst; try inversion_is_value. eexists. exact H13.
-  * apply CIU_iff_CTX. intro. intros. cbn. repeat rewrite vclosed_ignores_sub; auto.
-    split. 2: split.
+    - intros. destruct H2.
+      inversion H2; try inversion_is_value; subst.
+      inversion H7; subst; try inversion_is_value.
+      inversion H9; subst; try inversion_is_value. eexists. exact H12.
+  * split. 2: split.
     - repeat constructor; auto.
     - repeat constructor; auto.
-    - intros. destruct H3. exists (3 + x).
+    - intros. destruct H2. exists (3 + x).
       repeat constructor; auto.
 Qed.
 
@@ -1595,6 +1593,62 @@ Proof.
 Qed.*)
 
 Definition eq_exps (e1 e2 : Exp) := forall n, equivalent_exps e1 e2 (equivalent_values n).
+
+Theorem equivalent_valexps :
+  forall n e1 e2, VALCLOSED e1 -> VALCLOSED e2 ->
+  equivalent_exps e1 e2 (equivalent_values n) -> equivalent_values n e1 e2.
+Proof.
+  induction n; intros; simpl; auto; destruct e1, e2; try inversion_is_value;
+    unfold equivalent_exps in *; try lia.
+  * epose proof (H1 (ELit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (ELit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (ELit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (ELit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (EFun vl e1) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * intros. epose proof (H1 (EFun vl e1) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H7. inversion H7. 2: { apply value_nostep in H8. contradiction. auto. }
+    subst. simpl in eq2. apply eq2; auto.
+  * epose proof (H1 (EFun vl e1) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (EFun vl e1) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 ENil _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 ENil _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 ENil _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * inversion H. inversion H0. subst.
+    epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3.
+    inversion H3. subst. 2: { inversion H6. } simpl in eq2. destruct eq2.
+    assert ((forall v1 : Exp,
+       ⟨ [], e1_1 ⟩ -->* v1 -> exists v2 : Exp, ⟨ [], e2_1 ⟩ -->* v2 /\ equivalent_values n v1 v2)).
+    {
+      intros. destruct H10 as [Vcl [k E1]]. inversion E1; try inversion_is_value. subst.
+      2: { apply value_nostep in H10. contradiction. auto. }
+      exists e2_1. split; auto. split; auto. exists 0. constructor.
+    }
+    assert ((forall v1 : Exp,
+       ⟨ [], e1_2 ⟩ -->* v1 -> exists v2 : Exp, ⟨ [], e2_2 ⟩ -->* v2 /\ equivalent_values n v1 v2)).
+    {
+      intros. destruct H11 as [Vcl [k E1]]. inversion E1; try inversion_is_value. subst.
+      2: { apply value_nostep in H11. contradiction. auto. }
+      exists e2_2. split; auto. split; auto. exists 0. constructor.
+    }
+    apply IHn in H10. apply IHn in H11. all: auto.
+  Unshelve.
+   all: split; auto; exists 0; constructor.
+Qed.
 
 Theorem terminating_implies_equivalence_helper :
   forall e1 e2 (P : CTX 0 e2 e1), CTX 0 e1 e2 -> eq_exps e1 e2.
@@ -1773,85 +1827,141 @@ Proof.
       + Search CIU.
         apply CIU_eval in H0 as [E1_1 E1_2]. apply CIU_eval in H3 as [E2_1 E2_2].
         all: auto.
-        apply CIU_iff_CTX_empty in E1_1. apply CIU_iff_CTX_empty in E1_2.
-        apply CIU_iff_CTX_empty in E2_1. apply CIU_iff_CTX_empty in E2_2.
+        Check CIU_list_parts.
         inversion Hv. inversion Hv'. subst.
-        epose proof (CTX_vlist _ _ H4 H5) as [P1 P2].
-        epose proof (CTX_vlist _ _ H8 H9) as [P3 P4].
-        assert (CTX 0 (ECons v1_1 v1_2) (ECons x1 x2)) as J1. {
-          epose proof (CTX_IsPreCtxRel) as [? [? [? [T ?]]]].
+        epose proof (CIU_vlist _ _ H4 H5) as [P1 P2].
+        epose proof (CIU_vlist _ _ H8 H9) as [P3 P4].
+        apply CIU_iff_CIU_open in P1. apply CIU_iff_CIU_open in P2.
+        apply CIU_iff_CIU_open in P3. apply CIU_iff_CIU_open in P4.
+        apply CIU_iff_CIU_open in E1_1. apply CIU_iff_CIU_open in E1_2.
+        apply CIU_iff_CIU_open in E2_1. apply CIU_iff_CIU_open in E2_2.
+        assert (CIU_open 0 (ECons v1_1 v1_2) (ECons x1 x2)) as J1. {
+          epose proof (CIU_IsPreCtxRel) as [? [? [? [T ?]]]].
           eapply T. apply P1.
           eapply T. apply E1_2.
-          eapply T. exact P'. auto.
+          eapply T. apply CIU_iff_CTX. exact P'. auto.
           eapply T. apply E2_1. auto.
         }
-        assert (CTX 0 (ECons x1 x2) (ECons v1_1 v1_2)) as J2. {
-          epose proof (CTX_IsPreCtxRel) as [? [? [? [T ?]]]].
+        assert (CIU_open 0 (ECons x1 x2) (ECons v1_1 v1_2)) as J2. {
+          epose proof (CIU_IsPreCtxRel) as [? [? [? [T ?]]]].
           eapply T. apply P3.
           eapply T. apply E2_2.
-          eapply T. exact P.
+          eapply T. apply CIU_iff_CTX. exact P.
           eapply T. apply E1_1. auto.
         }
-        assert (CompatibleCons CTX) by apply CTX_IsPreCtxRel.
-        
-        apply 
-        apply IHn in H0; auto. simpl in H0.
-          
-Unshelve.
+        apply CIU_iff_CIU_open in J1. apply CIU_iff_CIU_open in J2.
+        apply CIU_list_parts in J1 as [J1_1 J1_2]. apply CIU_list_parts in J2 as [J2_1 J2_2].
+        all: auto.
+        apply CIU_iff_CIU_open in J1_1. apply CIU_iff_CIU_open in J1_2.
+        apply CIU_iff_CIU_open in J2_1. apply CIU_iff_CIU_open in J2_2.
+        apply CIU_iff_CTX in J1_1. apply CIU_iff_CTX in J1_2.
+        apply CIU_iff_CTX in J2_1. apply CIU_iff_CTX in J2_2.
+        eapply IHn in J1_1. eapply IHn in J1_2. all: auto.
+        apply equivalent_valexps in J1_1. apply equivalent_valexps in J1_2.
+        all: auto.
+Unshelve. (** TODO This is boiler plate basically... *)
   ++ repeat constructor. all: inversion H4.
   ++ simpl. destruct H0, H4. exists (2 + x).
-     constructor.
+     eapply term_case.
      eapply term_step_term with (k := x).
      eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     constructor; auto. cbn. apply Z.eqb_refl.
+     eapply term_case_true; auto. cbn. rewrite Z.eqb_refl. reflexivity.
      constructor.
      do 3 constructor. lia.
   ++ repeat constructor. all: inversion H4.
   ++ simpl. destruct H0, H4. exists (2 + x0).
-     constructor.
+     eapply term_case.
      eapply term_step_term with (k := x0).
      eapply frame_indep_nil in H4. exact H4. replace (S x0 - x0) with 1 by lia.
-     constructor; auto. cbn. apply Z.eqb_refl.
+     eapply term_case_true; auto. cbn. rewrite Z.eqb_refl. reflexivity.
      constructor.
      do 3 constructor. lia.
   ++ repeat constructor. all: inversion H4.
   ++ simpl. destruct H0, H4. exists (2 + x).
-     constructor.
+     eapply term_case.
      eapply term_step_term with (k := x).
      eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     constructor; auto. cbn. apply Z.eqb_refl.
+     eapply term_case_true; auto. cbn. rewrite Z.eqb_refl. reflexivity.
      constructor.
      do 3 constructor. lia.
   ++ repeat constructor. all: inversion H4.
   ++ simpl. destruct H0, H4. exists (2 + x).
-     constructor.
+     eapply term_case.
      eapply term_step_term with (k := x).
      eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     constructor; auto. cbn. apply Z.eqb_refl.
+     eapply term_case_true; auto. cbn. rewrite Z.eqb_refl. reflexivity.
      constructor.
      do 3 constructor. lia.
   ++ repeat constructor. all: inversion H6.
   ++ simpl. destruct H3, H6. exists (2 + x).
-     constructor.
+     eapply term_case.
      eapply term_step_term with (k := x).
      eapply frame_indep_nil in H6. exact H6. replace (S x - x) with 1 by lia.
-     constructor; auto. cbn. apply Z.eqb_refl.
+     eapply term_case_true; auto. cbn. rewrite Z.eqb_refl. reflexivity.
      constructor.
      do 3 constructor. lia.
   ++ repeat constructor. all: inversion H6.
   ++ simpl. destruct H3, H6. exists (2 + x).
-     constructor.
+     eapply term_case.
      eapply term_step_term with (k := x).
      eapply frame_indep_nil in H6. exact H6. replace (S x - x) with 1 by lia.
-     constructor; auto. cbn.
+     eapply term_case_true; auto. cbn. reflexivity.
      constructor.
      do 3 constructor. lia.
   ++ repeat constructor. all: inversion H6.
   ++ simpl. destruct H3, H6. exists (2 + x).
-     constructor.
+     eapply term_case.
      eapply term_step_term with (k := x).
      eapply frame_indep_nil in H6. exact H6. replace (S x - x) with 1 by lia.
-     constructor; auto. cbn. destruct x1, x2; reflexivity.
+     eapply term_case_true; auto. cbn. reflexivity.
+     constructor.
+     do 3 constructor. lia.
+  ++ repeat constructor. all: inversion H4.
+  ++ simpl. destruct H0, H4. exists (2 + x).
+     eapply term_case.
+     eapply term_step_term with (k := x).
+     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
+     eapply term_case_true; auto. cbn. reflexivity.
+     constructor.
+     do 3 constructor. lia.
+  ++ repeat constructor. all: inversion H4.
+  ++ simpl. destruct H0, H4. exists (2 + x0).
+     eapply term_case.
+     eapply term_step_term with (k := x0).
+     eapply frame_indep_nil in H4. exact H4. replace (S x0 - x0) with 1 by lia.
+     eapply term_case_true; auto. cbn. reflexivity.
+     constructor.
+     do 3 constructor. lia.
+  ++ repeat constructor. all: inversion H4.
+  ++ simpl. destruct H0, H4. exists (2 + x).
+     eapply term_case.
+     eapply term_step_term with (k := x).
+     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
+     eapply term_case_true; auto. cbn. reflexivity.
+     constructor.
+     do 3 constructor. lia.
+  ++ repeat constructor. all: inversion H4.
+  ++ simpl. destruct H0, H4. exists (2 + x).
+     eapply term_case.
+     eapply term_step_term with (k := x).
+     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
+     eapply term_case_true; auto. cbn. reflexivity.
+     constructor.
+     do 3 constructor. lia.
+  ++ repeat constructor. all: inversion H4.
+  ++ simpl. destruct H0, H4. exists (2 + x0).
+     eapply term_case.
+     eapply term_step_term with (k := x0).
+     eapply frame_indep_nil in H4. exact H4. replace (S x0 - x0) with 1 by lia.
+     eapply term_case_true; auto. cbn. reflexivity.
+     constructor.
+     do 3 constructor. lia.
+  ++ repeat constructor. all: inversion H4.
+  ++ simpl. destruct H0, H4. exists (2 + x).
+     eapply term_case.
+     eapply term_step_term with (k := x).
+     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
+     eapply term_case_true; auto. cbn. reflexivity.
      constructor.
      do 3 constructor. lia.
 Qed.
@@ -1862,20 +1972,6 @@ Theorem terminating_implies_equivalence :
 Proof.
   intros. split; eapply terminating_implies_equivalence_helper; auto.
 Qed.
-
-(* Theorem equivalence_implies_terminating :
-  forall e1 e2, EXPCLOSED e1 -> EXPCLOSED e2 -> eq_exps e1 e2 -> eq_exps e2 e1 ->
-    (CIU e1 e2 /\ CIU e2 e1).
-Proof.
-  intros. unfold CIU, eq_exps, equivalent_exps in *.
-  repeat split; auto; intros.
-  * apply terminates_eq_terminates_sem in H4 as [v H4]. apply H1 in H4.
-    destruct H4, H4. apply terminates_eq_terminates_sem. exists x; auto. auto.
-  * apply terminates_eq_terminates_sem in H4 as [v H4]. apply H2 in H4.
-    destruct H4, H4. apply terminates_eq_terminates_sem. exists x; auto. auto.
-Qed. *)
-
-
 
 Definition equivalent_exps2 (e1 e2 : Exp) (R : Exp -> Exp -> Prop) : Prop :=
   forall v1 Fs, FSCLOSED Fs -> ⟨ Fs, e1 ⟩ -->* v1 -> (exists v2, ⟨ Fs, e2 ⟩ -->* v2 /\ R v1 v2).
