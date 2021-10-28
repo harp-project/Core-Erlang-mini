@@ -48,7 +48,7 @@ match goal with
 | [ H : | _, EApp _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
 | [ H : | _, ELet _ _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
 | [ H : | _, ELetRec _ _ _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
-| [ H : | _, EIf _ _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
+| [ H : | _, ECase _ _ _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
 | [ H : | _ :: _, _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
 end.
 
@@ -84,6 +84,7 @@ Proof.
     
     constructor.
     now rewrite Z.add_comm. lia.
+    all: auto.
   }
   intros. split; eapply CIU_iff_CTX; intro; intros; simpl; apply H.
   all: apply -> subst_preserves_scope_exp; eauto.
@@ -119,13 +120,13 @@ Proof.
     
     constructor; auto. 2: lia.
     rewrite renaming_is_subst, subst_comp, subst_extend, subst_comp.
-    replace (ren (fun n : nat => S n) >> inl x2 .:: ξ) with (ξ) by reflexivity. auto.
+    replace (ren (fun n : nat => S n) >> inl x2 .:: ξ) with (ξ) by reflexivity. auto. auto.
   * intros. destruct H4. cpb_term.
     apply term_eval_both in H10 as H10'. destruct H10' as [v [k0 [v_v [Eval1 Eval2]]]].
     term_step.
     cpb_term. exists k1.
     rewrite renaming_is_subst, subst_comp, subst_extend, subst_comp in H11.
-    exact H11.
+    exact H11. now rewrite eclosed_ignores_sub.
 Qed.
 
 Theorem eta_abstraction Γ e :
@@ -167,10 +168,10 @@ Proof.
     rewrite map_length in H3;
     apply vclosed_sub_closed, H1.
   * intros. destruct H4 as [k H4].
-    assert (Forall is_value vals). { eapply Forall_impl. intros. apply Valclosed_is_value. exact H5. auto. }
     eexists. apply term_app_in_k.
+    - shelve.
     - now rewrite map_length.
-    - eapply Forall_map; auto. intros. destruct H6; constructor.
+    - eapply Forall_map; auto.
     - repeat rewrite renaming_is_subst, subst_comp, subst_comp in *.
       fold_upn. fold_list_subst.
       replace (fun n => S (length vl + n)) with (fun n => S (length vl) + n) by auto.
@@ -185,16 +186,22 @@ Proof.
     rewrite substcomp_assoc in H5.
     rewrite rename_upn_list_subst in H5.
     eexists. eapply terminates_step_any_2. exact H4.
-    rewrite renaming_is_subst, subst_comp. exact H5.
-    simpl. rewrite map_length. auto.
+    rewrite renaming_is_subst, subst_comp. simpl in H5. apply H5.
+    simpl. rewrite indexed_to_forall in H1. rewrite indexed_to_forall.
+    intros. rewrite map_nth, vclosed_ignores_sub. apply H1. rewrite map_length in H6. auto.
+    apply H1. rewrite map_length in H6. auto.
+    simpl. rewrite map_length. lia.
   Unshelve.
-    now rewrite map_length.
-    assert (Forall is_value vals). {
-      eapply Forall_impl. 2: exact H1. intros.
-      now apply Valclosed_is_value.
-    }
-    apply Forall_map; auto.
-    intros. inversion H6; constructor.
+    3: rewrite map_length; lia.
+    3: exact (ELit 0).
+    all: simpl; constructor; rewrite renaming_is_subst, subst_comp, Nat.add_0_r.
+    all: apply -> subst_preserves_scope_exp; [ exact H0 | ]; apply substcomp_scoped with (Δ := Γ + S (length vl)).
+    + intro. intros. simpl. lia.
+    + rewrite Nat.add_comm. simpl. apply up_scope. rewrite <- (Nat.add_0_r (length vl)) at 2.
+      apply upn_scope. auto.
+    + intro. intros. simpl. lia.
+    + rewrite Nat.add_comm. simpl. apply up_scope. rewrite <- (Nat.add_0_r (length vl)) at 2.
+      apply upn_scope. auto.
 Qed.
 
 Definition naive_equivalent (e1 e2 : Exp) : Prop :=
@@ -211,9 +218,6 @@ Proof.
   intros. apply terminates_eq_terminates_sem in H1 as [v H1].
   apply H in H1. now apply ex_intro, terminates_eq_terminates_sem in H1.
 Qed.
-
-
-
 
 
 (* Definition unfold_app (l : list Var) (l2 : list Exp) (b : Exp) : Exp :=
