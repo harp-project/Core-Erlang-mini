@@ -1,6 +1,16 @@
 # Core Erlang Mini
 
-This project aims to investigate possible formalisations of program equivalence (behavioural, contextual, CIU equivalence and logical relations) using a small subset of Core Erlang.
+This project aims to investigate possible formalisations of program equivalence (behavioural, contextual, CIU equivalence and logical relations) using a small subset of Core Erlang, including lists, pattern matching and recursion.
+
+# Requirements
+
+This project only depends on Coq, version 8.13.2 or later.
+
+# Installation
+
+`make` compiles the library
+
+# Contents
 
 # Related work
 
