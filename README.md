@@ -12,6 +12,17 @@ This project only depends on Coq, version 8.13.2 or later.
 
 # Contents
 
+- `Basics.v` contains simple extensions about the standard library
+- `ExpSyntax.v` contains the formal syntax of language under investigation
+- `ExpManipulation.v` contains the definition of substitutions, renamings
+- `Scoping.v` contains the scoping rules for the language
+- `SubstSemantics.v` contains the dynamic semantics of the language
+- `LogRel.v` contains the logical relations
+- `Compatibility.v` contains the compatibility (congruence) proofs of the logical relations
+- `CIU.v` contains "CIU-equivalence" definition
+- `CTX.v` contains contextual equivalence definitions, proofs about equality of equivalences
+- `Equivs.v` contains simple expression equivalence proofs
+
 # Related work
 
 This work is based on the following related work:
