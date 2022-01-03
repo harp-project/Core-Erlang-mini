@@ -10,14 +10,18 @@ Definition Var : Set := string.
 
 Definition FunctionIdentifier : Set := string * nat.
 
+Definition PID : Set := nat.
+
 Inductive Pat : Set :=
 | PLit (l : Z)
+| PPid (p : PID)
 | PVar (** will be assigned in increasing order *)
 | PNil
 | PCons (p1 p2 : Pat).
 
 Inductive Exp : Set :=
 | ELit    (l : Z)
+| EPid    (p : PID)
 | EVar    (n : nat) (** (v : Var) <- these will be assigned by a naming function *)
 | EFunId  (n : nat) (** (f : FunctionIdentifier) <- these will be assigned by a naming function *)
 (** Instead of multiple fun-s (recursive and non-recursive), 
@@ -34,15 +38,25 @@ Inductive Exp : Set :=
 | ECons (e1 e2 : Exp)
 | ENil
 (** Recursive data structures which are values: *)
-| VCons (e1 e2 : Exp).
+| VCons (e1 e2 : Exp)
+(** Concurrency *)
+| ESend (p : PID) (e : Exp)
+| EReceive (l : list (Pat * Exp)).
+
+Inductive Action : Set :=
+| ASend (p : PID) (t : Exp)
+| AReceive (t : Exp)
+| AArrive (t : Exp)
+| AInternal.
 
 Section correct_exp_ind.
 
   Variables
-    (P : Exp -> Prop)(Q : list Exp -> Prop).
+    (P : Exp -> Prop)(Q : list Exp -> Prop)(W : list (Pat * Exp) -> Prop).
 
   Hypotheses
    (H0 : forall (l : Z), P (ELit l))
+   (H00 : forall (l : PID), P (EPid l))
    (H1 : forall (n : nat), P (EVar n))
    (H2 : forall (n : nat), P (EFunId n))
    (H3 : forall (vl : list Var) (e : Exp), P e -> P (EFun vl e))
@@ -58,12 +72,17 @@ Section correct_exp_ind.
    (H10 : forall e1, P e1 -> forall e2, P e2 -> P (ECons e1 e2))
    (H11 : P ENil)
    (H12 : forall e1, P e1 -> forall e2, P e2 -> P (VCons e1 e2))
+   (H13 : forall e, P e -> forall p, P (ESend p e))
+   (H14 : forall l, W l -> P (EReceive l))
    (H' : forall v : Exp, P v -> forall l:list Exp, Q l -> Q (v :: l))
-   (H1' : Q []).
+   (H1' : Q [])
+   (J : W [])
+   (J0 : forall e, P e -> forall xs, W xs -> forall p, W ((p, e)::xs)).
 
   Fixpoint Exp_ind2 (e : Exp) : P e :=
   match e as x return P x with
   | ELit l => H0 l
+  | EPid l => H00 l
   | EVar n => H1 n
   | EFunId n => H2 n
   | EFun vl e => H3 vl e (Exp_ind2 e)
@@ -79,6 +98,12 @@ Section correct_exp_ind.
   | ECons e1 e2 => H10 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ENil => H11
   | VCons e1 e2 => H12 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
+  | ESend p e => H13 e (Exp_ind2 e) p
+  | EReceive l => H14 l ((fix l_ind (l':list (Pat * Exp)) : W l' :=
+                                         match l' as x return W x with
+                                         | [] => J
+                                         | (p, v)::xs => J0 v (Exp_ind2 v) xs (l_ind xs) p
+                                         end) l)
   end.
 
 End correct_exp_ind.
@@ -253,6 +278,10 @@ Global Hint Resolve not_in_list_sound : core.
 Fixpoint match_pattern (p : Pat) (e : Exp) : option (list Exp) :=
 match p with
 | PVar => Some [e]
+| PPid x => match e with
+            | EPid p => if Nat.eqb p x then Some [] else None
+            | _      => None
+            end
 | PNil => match e with
           | ENil => Some []
           | _    => None
@@ -274,7 +303,8 @@ end.
 
 Fixpoint pat_vars (p : Pat) : nat :=
 match p with
- | PLit l => 0
+ | PLit _ => 0
+ | PPid _ => 0
  | PVar => 1
  | PNil => 0
  | PCons p1 p2 => pat_vars p1 + pat_vars p2
@@ -284,6 +314,7 @@ Lemma match_pattern_length : forall p v l,
   match_pattern p v = Some l -> pat_vars p = length l.
 Proof.
   induction p; intros.
+  * simpl in *. destruct v; inversion H. break_match_hyp; now inversion H.
   * simpl in *. destruct v; inversion H. break_match_hyp; now inversion H.
   * simpl in *. destruct v; inversion H; subst; auto.
   * simpl in *. destruct v; inversion H. subst. auto.

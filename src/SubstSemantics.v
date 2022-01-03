@@ -151,7 +151,6 @@ Definition terminating (e : Exp) : Prop :=
     Frame stack semantics:
 *)
 
-
 Reserved Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" (at level 50).
 Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 (**  Reduction rules *)
