@@ -5,7 +5,7 @@ Export PeanoNat.
 
 Import ListNotations.
 
-Inductive ResultType {T : Set} : Set :=
+(* Inductive ResultType {T : Set} : Set :=
 | Timeout
 | Fail
 | Res (v : T)
@@ -145,78 +145,87 @@ Axiom bigger_clock_list :
     eval_list (eval clock') l = Res v.
 
 Definition terminating (e : Exp) : Prop :=
-  exists v clock, eval clock e = Res v.
+  exists v clock, eval clock e = Res v. *)
 
 (** Based on https://github.com/cobbal/ppl-ctx-equiv-coq 
     Frame stack semantics:
 *)
 
-Reserved Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" (at level 50).
-Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
+Definition Mailbox : Set := list Exp.
+Definition Process : Set := FrameStack * Exp * Mailbox.
+
+Reserved Notation "p -[ a ]-> p'" (at level 50).
+Inductive step : Process -> Action -> Process -> Prop :=
 (**  Reduction rules *)
-| red_app_start v hd tl xs (H : VALCLOSED v):
-  ⟨ (FApp1 (hd::tl))::xs, v ⟩ --> ⟨ (FApp2 v tl [])::xs, hd⟩
+| red_app_start v hd tl xs mb (H : VALCLOSED v):
+  ( (FApp1 (hd::tl))::xs, v , mb) -[ AInternal ]-> ( (FApp2 v tl [])::xs, hd, mb)
 
-| red_app_fin xs e :
-  ⟨ (FApp1 [])::xs, EFun [] e ⟩ --> ⟨ xs, e.[EFun [] e/] ⟩
+| red_app_fin xs e mb :
+  ( (FApp1 [])::xs, EFun [] e, mb) -[ AInternal ]-> ( xs, e.[EFun [] e/], mb)
 
-| app2_step v (H : VALCLOSED v) hd tl vs (H2 : Forall (fun v => VALCLOSED v) vs) xs v' (H' : VALCLOSED v') :
-  ⟨ (FApp2 v (hd::tl) vs) :: xs, v' ⟩ --> ⟨ (FApp2 v tl (vs ++ [v'])) :: xs, hd ⟩
+| app2_step v (H : VALCLOSED v) hd tl vs mb (H2 : Forall (fun v => VALCLOSED v) vs) xs v' (H' : VALCLOSED v') :
+  ( (FApp2 v (hd::tl) vs) :: xs, v', mb) -[ AInternal ]-> ((FApp2 v tl (vs ++ [v'])) :: xs, hd, mb)
 
-| red_app2 vl e vs v xs (H2 : Forall (fun v => VALCLOSED v) vs) : 
+| red_app2 vl e vs v xs mb (H2 : Forall (fun v => VALCLOSED v) vs) : 
   VALCLOSED v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (EFun vl e) [] vs) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (EFun vl e :: (vs ++ [v])) idsubst] ⟩
+  ((FApp2 (EFun vl e) [] vs) :: xs, v, mb) -[ AInternal ]-> (xs,  e.[list_subst (EFun vl e :: (vs ++ [v])) idsubst], mb)
 
-| red_let val e2 xs v (H : VALCLOSED val) : ⟨ (FLet v e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
+| red_let val e2 xs v mb (H : VALCLOSED val) : ( (FLet v e2)::xs, val, mb) -[AInternal]-> ( xs, e2.[val/], mb)
 
-| red_case_true e2 e3 v p xs l : 
+| red_case_true e2 e3 v p xs l mb: 
   VALCLOSED v -> match_pattern p v = Some l
 ->
-  ⟨ (FCase p e2 e3)::xs, v ⟩ --> ⟨ xs, e2.[list_subst l idsubst] ⟩
+  ( (FCase p e2 e3)::xs, v, mb) -[ AInternal ]-> ( xs, e2.[list_subst l idsubst] , mb)
 
-| red_case_false e2 e3 p v xs (H : VALCLOSED v) :
+| red_case_false e2 e3 p v xs mb (H : VALCLOSED v) :
   VALCLOSED v -> match_pattern p v = None ->
-  ⟨ (FCase p e2 e3)::xs, v ⟩ --> ⟨ xs, e3 ⟩
+  ( (FCase p e2 e3)::xs, v , mb) -[ AInternal ]-> ( xs, e3, mb )
 
-| red_plus_left e2 xs v (H : VALCLOSED v): ⟨ (FPlus1 e2)::xs, v ⟩ --> ⟨ (FPlus2 v (* H *))::xs, e2 ⟩
+| red_plus_left e2 xs v mb (H : VALCLOSED v): ( (FPlus1 e2)::xs, v, mb) -[AInternal]-> ( (FPlus2 v)::xs, e2 , mb)
 
-| red_plus_right xs n m :
-   ⟨ (FPlus2 (ELit n) (* P *))::xs, (ELit m) ⟩ --> ⟨ xs, ELit (n + m) ⟩ 
+| red_plus_right xs n m mb:
+   ( (FPlus2 (ELit n) )::xs, (ELit m), mb ) -[ AInternal ]-> ( xs, ELit (n + m), mb )
 
-| red_letrec xs f vl b e:
-  ⟨ xs, ELetRec f vl b e ⟩ --> ⟨ xs, e.[EFun vl b/] ⟩
+| red_letrec xs f vl b e mb:
+  (xs, ELetRec f vl b e, mb) -[ AInternal ]-> (xs, e.[EFun vl b/], mb)
 
-| red_cons1 xs v2 e1 (H : VALCLOSED v2):
-  ⟨ FCons1 e1::xs, v2⟩ --> ⟨FCons2 v2::xs, e1 ⟩
+| red_cons1 xs v2 e1 mb (H : VALCLOSED v2):
+  ( FCons1 e1::xs, v2, mb) -[ AInternal ]-> (FCons2 v2::xs, e1, mb)
 
-| red_cons2 xs v2 v1 (H : VALCLOSED v1) (H0 : VALCLOSED v2):
-  ⟨ FCons2 v2::xs, v1⟩ --> ⟨xs, VCons v1 v2 ⟩
+| red_cons2 xs v2 v1 mb (H : VALCLOSED v1) (H0 : VALCLOSED v2):
+  ( FCons2 v2::xs, v1, mb) -[ AInternal ]-> (xs, VCons v1 v2, mb)
 
 (** Steps *)
-| step_let xs v e1 e2 : ⟨ xs, ELet v e1 e2 ⟩ --> ⟨ (FLet v e2)::xs, e1 ⟩
-| step_app xs e el: ⟨ xs, EApp e el ⟩ --> ⟨ (FApp1 el)::xs, e ⟩
-| step_plus xs e1 e2 : ⟨ xs, EPlus e1 e2⟩ --> ⟨ (FPlus1 e2)::xs, e1⟩
-| step_case xs e1 p e2 e3 : ⟨ xs, ECase e1 p e2 e3⟩ --> ⟨ (FCase p e2 e3)::xs, e1⟩
+| step_let xs v e1 e2 mb: ( xs, ELet v e1 e2, mb) -[ AInternal ]-> ((FLet v e2)::xs, e1, mb)
+| step_app xs e el mb: (xs, EApp e el, mb) -[ AInternal ]-> ( (FApp1 el)::xs, e, mb)
+| step_plus xs e1 e2 mb: (xs, EPlus e1 e2, mb) -[ AInternal ]-> ((FPlus1 e2)::xs, e1, mb)
+| step_case xs e1 p e2 e3 mb: (xs, ECase e1 p e2 e3, mb) -[ AInternal ]-> ((FCase p e2 e3)::xs, e1, mb)
 
 (** Special step rules: need to "determinize them" *)
-| step_cons xs e1 e2: ⟨ xs, ECons e1 e2 ⟩ --> ⟨ (FCons1 e1) :: xs, e2 ⟩
-where "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" := (step fs e fs' e').
+| step_cons xs e1 e2 mb: (xs, ECons e1 e2, mb) -[AInternal]-> ((FCons1 e1) :: xs, e2, mb)
 
-Reserved Notation "⟨ fs , e ⟩ -[ k ]-> ⟨ fs' , e' ⟩" (at level 50).
-Inductive step_rt : FrameStack -> Exp -> nat -> FrameStack -> Exp -> Prop :=
-| step_refl e Fs : ⟨ Fs, e ⟩ -[ 0 ]-> ⟨ Fs, e ⟩
-| step_trans fs e fs' e' fs'' e'' k:
-  ⟨ fs, e ⟩ --> ⟨ fs', e'⟩ -> ⟨fs', e'⟩ -[ k ]-> ⟨fs'', e''⟩
+(** Arrival rule *)
+| red_arrive e fs mb mb' v:
+  VALCLOSED v -> mb' = mb ++ [v]
 ->
-  ⟨ fs, e ⟩ -[S k]-> ⟨fs'', e''⟩
-where "⟨ fs , e ⟩ -[ k ]-> ⟨ fs' , e' ⟩" := (step_rt fs e k fs' e').
+  (fs, e, mb) -[AArrive v]-> (fs, e, mb')
+where "p -[ a ]-> p'" := (step p a p').
 
-Definition step_any (fs : FrameStack) (e : Exp) (v : Exp) : Prop :=
-  VALCLOSED v /\ exists k, ⟨fs, e⟩ -[k]-> ⟨[], v⟩.
+Reserved Notation "p -[ k | a ]-> p'" (at level 50).
+Inductive step_rt : Process -> nat -> list Action -> Process -> Prop :=
+| step_refl e Fs mb : ( Fs, e, mb ) -[ 0 | [] ]-> (Fs, e, mb)
+| step_trans fs e fs' e' fs'' e'' mb mb' mb'' k σ Σ:
+  ( fs, e, mb) -[σ]-> (fs', e', mb') -> (fs', e', mb') -[ k | Σ ]-> (fs'', e'', mb'')
+->
+  ( fs, e, mb ) -[S k | σ::Σ]-> (fs'', e'', mb'')
+where "p -[ k | a ]-> p'" := (step_rt p k a p').
 
-Notation "⟨ fs , e ⟩ -->* v" := (step_any fs e v) (at level 50).
+Definition step_any (p : Process) (v : Exp) : Prop :=
+  VALCLOSED v /\ exists k mb' Σ, p -[k | Σ]-> ([], v, mb').
 
-Goal ⟨ [], inc 1 ⟩ -->* ELit 2.
+Notation "p -->* v" := (step_any p v) (at level 50).
+
+Goal ( [], inc 1, []) -->* ELit 2.
 Proof.
   repeat econstructor.
 (*   Unshelve. cbn. constructor. *)
