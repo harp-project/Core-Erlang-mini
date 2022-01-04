@@ -111,9 +111,59 @@ Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
 
 where "n -[ a | ι ]ₙ-> n'" := (nodeSemantics n a ι n').
 
+(* Fixpoint Pat_eqb (p1 p2 : Pat) : bool :=
+match p1, p2 with
+ | PLit l, PLit l2 => Z.eqb l l2
+ | PPid p, PPid p2 => p =? p2
+ | PVar, PVar => true
+ | PNil, PNil => true
+ | PCons p1 p2, PCons p12 p22 => Pat_eqb p1 p12 && Pat_eqb p2 p22
+ | _, _ => false
+end.
+
+Fixpoint list_eqb {A} (eq : A -> A -> bool) (l1 l2 : list A) : bool :=
+match l1, l2 with
+| [], [] => true
+| x::xs, y::ys => eq x y && list_eqb eq xs ys
+| _, _ => false
+end.
+
+Fixpoint Exp_eqb (e1 e2 : Exp) : bool :=
+match e1, e2 with
+ | ELit l, ELit l2 => Z.eqb l =? l2
+ | EPid p, EPid p2 => p =? p2
+ | EVar n, EVar n2 => n =? n2
+ | EFunId n, EFunId n2 => n =? n2
+ | EFun vl e, EFun vl2 e2 => list_eqb String.eqb vl vl2 && Exp_eqb e e2
+ | EApp exp l, EApp exp2 l2 => Exp_eqb exp exp2 && list_eqb Exp_eqb
+ | ELet v e1 e2, ELet v2 e12 e22 => _
+ | ELetRec f vl b e, ELetRec f2 vl2 b2 e2 => _
+ | EPlus e1 e2, EPlus e12 e22 => _
+ | ECase e0 p e1 e2, ECase e02 p2 e12 e22 => _
+ | ECons e1 e2, ECons e12 e22 => _
+ | ENil, ENil => true
+ | VCons e1 e2, VCons e12 e22 => _
+ | ESend p e, ESend p2 e2 => _
+ | EReceive l, EReceive l2 => _
+ | _, _ => false
+end. *)
+
+Print slist.
+
+Fixpoint list_eq_Node (l : list (PID * Process)) (n : Node) : Prop :=
+match l with
+| [] => True
+| (p, pr)::xs => find p n = Some pr /\ list_eq_Node xs n
+end.
+
+Definition equivalent (n1 n2 : Node) : Prop :=
+match n1 with
+| {| this := x; sorted := y |} => length (this n2) = length x /\ list_eq_Node x n2
+end.
+
 Reserved Notation "n -[ k | l ]ₙ->* n'" (at level 50).
 Inductive closureNodeSem : Node -> nat -> list (Action * PID) -> Node -> Prop :=
-| nrefl n : n -[ 0 | [] ]ₙ->* n
+| nrefl n n' : equivalent n n' -> n -[ 0 | [] ]ₙ->* n'
 | ntrans n n' n'' k l a ι:
   n -[a|ι]ₙ-> n' -> n' -[k|l]ₙ->* n''
 ->
@@ -182,9 +232,9 @@ Proof.
   eapply ntrans. eapply ninternal with (ι := 3); cbn; try reflexivity.
   constructor. constructor. constructor.
   eapply ntrans. eapply ninternal with (ι := 3); cbn; try reflexivity.
-  constructor. constructor. cbn.
-  
-  unfold par, add.
+  constructor. constructor.
+
   apply nrefl.
+  simpl. cbn. intuition.
 Qed.
 
