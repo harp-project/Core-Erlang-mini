@@ -39,6 +39,7 @@ Fixpoint   Vrel_rec (n : nat)
   VALCLOSED v1 /\ VALCLOSED v2 /\
   match v1, v2 with
   | ELit l1, ELit l2 => l1 = l2
+  | EPid p1, EPid p2 => p1 = p2
   | ENil, ENil => True
   | EFun vl1 b1, EFun vl2 b2 =>
     if length vl1 =? length vl2 then
@@ -378,15 +379,17 @@ Global Hint Resolve Erel_open_scope_r : core.
 Lemma Vrel_possibilities : forall {n v1 v2},
   Vrel n v1 v2 ->
   (exists n, v1 = ELit n /\ v2 = ELit n) \/
+  (exists p, v1 = EPid p /\ v2 = EPid p) \/
   (exists vl1 vl2 b1 b2, v1 = EFun vl1 b1 /\ v2 = EFun vl2 b2) \/
   (exists v11 v12 v21 v22, v1 = VCons v11 v12 /\ v2 = VCons v21 v22) \/
   (v1 = ENil /\ v2 = ENil).
 Proof.
   intros; destruct v1, v2; destruct H as [? [? ?] ]; subst; try contradiction.
   * left. eexists; split. reflexivity. reflexivity.
-  * right. left. repeat eexists.
-  * intuition.
+  * right. left. eexists; split. reflexivity. reflexivity.
   * right. right. left. repeat eexists.
+  * intuition.
+  * right. right. right. left. repeat eexists.
 Qed.
 
 Lemma Vrel_open_closed : forall {Γ e1 e2},
@@ -406,7 +409,7 @@ Proof.
   1-4: split;[auto|split; auto].
   * break_match_goal; intros; try congruence; try lia.
     rewrite Nat.eqb_refl in Heqb; congruence.
-  * inversion P'. split. apply IHe1; auto. apply IHe2; auto.
+  * inversion P'. split; auto.
   * epose proof (H0 x H1). rewrite Heqs in H2. lia.
 Qed.
 

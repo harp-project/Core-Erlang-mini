@@ -4,6 +4,7 @@ src/ExpSyntax.v
 src/ExpManipulation.v
 src/Scoping.v
 src/SubstSemantics.v
+src/ConcurrentSemantics.v
 src/LogRel.v
 src/Compatibility.v
 src/CIU.v

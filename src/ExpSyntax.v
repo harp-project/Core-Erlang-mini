@@ -43,12 +43,6 @@ Inductive Exp : Set :=
 | ESend (p : PID) (e : Exp)
 | EReceive (l : list (Pat * Exp)).
 
-Inductive Action : Set :=
-| ASend (p : PID) (t : Exp)
-| AReceive (t : Exp)
-| AArrive (t : Exp)
-| AInternal.
-
 Section correct_exp_ind.
 
   Variables

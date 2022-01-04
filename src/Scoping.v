@@ -1068,5 +1068,116 @@ match goal with
 | [ H: VAL _ ⊢ (EVar _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EFunId _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (ECons _ _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (ESend _ _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (EReceive _) |- _ ] => inversion H
 end.
+
+Theorem scoped_dec : 
+  forall e Γ, (EXP Γ ⊢ e \/ ~ EXP Γ ⊢ e) /\ (VAL Γ ⊢ e \/ ~ VAL Γ ⊢ e).
+Proof.
+  induction e using Exp_ind2 with
+    (Q := fun l => Forall (fun e => forall Γ, (EXP Γ ⊢ e \/ ~ EXP Γ ⊢ e) /\ (VAL Γ ⊢ e \/ ~ VAL Γ ⊢ e)) l)
+    (W := fun l => Forall (fun '(_,e) => forall Γ, (EXP Γ ⊢ e \/ ~ EXP Γ ⊢ e) /\ (VAL Γ ⊢ e \/ ~ VAL Γ ⊢ e)) l); intros.
+  * split; left; constructor; constructor.
+  * split; left; constructor; constructor.
+  * destruct (Compare_dec.lt_dec n Γ).
+    - split; left; constructor; auto. constructor. auto.
+    - split; right; intro; inversion H; inversion H0; congruence.
+  * destruct (Compare_dec.lt_dec n Γ).
+    - split; left; constructor; auto. constructor. auto.
+    - split; right; intro; inversion H; inversion H0; congruence.
+  * destruct (IHe (S (length vl) + Γ)) as [[H0_1 | H0_2] H1].
+    - split; left. now do 2 constructor. now constructor.
+    - split; right; intro; inversion H; inversion H0; subst; congruence.
+  * destruct (IHe Γ) as [[P1 | P2] ?].
+    - induction el; cbn.
+      + split. left. constructor; auto. intros. inversion H0.
+        right; intro; inversion H0.
+      + inversion IHe0. subst. clear IHe0. destruct (H2 Γ).
+        apply IHel in H3 as [P1' P2']. inversion P1'.
+        ** inversion H3. 2: inversion_is_value. subst. split.
+           -- inversion H0.
+              ++ left. constructor; auto. intros. destruct i; auto.
+                 cbn. apply H7. simpl in H5. lia.
+              ++ right. intro. inversion H5. 2: inversion_is_value.
+                 specialize (H11 0 ltac:(simpl;lia)).
+                 subst. simpl in H11. congruence.
+           -- right. intro. inversion_is_value.
+        ** split.
+           -- right. intro.
+              assert (EXP Γ ⊢ EApp e el).
+              { constructor; auto. inversion H4. 2: inversion_is_value.
+                intros. apply (H8 (S i)). simpl. lia. }
+              congruence.
+           -- right. intro. inversion_is_value.
+    - split; right; intro; inversion H0. congruence. inversion_is_value.
+  * destruct (IHe1 Γ) as [[P1 | P2] ?].
+    - destruct (IHe2 (S Γ)) as [[P1' | P2'] ?].
+      + split. left. constructor; auto. right. intro. inversion_is_value.
+      + split; right; intro; inversion H1. congruence. inversion_is_value.
+    - split; right; intro; inversion H0. congruence. inversion_is_value.
+  * destruct (IHe1 (S (length vl) + Γ)) as [[P1 | P2] ?].
+    - destruct (IHe2 (S Γ)) as [[P1' | P2'] ?].
+      + split. left. constructor; auto. right. intro. inversion_is_value.
+      + split; right; intro; inversion H1. congruence. inversion_is_value.
+    - split; right; intro; inversion H0. congruence. inversion_is_value.
+  * destruct (IHe1 Γ) as [[P1 | P2] ?].
+    - destruct (IHe2 Γ) as [[P1' | P2'] ?].
+      + split. left. constructor; auto. right. intro. inversion_is_value.
+      + split; right; intro; inversion H1. congruence. inversion_is_value.
+    - split; right; intro; inversion H0. congruence. inversion_is_value.
+  * destruct (IHe1 Γ) as [[P1 | P2] ?].
+    - destruct (IHe2 (pat_vars p + Γ)) as [[P1' | P2'] ?].
+      + destruct (IHe3 Γ) as [[P1'' | P2''] ?].
+        ** split. left. constructor; auto. right. intro. inversion_is_value.
+        ** split; right; intro; inversion H2. congruence. inversion_is_value.
+      + split; right; intro; inversion H1. congruence. inversion_is_value.
+    - split; right; intro; inversion H0. congruence. inversion_is_value.
+  * destruct (IHe1 Γ) as [[P1 | P2] ?].
+    - destruct (IHe2 Γ) as [[P1' | P2'] ?].
+      + split. left. constructor; auto. right. intro. inversion_is_value.
+      + split; right; intro; inversion H1. congruence. inversion_is_value.
+    - split; right; intro; inversion H0. congruence. inversion_is_value.
+  * split; left; constructor; constructor.
+  * destruct (IHe1 Γ) as [? [P1 | P2]].
+    - destruct (IHe2 Γ) as [? [P1' | P2']].
+      + split. left. do 2 constructor; auto. left; now constructor.
+      + split; right; intro; inversion H1; inversion H2; congruence.
+    - split; right; intro; inversion H0; inversion H1; congruence.
+  * destruct (IHe Γ) as [? [P1 | P2]].
+    - split. left. now do 2 constructor. right. intro. inversion H0.
+    - destruct H.
+      + split. left. now constructor. right. intro. inversion H0.
+      + split; right; intro; inversion H0; try congruence. inversion H1.
+  * induction l.
+    - split. left. constructor. intros. inversion H. right. intro. inversion H.
+    - inversion IHe. subst. destruct a. destruct (H1 (pat_vars p + Γ)) as [E V].
+      destruct E.
+      + apply IHl in H2 as [E2 V2]. destruct E2.
+        ** split. left. constructor. intros. destruct i.
+           exact H.
+           cbn in *. inversion H0. 2: inversion H3. subst. apply (H4 i). lia.
+           right. intro. inversion H2.
+        ** split; right; intro; inversion H2. 2: inversion H3.
+           assert (EXP Γ ⊢ EReceive l). { constructor. intros. apply (H4 (S i)). simpl. lia. }
+           congruence.
+      + split; right; intro; inversion H0. 2: inversion H3. subst.
+        specialize (H4 0 ltac:(simpl;lia)). cbn in H4. congruence.
+  * constructor; auto.
+  * constructor.
+  * constructor.
+  * constructor; auto.
+Qed.
+
+Corollary valscoped_dec Γ : 
+  forall e, VAL Γ ⊢ e \/ ~ VAL Γ ⊢ e.
+Proof.
+  intros. apply scoped_dec.
+Qed.
+
+Corollary expscoped_dec Γ : 
+  forall e, EXP Γ ⊢ e \/ ~ EXP Γ ⊢ e.
+Proof.
+  intros. apply scoped_dec.
+Qed.
 

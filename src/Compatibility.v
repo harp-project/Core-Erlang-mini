@@ -41,6 +41,24 @@ Qed.
 
 Global Hint Resolve Vrel_Lit_compat : core.
 
+Lemma Vrel_Pid_compat_closed :
+  forall m p,
+  Vrel m (EPid p) (EPid p).
+Proof.
+  intros. rewrite Vrel_Fix_eq. unfold Vrel_rec. repeat constructor.
+Qed.
+
+Global Hint Resolve Vrel_Pid_compat_closed : core.
+
+Lemma Vrel_Pid_compat :
+  forall Γ p,
+  Vrel_open Γ (EPid p) (EPid p).
+Proof.
+  unfold Vrel_open. intros. simpl. auto.
+Qed.
+
+Global Hint Resolve Vrel_Pid_compat : core.
+
 Lemma Vrel_Nil_compat_closed:
   forall m, Vrel m ENil ENil.
 Proof.
@@ -172,10 +190,13 @@ Proof.
   1-2, 4, 5, 7-8, 10-11: apply Vrel_closed in H; destruct H.
   1-8: repeat try constructor; auto.
   * do 2 unfold_hyps. subst. destruct H0, H1. eapply H3; eauto.
+  * do 2 unfold_hyps. subst. destruct H1, H1. eapply H3; eauto.
   * do 5 unfold_hyps. subst.
-    destruct H1, H1. subst. eapply H3; eauto. eapply Vrel_downclosed. eauto.
-  * destruct H0, H3. eapply H4; eauto. eapply Vrel_downclosed. eauto.
-  * subst. destruct H1, H1. eapply H2; eauto.
+    destruct H0, H1. subst. eapply H3; eauto. eapply Vrel_downclosed. eauto.
+  * destruct H1, H3. eapply H4; eauto. eapply Vrel_downclosed. eauto.
+  * subst. do 2 constructor.
+  * subst. do 2 constructor.
+  * subst. destruct H0, H1. eapply H2. 3: exact H3. lia. apply Vrel_Nil_compat_closed.
 Unshelve. all: auto.
 Qed.
 
@@ -251,8 +272,13 @@ Proof.
   * break_match_hyp. 2: congruence. inversion H0. subst. exists [].
     split. apply Z.eqb_eq in Heqb. subst. simpl. rewrite Z.eqb_refl. auto.
     constructor.
+  * break_match_hyp. 2: congruence. inversion H0. subst. exists [].
+    split. apply Nat.eqb_eq in Heqb. subst. simpl. rewrite Nat.eqb_refl. auto.
+    constructor.
   * inversion H0. subst. exists [ELit l0]. simpl. split; constructor.
     rewrite Vrel_Fix_eq. simpl; auto. constructor.
+  * subst. inversion H0. subst. exists [EPid p0]. split; constructor.
+     apply Vrel_Pid_compat_closed. constructor.
   * inversion H0. subst. exists [EFun vl0 v2]; simpl; split; auto.
     constructor. 2: constructor. rewrite Vrel_Fix_eq; simpl; auto.
   * inversion H0; subst. exists [ENil]; split; auto.
@@ -279,6 +305,7 @@ Proof.
   assert (VALCLOSED v2) by (eapply Vrel_closed in H; apply H).
   generalize dependent v2. revert n. generalize dependent v1.
   induction p; destruct v1, v2; intros; try inversion_is_value; rewrite Vrel_Fix_eq in H; destruct H as [Cl1 [Cl2 H]]; try contradiction; simpl in H0; try congruence; auto.
+  * break_match_hyp. congruence. simpl. subst. now rewrite Heqb.
   * break_match_hyp. congruence. simpl. subst. now rewrite Heqb.
   * inversion Cl1. inversion Cl2. subst. destruct H.
     rewrite <- Vrel_Fix_eq in H. rewrite <- Vrel_Fix_eq in H3.
@@ -754,6 +781,47 @@ Qed.
 
 Global Hint Resolve Erel_Case_compat : core.
 
+(** TODO: will be changed in the future: *)
+Lemma Erel_Send_compat_closed :
+  forall p1 p2 e1 e2 n,
+  Erel n e1 e2 ->
+  Erel n (ESend p1 e1) (ESend p2 e2).
+Proof.
+  intros. split. 2: split. 1-2: constructor; apply H.
+  intros. inversion H1; try inversion_is_value.
+Qed.
+
+(** TODO: will be changed in the future: *)
+Lemma Erel_Send_compat :
+  forall p1 p2 e1 e2 Γ,
+  Erel_open Γ e1 e2 ->
+  Erel_open Γ (ESend p1 e1) (ESend p2 e2).
+Proof.
+  intros. unfold Erel_open. intros. simpl. apply Erel_Send_compat_closed; auto.
+Qed.
+
+Global Hint Resolve Erel_Send_compat : core.
+
+(** TODO: will be changed in the future: *)
+Lemma Erel_Receive_compat_closed :
+  forall l1 l2 n,
+  (* Erel n e1 e2 -> *)
+  Erel n (EReceive l1) (EReceive l2).
+Proof.
+  
+Admitted.
+
+(** TODO: will be changed in the future: *)
+Lemma Erel_Receive_compat :
+  forall l1 l2 Γ,
+  (* Erel_open Γ e1 e2 -> *)
+  Erel_open Γ (EReceive l1) (EReceive l2).
+Proof.
+  intros. unfold Erel_open. intros. simpl. apply Erel_Receive_compat_closed; auto.
+Qed.
+
+Global Hint Resolve Erel_Send_compat : core.
+
 Theorem Erel_Vrel_Fundamental_helper :
   forall (e : Exp),
     (forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e) /\
@@ -761,6 +829,8 @@ Theorem Erel_Vrel_Fundamental_helper :
 Proof.
   induction e using Exp_ind2 with
    (Q := fun l => Forall (fun e => (forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e) /\
+                                   (forall Γ, VAL Γ ⊢ e -> Vrel_open Γ e e)) l)
+   (W := fun l => Forall (fun '(_,e) => (forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e) /\
                                    (forall Γ, VAL Γ ⊢ e -> Vrel_open Γ e e)) l);
   intuition auto; try inversion_is_value.
   * apply Erel_Val_compat, Vrel_Var_compat. inversion H. now inversion H0.
@@ -785,6 +855,8 @@ Proof.
   * inversion H3. inversion H4. subst. apply Erel_Val_compat.
     apply Vrel_Cons_compat. now apply H0. now apply H2.
   * inversion H3. subst. apply Vrel_Cons_compat. now apply H0. now apply H2.
+  * inversion H1. 2: inversion_is_value. subst. apply H in H3. now apply Erel_Send_compat.
+  * apply Erel_Receive_compat.
 Qed.
 
 Theorem Erel_Fundamental :
@@ -904,17 +976,21 @@ Proof.
 
   apply Vrel_possibilities in H13. destruct H13.
   2: { do 2 destruct H13.
-    * do 4 destruct H13; congruence.
-    * do 5 destruct H13; congruence.
-    * destruct H13; congruence.
+    * destruct H13. congruence.
+    * do 5 destruct H13. congruence.
+    * destruct H13.
+      do 5 destruct H13; congruence.
+      destruct H13; congruence.
   }
   destruct H13, H13. subst.
 
   apply Vrel_possibilities in H6. destruct H6. 
   2: { do 2 destruct H6.
-    * do 4 destruct H6; congruence.
-    * do 5 destruct H6; congruence.
-    * destruct H6; congruence.
+    * destruct H6. congruence.
+    * do 5 destruct H6. congruence.
+    * destruct H6.
+      do 5 destruct H6; congruence.
+      destruct H6; congruence.
   }
   destruct H6, H6. subst.
 
@@ -935,17 +1011,21 @@ Proof.
 
   apply Vrel_possibilities in H'. destruct H'.
   2: { do 2 destruct H10.
-    * do 4 destruct H10; congruence.
-    * do 5 destruct H10; congruence.
-    * destruct H10; congruence.
+    * destruct H10. congruence.
+    * do 5 destruct H10. congruence.
+    * destruct H10.
+      do 5 destruct H10; congruence.
+      destruct H10; congruence.
   }
   do 2 destruct H10. subst.
 
   apply Vrel_possibilities in H6. destruct H6. 
   2: { do 2 destruct H6.
-    * do 4 destruct H6; congruence.
-    * do 5 destruct H6; congruence.
-    * destruct H6; congruence.
+    * destruct H6. congruence.
+    * do 5 destruct H6. congruence.
+    * destruct H6.
+      do 5 destruct H6; congruence.
+      destruct H6; congruence.
   }
   destruct H6, H6. subst.
 
@@ -1091,6 +1171,7 @@ Proof.
       apply scope_idsubst.
     - eapply Frel_Cons_tail; eauto.
     - eapply Frel_Cons_head; eauto.
+    - assert (VALCLOSED v1). { eapply Vrel_closed_l; eauto. } inversion H1; subst; inversion_is_value.
 Qed.
 
 Global Hint Resolve Frel_Fundamental_closed : core.
