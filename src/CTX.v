@@ -2356,6 +2356,27 @@ Proof.
   * epose proof (H1 (ELit l) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
     inversion Eval2. destruct H3. inversion H3.
     subst. 2: inversion H4. auto.
+  * epose proof (H1 (ELit l) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
+    inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (EPid p) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
+    inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (EPid p) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
+    inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (EPid p) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
+    inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (EPid p) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
+    inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (EPid p) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
+    inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (EFun vl e1) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
+    inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
   * epose proof (H1 (EFun vl e1) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
     inversion Eval2. destruct H3. inversion H3.
     subst. 2: inversion H4. auto.
@@ -2376,6 +2397,12 @@ Proof.
     inversion Eval2. destruct H3. inversion H3.
     subst. 2: inversion H4. auto.
   * epose proof (H1 ENil [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
+    inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 ENil [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
+    inversion Eval2. destruct H3. inversion H3.
+    subst. 2: inversion H4. auto.
+  * epose proof (H1 (VCons e1_1 e1_2) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
     inversion Eval2. destruct H3. inversion H3.
     subst. 2: inversion H4. auto.
   * epose proof (H1 (VCons e1_1 e1_2) [] ltac:(constructor) _) as [v2 [Eval2 eq2]].
@@ -2468,6 +2495,24 @@ Proof.
       inversion H17. now apply Z.eqb_eq in Heqb.
       + subst. apply inf_diverges in H18. contradiction.
     - assert (| Fs ++ [FCase (PLit l) (ELit 0) inf], e1 | ↓) as T1. {
+        destruct H1, H8.
+        apply frame_indep_nil with (Fs' := [FCase (PLit l) (ELit 0) inf]) in H8.
+        assert (⟨ [FCase (PLit l) (ELit 0) inf], ELit l ⟩ -[1]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor. cbn. rewrite Z.eqb_refl. reflexivity.
+          constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x + 1). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H6 (Fs ++ [FCase (PLit l) (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H7, H9.
+      apply frame_indep_nil with (Fs' := [FCase (PLit l) (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. subst. simpl in *. congruence.
+      subst. now apply inf_diverges in H18.
+    - assert (| Fs ++ [FCase (PLit l) (ELit 0) inf], e1 | ↓) as T1. {
         destruct H1, H8. apply frame_indep_nil with (Fs' := [FCase (PLit l) (ELit 0) inf]) in H8.
         assert (⟨ [FCase (PLit l) (ELit 0) inf], ELit l ⟩ -[1]-> ⟨[], ELit 0⟩).
         {
@@ -2531,6 +2576,109 @@ Proof.
       destruct CONTRA.
       destruct H1, H9.
       apply frame_indep_nil with (Fs' := [FCase (PLit l) (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. inversion H17. now apply inf_diverges in H18.
+    - assert (| Fs ++ [FCase (PPid p) (ELit 0) inf], e1 | ↓) as T1. {
+        destruct H1, H8.
+        apply frame_indep_nil with (Fs' := [FCase (PPid p) (ELit 0) inf]) in H8.
+        assert (⟨ [FCase (PPid p) (ELit 0) inf], EPid p ⟩ -[1]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor. cbn. rewrite Nat.eqb_refl. reflexivity.
+          constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x + 1). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H6 (Fs ++ [FCase (PPid p) (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H7, H9.
+      apply frame_indep_nil with (Fs' := [FCase (PPid p) (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. subst. simpl in *. break_match_hyp. 2: congruence.
+      inversion H17. now apply Nat.eqb_eq in Heqb.
+      + subst. apply inf_diverges in H18. contradiction.
+    - assert (| Fs ++ [FCase (PPid p) (ELit 0) inf], e1 | ↓) as T1. {
+        destruct H1, H8.
+        apply frame_indep_nil with (Fs' := [FCase (PPid p) (ELit 0) inf]) in H8.
+        assert (⟨ [FCase (PPid p) (ELit 0) inf], (EPid p) ⟩ -[1]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor. cbn. rewrite Nat.eqb_refl. reflexivity.
+          constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x0 + 1). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H6 (Fs ++ [FCase (PPid p) (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H7, H9.
+      apply frame_indep_nil with (Fs' := [FCase (PPid p) (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. subst. simpl in *. congruence.
+      subst. now apply inf_diverges in H18.
+    - assert (| Fs ++ [FCase (PPid p) (ELit 0) inf], e1 | ↓) as T1. {
+        destruct H1, H8. apply frame_indep_nil with (Fs' := [FCase (PPid p) (ELit 0) inf]) in H8.
+        assert (⟨ [FCase (PPid p) (ELit 0) inf], EPid p ⟩ -[1]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor. simpl. rewrite Nat.eqb_refl. reflexivity.
+          constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x + 1). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H6 (Fs ++ [FCase (PPid p) (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H7, H9.
+      apply frame_indep_nil with (Fs' := [FCase (PPid p) (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. inversion H17. now apply inf_diverges in H18.
+    (* P : CIU e2 e1 -> is used only for the following subgoal for simplicity,
+                        however, it should be possible to avoid it *)
+    - assert (| Fs ++ [FCase (PPid p) (ELit 0) inf], e1 | ↓) as T1. {
+        destruct H1, H8. apply frame_indep_nil with (Fs' := [FCase (PPid p) (ELit 0) inf]) in H8.
+        assert (⟨ [FCase (PPid p) (ELit 0) inf], EPid p ⟩ -[1]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor. simpl. rewrite Nat.eqb_refl. reflexivity.
+          constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x + 1). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H6 (Fs ++ [FCase (PPid p) (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H7, H9.
+      apply frame_indep_nil with (Fs' := [FCase (PPid p) (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. inversion H17. now apply inf_diverges in H18.
+    - assert (| Fs ++ [FCase (PLit l) (ELit 0) inf], e2 | ↓) as T1. {
+        destruct H7, H8. apply frame_indep_nil with (Fs' := [FCase (PLit l) (ELit 0) inf]) in H8.
+        assert (⟨ [FCase (PLit l) (ELit 0) inf], ELit l ⟩ -[1]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor. simpl. rewrite Z.eqb_refl.
+          reflexivity. constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x + 1). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H5 (Fs ++ [FCase (PLit l) (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H1, H9.
+      apply frame_indep_nil with (Fs' := [FCase (PLit l) (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. inversion H17. now apply inf_diverges in H18.
+    - assert (| Fs ++ [FCase (PPid p) (ELit 0) inf], e2 | ↓) as T1. {
+        destruct H7, H8. apply frame_indep_nil with (Fs' := [FCase (PPid p) (ELit 0) inf]) in H8.
+        assert (⟨ [FCase (PPid p) (ELit 0) inf], (EPid p) ⟩ -[1]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor. simpl. rewrite Nat.eqb_refl.
+          reflexivity. constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x + 1). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H5 (Fs ++ [FCase (PPid p) (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H1, H9.
+      apply frame_indep_nil with (Fs' := [FCase (PPid p) (ELit 0) inf]) in H9.
       eapply terminates_step_any_2 in H8. 2: eauto.
       inversion H8. inversion H17. now apply inf_diverges in H18.
     - intros. unfold equivalent_exps2. intros.
@@ -2628,6 +2776,22 @@ Proof.
           constructor.
         }
         apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x + 1). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H6 (Fs ++ [FCase PNil (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H7, H9.
+      apply frame_indep_nil with (Fs' := [FCase PNil (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. inversion H17. now apply inf_diverges in H18.
+    - assert (| Fs ++ [FCase (PNil) (ELit 0) inf], e1 | ↓) as T1. {
+        destruct H1, H8. apply frame_indep_nil with (Fs' := [FCase PNil (ELit 0) inf]) in H8.
+        assert (⟨ [FCase (PNil) (ELit 0) inf], ENil ⟩ -[1]-> ⟨[], ELit 0⟩).
+        {
+          econstructor. constructor. constructor. simpl. reflexivity.
+          constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
         exists (x0 + 1). eapply transitive_eval. exact H8. auto.
       }
       epose proof (CONTRA := H6 (Fs ++ [FCase PNil (ELit 0) inf]) _ T1).
@@ -2650,6 +2814,23 @@ Proof.
       destruct CONTRA.
       destruct H7, H9.
       apply frame_indep_nil with (Fs' := [FCase PNil (ELit 0) inf]) in H9.
+      eapply terminates_step_any_2 in H8. 2: eauto.
+      inversion H8. inversion H17. now apply inf_diverges in H18.
+    - assert (| Fs ++ [FCase (PCons PVar PVar) (ELit 0) inf], e1 | ↓) as T1. {
+        destruct H1, H8. apply frame_indep_nil with (Fs' := [FCase (PCons PVar PVar) (ELit 0) inf]) in H8.
+        assert (⟨ [FCase (PCons PVar PVar) (ELit 0) inf], (VCons v1_1 v1_2) ⟩ -[1]-> ⟨[], ELit 0⟩).
+        {
+          inversion Vv1.
+          econstructor. constructor. constructor. all: auto. simpl. reflexivity.
+          constructor.
+        }
+        apply terminates_eq_terminates_sem. exists (ELit 0). split. constructor.
+        exists (x + 1). eapply transitive_eval. exact H8. auto.
+      }
+      epose proof (CONTRA := H6 (Fs ++ [FCase (PCons PVar PVar) (ELit 0) inf]) _ T1).
+      destruct CONTRA.
+      destruct H7, H9.
+      apply frame_indep_nil with (Fs' := [FCase (PCons PVar PVar) (ELit 0) inf]) in H9.
       eapply terminates_step_any_2 in H8. 2: eauto.
       inversion H8. inversion H17. now apply inf_diverges in H18.
     - assert (| Fs ++ [FCase (PCons PVar PVar) (ELit 0) inf], e1 | ↓) as T1. {
