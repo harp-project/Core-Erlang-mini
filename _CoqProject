@@ -1,4 +1,4 @@
--R src Core_Erlang
+-R src/ Core_Erlang
 src/Basics.v
 src/ExpSyntax.v
 src/ExpManipulation.v

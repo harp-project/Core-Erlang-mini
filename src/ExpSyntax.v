@@ -40,7 +40,7 @@ Inductive Exp : Set :=
 (** Recursive data structures which are values: *)
 | VCons (e1 e2 : Exp)
 (** Concurrency *)
-| ESend (p : PID) (e : Exp)
+| ESend (p e : Exp)
 | EReceive (l : list (Pat * Exp)).
 
 Section correct_exp_ind.
@@ -66,7 +66,7 @@ Section correct_exp_ind.
    (H10 : forall e1, P e1 -> forall e2, P e2 -> P (ECons e1 e2))
    (H11 : P ENil)
    (H12 : forall e1, P e1 -> forall e2, P e2 -> P (VCons e1 e2))
-   (H13 : forall e, P e -> forall p, P (ESend p e))
+   (H13 : forall e, P e -> forall p, P p -> P (ESend p e))
    (H14 : forall l, W l -> P (EReceive l))
    (H' : forall v : Exp, P v -> forall l:list Exp, Q l -> Q (v :: l))
    (H1' : Q [])
@@ -92,7 +92,7 @@ Section correct_exp_ind.
   | ECons e1 e2 => H10 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ENil => H11
   | VCons e1 e2 => H12 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
-  | ESend p e => H13 e (Exp_ind2 e) p
+  | ESend p e => H13 e (Exp_ind2 e) p (Exp_ind2 p)
   | EReceive l => H14 l ((fix l_ind (l':list (Pat * Exp)) : W l' :=
                                          match l' as x return W x with
                                          | [] => J

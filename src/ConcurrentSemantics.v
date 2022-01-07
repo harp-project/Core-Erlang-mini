@@ -39,14 +39,16 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 ->
   (fs, e, mb) -⌈ AInternal ⌉-> (fs', e', mb)
 
-| p_send_local fs e ι mb :
-  (fs, ESend ι e, mb) -⌈ AInternal ⌉-> (FSend ι :: fs, e, mb)
+| p_send_local1 fs e ι mb :
+  (fs, ESend ι e, mb) -⌈ AInternal ⌉-> (FSend1 e :: fs, ι, mb)
+| p_send_local2 fs e v mb : VALCLOSED v ->
+  (FSend1 e :: fs, v, mb) -⌈ AInternal ⌉-> (FSend2 v :: fs, e, mb)
 
 | p_arrive mb mb' fs e v : VALCLOSED v -> mb' = mb ++ [v] ->
   (fs, e, mb) -⌈ AArrive v ⌉-> (fs, e, mb')
 
-| p_send ι v mb fs :
-  (FSend ι :: fs, v, mb) -⌈ ASend ι v ⌉-> (fs, v, mb)
+| p_send ι v mb fs : 
+  (FSend2 (EPid ι) :: fs, v, mb) -⌈ ASend ι v ⌉-> (fs, v, mb)
 
 | p_receive mb l fs e m mb' bindings :
   receive mb l = Some (m, e, bindings) -> mb' = pop m mb
@@ -65,46 +67,50 @@ Notation "x -⌈ k | xs ⌉-> y" := (LabelStar processLocalSemantics x k xs y) (
 (****************************   NODES  ****************************************)
 (******************************************************************************)
 
-Require Import Coq.FSets.FMapList.
+(* Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 
-Module Import NatMap := FMapList.Make(Nat_as_OT).
+Module Import NatMap := FMapList.Make(Nat_as_OT). *)
+From stdpp Require Import natmap fin_maps.
 
-Definition Node := t Process.
-Definition par (pid : PID) (proc: Process) (n : Node) : Node := add pid proc n.
+Definition Node := natmap Process. Search natmap.
+Definition nullnode : Node := empty.
+Definition par (pid : PID) (proc: Process) (n : Node) : Node := map_insert pid proc n.
 
-Notation "pid : p ||| n" := (par pid p n) (at level 30, right associativity).
+Notation "pid : p |||| n" := (par pid p n) (at level 30, right associativity).
+
+Definition find (x : PID) (Π : Node) : option Process := lookup x Π.
 
 Reserved Notation "n -[ a | ι ]ₙ-> n'" (at level 50).
 Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
-| nsend1 p p' q q' Π Π' ι ι' t :
+| nsend1 p p' q q' Π Π' (ι ι' : PID) t :
   find ι Π = Some p -> find ι' Π = Some q ->
-  Π' = ι : p' ||| ι' : q' ||| Π ->
+  Π' = ι : p' |||| ι' : q' |||| Π ->
   p -⌈ASend ι' t⌉-> p' -> q -⌈AArrive t⌉-> q' -> ι <> ι'
 ->
   Π -[ASend ι' t | ι]ₙ-> Π'
 
-| nsend2 p p' p'' t ι Π Π' :
-  find ι Π = Some p -> Π' = ι : p'' ||| Π ->
+| nsend2 p p' p'' t (ι : PID) Π Π' :
+  find ι Π = Some p -> Π' = ι : p'' |||| Π ->
   p -⌈ASend ι t⌉-> p' -> p' -⌈AArrive t⌉-> p'' (** two transitions, because this is atomic! *)
 ->
   Π -[ASend ι t | ι]ₙ-> Π'
 
-| nsend3 p p' ι ι' Π Π' t :
+| nsend3 p p' (ι ι' : PID) Π Π' t :
   find ι Π = Some p -> find ι' Π = None ->
-  Π' = ι : p' ||| Π ->
+  Π' = ι : p' |||| Π ->
   p -⌈ASend ι' t⌉-> p'
 ->
   Π -[ASend ι' t | ι]ₙ-> Π'
 
-| nreceive p p' t Π Π' ι :
-  find ι Π = Some p -> Π' = ι : p' ||| Π ->
+| nreceive p p' t Π Π' (ι : PID) :
+  find ι Π = Some p -> Π' = ι : p' |||| Π ->
   p -⌈AReceive t⌉-> p'
 ->
   Π -[AReceive t | ι]ₙ-> Π'
 
-| ninternal p p' Π Π' ι :
-  find ι Π = Some p -> Π' = ι : p' ||| Π ->
+| ninternal p p' Π Π' (ι : PID) :
+  find ι Π = Some p -> Π' = ι : p' |||| Π ->
   p -⌈AInternal⌉-> p'
 ->
   Π -[AInternal | ι]ₙ-> Π'
@@ -147,9 +153,7 @@ match e1, e2 with
  | EReceive l, EReceive l2 => _
  | _, _ => false
 end. *)
-
-Print slist.
-
+(* 
 Fixpoint list_eq_Node (l : list (PID * Process)) (n : Node) : Prop :=
 match l with
 | [] => True
@@ -158,19 +162,19 @@ end.
 
 Definition equivalent (n1 n2 : Node) : Prop :=
 match n1 with
-| {| this := x; sorted := y |} => length (this n2) = length x /\ list_eq_Node x n2
-end.
+| {| this := x; sorted := y |} => length n2 = length x /\ list_eq_Node x n2
+end. *)
+
+#[export] Instance processEq : Equiv Process := eq.
 
 Reserved Notation "n -[ k | l ]ₙ->* n'" (at level 50).
 Inductive closureNodeSem : Node -> nat -> list (Action * PID) -> Node -> Prop :=
-| nrefl n n' : equivalent n n' -> n -[ 0 | [] ]ₙ->* n'
+| nrefl n n' : map_equiv n n' -> n -[ 0 | [] ]ₙ->* n'
 | ntrans n n' n'' k l a ι:
   n -[a|ι]ₙ-> n' -> n' -[k|l]ₙ->* n''
 ->
   n -[S k | (a,ι)::l]ₙ->* n''
 where "n -[ k | l ]ₙ->* n'" := (closureNodeSem n k l n').
-
-Definition nullnode : Node := empty Process.
 
 (*
   0 -[ 1 + 1 ]-> 1
@@ -179,20 +183,22 @@ Definition nullnode : Node := empty Process.
   3 : 2 + 3 == 5
 *)
 Goal exists acts k,
-  0 : ([], ESend 1 (EPlus (ELit 1) (ELit 1)), []) |||
-  1 : ([], EReceive [(PVar, ESend 3 (EVar 0))], []) |||
-  2 : ([], ESend 3 (ELit 3), []) |||
-  3 : ([], EReceive [(PVar, EReceive [(PVar, EPlus (EVar 0) (EVar 1))])], []) ||| nullnode
+  0 : ([], ESend (EPid 1) (EPlus (ELit 1) (ELit 1)), []) ||||
+  1 : ([], EReceive [(PVar, ESend (EPid 3) (EVar 0))], []) ||||
+  2 : ([], ESend (EPid 3) (ELit 3), []) ||||
+  3 : ([], EReceive [(PVar, EReceive [(PVar, EPlus (EVar 0) (EVar 1))])], []) |||| nullnode
   -[ k | acts ]ₙ->*
-  0 : ([], ELit 2, []) |||
-  1 : ([], ELit 2, []) |||
-  2 : ([], ELit 3, []) |||
-  3 : ([], ELit 5, []) ||| nullnode.
+  0 : ([], ELit 2, []) ||||
+  1 : ([], ELit 2, []) ||||
+  2 : ([], ELit 3, []) ||||
+  3 : ([], ELit 5, []) |||| nullnode.
 Proof.
-  eexists. exists 15.
+  eexists. exists 18.
   (* Some steps with 0 *)
   eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  apply p_send_local.
+  apply p_send_local1.
+  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
+  apply p_send_local2. constructor.
   eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
   constructor. constructor.
   eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
@@ -200,7 +206,9 @@ Proof.
 
   (* Some steps with 2 *)
   eapply ntrans. eapply ninternal with (ι := 2); cbn; try reflexivity.
-  apply p_send_local.
+  apply p_send_local1.
+  eapply ntrans. eapply ninternal with (ι := 2); cbn; try reflexivity.
+  apply p_send_local2. constructor.
   eapply ntrans. eapply nsend1 with (ι := 2) (ι' := 3); cbn; try reflexivity.
   constructor.
   constructor. constructor. simpl. reflexivity. lia.
@@ -214,18 +222,19 @@ Proof.
   eapply ntrans. eapply nreceive with (ι := 1); cbn; try reflexivity.
   constructor; try reflexivity.
   eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
-  apply p_send_local.
+  apply p_send_local1.
+  eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
+  apply p_send_local2. constructor.
   eapply ntrans. eapply nsend1 with (ι := 1) (ι' := 3); cbn; try reflexivity.
   constructor. constructor. constructor. reflexivity. lia.
   (* Mailbox processing for 3 *)
   eapply ntrans. eapply nreceive with (ι := 3); cbn; try reflexivity.
   constructor; try reflexivity. cbn.
   break_match_goal. 2: congruence.
-  break_match_goal. congruence.
+  break_match_goal. 2: congruence.
+  break_match_goal. simpl in e1. inversion e1.
   eapply ntrans. eapply nreceive with (ι := 3); cbn; try reflexivity.
   constructor; try reflexivity.
-  break_match_goal. 2: congruence.
-  cbn. break_match_goal. 2: congruence.
 
   eapply ntrans. eapply ninternal with (ι := 3); cbn; try reflexivity.
   constructor. constructor.
@@ -235,6 +244,82 @@ Proof.
   constructor. constructor.
 
   apply nrefl.
-  simpl. cbn. intuition.
+  simpl. cbn.
+  break_match_goal. 2: congruence.
+  cbn. intro. intros. auto.
 Qed.
 
+Definition bisimulation (R : Node -> Node -> Prop) :=
+  (forall p q p' a ι, R p q -> p -[a | ι]ₙ-> p' -> exists q', q -[a | ι]ₙ-> q' /\ R p' q') /\
+  (forall p q q' a ι, R p q -> q -[a | ι]ₙ-> q' -> exists p', p -[a | ι]ₙ-> p' /\ R p' q').
+
+Theorem eq_is_bisim :
+  bisimulation eq.
+Proof.
+  split; intros.
+  {
+    subst. induction H0.
+    * inversion H2. inversion H3. subst. eexists. split. 2: reflexivity.
+      eapply nsend1; try eassumption. reflexivity.
+    * inversion H1. inversion H2. subst. eexists. split. 2: reflexivity.
+      eapply nsend2; try eassumption. reflexivity.
+    * inversion H2. subst. eexists. split. 2: reflexivity.
+      eapply nsend3; try eassumption. reflexivity.
+    * inversion H1. subst. eexists. split. 2: reflexivity.
+      eapply nreceive; try eassumption. reflexivity.
+    * inversion H1; subst.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+  }
+  {
+    subst. induction H0.
+    * inversion H2. inversion H3. subst. eexists. split. 2: reflexivity.
+      eapply nsend1; try eassumption. reflexivity.
+    * inversion H1. inversion H2. subst. eexists. split. 2: reflexivity.
+      eapply nsend2; try eassumption. reflexivity.
+    * inversion H2. subst. eexists. split. 2: reflexivity.
+      eapply nsend3; try eassumption. reflexivity.
+    * inversion H1. subst. eexists. split. 2: reflexivity.
+      eapply nreceive; try eassumption. reflexivity.
+    * inversion H1; subst.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+  }
+Qed.
+
+Theorem equivalent_is_bisim :
+  bisimulation map_equiv.
+Proof.
+   split; intros.
+  {
+    (* subst. induction H0.
+    * inversion H2. inversion H3. subst. exists (ι : (fs, t0, mb) |||| ι' : q' |||| q). split.
+      eapply nsend1; try eassumption. reflexivity.
+    * inversion H1. inversion H2. subst. eexists. split. 2: reflexivity.
+      eapply nsend2; try eassumption. reflexivity.
+    * inversion H2. subst. eexists. split. 2: reflexivity.
+      eapply nsend3; try eassumption. reflexivity.
+    * inversion H1. subst. eexists. split. 2: reflexivity.
+      eapply nreceive; try eassumption. reflexivity.
+    * inversion H1; subst.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+  }
+  {
+    subst. induction H0.
+    * inversion H2. inversion H3. subst. eexists. split. 2: reflexivity.
+      eapply nsend1; try eassumption. reflexivity.
+    * inversion H1. inversion H2. subst. eexists. split. 2: reflexivity.
+      eapply nsend2; try eassumption. reflexivity.
+    * inversion H2. subst. eexists. split. 2: reflexivity.
+      eapply nsend3; try eassumption. reflexivity.
+    * inversion H1. subst. eexists. split. 2: reflexivity.
+      eapply nreceive; try eassumption. reflexivity.
+    * inversion H1; subst.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity. *)
+Abort.

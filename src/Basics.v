@@ -249,3 +249,11 @@ Proof.
   inversion H0; subst. auto.
   eapply IHl; eauto.
 Qed.
+
+Lemma biforall_refl {T} (l : list T) (P : T -> T -> Prop) :
+  (forall x, P x x)
+->
+  list_biforall P l l.
+Proof.
+  induction l; intros; constructor; auto.
+Qed.

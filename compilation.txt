@@ -3,6 +3,7 @@ coqc src\ExpSyntax.v -R src Core_Erlang
 coqc src\ExpManipulation.v -R src Core_Erlang
 coqc src\Scoping.v -R src Core_Erlang
 coqc src\SubstSemantics.v -R src Core_Erlang
+coqc src\ConcurrentSemantics.v -R src Core_Erlang
 coqc src\LogRel.v -R src Core_Erlang
 coqc src\Compatibility.v -R src Core_Erlang
 coqc src\CIU.v -R src Core_Erlang

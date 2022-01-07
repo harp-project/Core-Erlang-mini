@@ -784,17 +784,17 @@ Global Hint Resolve Erel_Case_compat : core.
 (** TODO: will be changed in the future: *)
 Lemma Erel_Send_compat_closed :
   forall p1 p2 e1 e2 n,
-  Erel n e1 e2 ->
+  Erel n e1 e2 -> Erel n p1 p2 ->
   Erel n (ESend p1 e1) (ESend p2 e2).
 Proof.
-  intros. split. 2: split. 1-2: constructor; apply H.
-  intros. inversion H1; try inversion_is_value.
+  intros. split. 2: split. 1-2: constructor. 1, 3: apply H0. 1-2: apply H.
+  intros. inversion H2; try inversion_is_value.
 Qed.
 
 (** TODO: will be changed in the future: *)
 Lemma Erel_Send_compat :
   forall p1 p2 e1 e2 Γ,
-  Erel_open Γ e1 e2 ->
+  Erel_open Γ e1 e2 -> Erel_open Γ p1 p2 -> 
   Erel_open Γ (ESend p1 e1) (ESend p2 e2).
 Proof.
   intros. unfold Erel_open. intros. simpl. apply Erel_Send_compat_closed; auto.
@@ -855,7 +855,7 @@ Proof.
   * inversion H3. inversion H4. subst. apply Erel_Val_compat.
     apply Vrel_Cons_compat. now apply H0. now apply H2.
   * inversion H3. subst. apply Vrel_Cons_compat. now apply H0. now apply H2.
-  * inversion H1. 2: inversion_is_value. subst. apply H in H3. now apply Erel_Send_compat.
+  * inversion H3. 2: inversion_is_value. subst. apply H in H7. apply H1 in H6. now apply Erel_Send_compat.
   * apply Erel_Receive_compat.
 Qed.
 
@@ -1171,6 +1171,7 @@ Proof.
       apply scope_idsubst.
     - eapply Frel_Cons_tail; eauto.
     - eapply Frel_Cons_head; eauto.
+    - assert (VALCLOSED v1). { eapply Vrel_closed_l; eauto. } inversion H1; subst; inversion_is_value.
     - assert (VALCLOSED v1). { eapply Vrel_closed_l; eauto. } inversion H1; subst; inversion_is_value.
 Qed.
 

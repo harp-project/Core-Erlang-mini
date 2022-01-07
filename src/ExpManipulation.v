@@ -42,7 +42,7 @@ match e with
  | ECons e1 e2 => ECons (rename ρ e1) (rename ρ e2)
  | ENil => e
  | VCons e1 e2 => VCons (rename ρ e1) (rename ρ e2)
- | ESend p e => ESend p (rename ρ e)
+ | ESend p e => ESend (rename ρ p) (rename ρ e)
  | EReceive l => EReceive (map (fun '(p, v) => (p, rename (uprenn (pat_vars p) ρ) v)) l)
 end.
 
@@ -89,7 +89,7 @@ match base with
  | ECons e1 e2 => ECons (subst ξ e1) (subst ξ e2)
  | ENil => base
  | VCons e1 e2 => VCons (subst ξ e1) (subst ξ e2)
- | ESend p e => ESend p (subst ξ e)
+ | ESend p e => ESend (subst ξ p) (subst ξ e)
  | EReceive l => EReceive (map (fun '(p, v) => (p, subst (upn (pat_vars p) ξ) v)) l)
 end.
 
@@ -173,7 +173,7 @@ Proof.
   * rewrite IHe1, IHe3, <- renn_up, IHe2. auto.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
-  * now rewrite IHe.
+  * now rewrite IHe1, IHe2.
   * erewrite map_ext_Forall. reflexivity.
     induction l; constructor.
     - destruct a. specialize (IHe (uprenn (pat_vars p) ρ)). inversion IHe. subst.
@@ -275,7 +275,7 @@ Proof.
   * now rewrite IHe1, IHe3, <- renn_up, IHe2, uprenn_subst_upn.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
-  * now rewrite IHe.
+  * now rewrite IHe1, IHe2.
   * erewrite map_map, map_ext_Forall. reflexivity. auto.
     induction l; auto; constructor.
     - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
@@ -314,7 +314,7 @@ Proof.
   * now rewrite IHe1, IHe2, IHe3, <- uprenn_comp.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
-  * now rewrite IHe.
+  * now rewrite IHe1, IHe2.
   * erewrite map_map, map_ext_Forall. reflexivity. auto.
     induction l; auto; constructor.
     - clear IHl. destruct a. epose proof (IHe _ _ _). inversion H. subst.
@@ -336,7 +336,7 @@ Proof.
   * now rewrite IHe1, IHe3, rename_up.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
-  * now rewrite IHe.
+  * now rewrite IHe1, IHe2.
   * erewrite map_map, map_ext_Forall. reflexivity. auto.
     induction l; auto; constructor.
     - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
@@ -383,7 +383,7 @@ Proof.
   * now rewrite IHe1, <- renn_up, <- subst_upn_uprenn, IHe2, IHe3.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
-  * now rewrite IHe.
+  * now rewrite IHe1, IHe2.
   * erewrite map_map, map_ext_Forall. reflexivity. auto.
     induction l; auto; constructor.
     - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
@@ -425,7 +425,7 @@ Proof.
   * now rewrite IHe1, IHe2, upn_comp, IHe3.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
-  * now rewrite IHe.
+  * now rewrite IHe1, IHe2.
   * erewrite map_map, map_ext_Forall. reflexivity. auto.
     induction l; auto; constructor.
     - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
