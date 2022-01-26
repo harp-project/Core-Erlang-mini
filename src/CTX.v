@@ -820,10 +820,10 @@ Proof.
       replace (EFun [] (default_names e0) .: idsubst) with (default_names_sub (EFun [] e0 .: idsubst)). auto.
       unfold idsubst, default_names_sub. extensionality n. destruct n; auto.
     * simpl. constructor; auto.
-      - apply Forall_map; auto.
+      - apply Forall_map; auto. eapply Forall_impl. 2: exact H2. auto.
       - apply IHk in H5. simpl in H5. rewrite map_app in H5. auto.
     * simpl. constructor; auto.
-      - apply Forall_map; auto.
+      - apply Forall_map; auto. eapply Forall_impl. 2: exact H2. auto.
       - do 2 rewrite map_length. lia.
       - apply IHk in H6. rewrite alpha_helper in H6.
         replace (list_subst
