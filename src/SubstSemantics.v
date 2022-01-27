@@ -1117,6 +1117,12 @@ Proof.
   * destruct H. assert (| FSend2 p :: Fs, e | x ↓) by auto.
     apply term_eval in H as [v [k [Cl H']]]; auto.
     eapply terminates_step_any_2 in H'. 2: exact H0. inversion H'; subst; try inversion_is_value.
+  * destruct H. assert (| FSpawn1 e :: Fs, e0 | x ↓) by auto.
+    apply term_eval in H as [v [k [Cl H']]]; auto.
+    eapply terminates_step_any_2 in H'. 2: exact H0. inversion H'; subst; try inversion_is_value.
+  * destruct H. assert (| FSpawn2 p :: Fs, e | x ↓) by auto.
+    apply term_eval in H as [v [k [Cl H']]]; auto.
+    eapply terminates_step_any_2 in H'. 2: exact H0. inversion H'; subst; try inversion_is_value.
 Unshelve.
   now inversion P2.
   auto.
@@ -1151,6 +1157,8 @@ Proof.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value.
     inversion H. subst. inversion H5; subst; try inversion_is_value.
     eexists. eauto.
+  * simpl in H0. destruct H0. inversion H0; try inversion_is_value.
+  * simpl in H0. destruct H0. inversion H0; try inversion_is_value.
   * simpl in H0. destruct H0. inversion H0; try inversion_is_value.
   * simpl in H0. destruct H0. inversion H0; try inversion_is_value.
 Qed.

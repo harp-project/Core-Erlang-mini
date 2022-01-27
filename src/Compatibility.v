@@ -806,21 +806,71 @@ Global Hint Resolve Erel_Send_compat : core.
 Lemma Erel_Receive_compat_closed :
   forall l1 l2 n,
   (* Erel n e1 e2 -> *)
+  EXPCLOSED (EReceive l1) -> EXPCLOSED (EReceive l2) ->
   Erel n (EReceive l1) (EReceive l2).
 Proof.
-  
-Admitted.
+  intros. unfold Erel, exp_rel. split. 2: split.
+  1-2: auto.
+  intros. inversion H2; subst; try inversion_is_value.
+Qed.
 
 (** TODO: will be changed in the future: *)
 Lemma Erel_Receive_compat :
   forall l1 l2 Γ,
   (* Erel_open Γ e1 e2 -> *)
+  EXP Γ ⊢ EReceive l1 -> EXP Γ ⊢ EReceive l2 ->
   Erel_open Γ (EReceive l1) (EReceive l2).
 Proof.
   intros. unfold Erel_open. intros. simpl. apply Erel_Receive_compat_closed; auto.
+  replace (EReceive (map (fun '(p, v) => (p, v.[upn (pat_vars p) ξ₁])) l1)) with
+          ((EReceive l1).[ξ₁]) by auto.
+  apply -> subst_preserves_scope_exp; eauto. apply H1.
+  replace (EReceive (map (fun '(p, v) => (p, v.[upn (pat_vars p) ξ₂])) l2)) with
+          ((EReceive l2).[ξ₂]) by auto.
+  apply -> subst_preserves_scope_exp; eauto. apply H1.
 Qed.
 
-Global Hint Resolve Erel_Send_compat : core.
+Global Hint Resolve Erel_Receive_compat : core.
+
+(** TODO: will be changed in the future: *)
+Lemma Erel_Self_compat_closed :
+  forall n, Erel n ESelf ESelf.
+Proof.
+  intros. unfold Erel, exp_rel. split. 2: split.
+  1-2: constructor.
+  intros. inversion H0; subst; inversion_is_value.
+Qed.
+
+(** TODO: will be changed in the future: *)
+Lemma Erel_Self_compat :
+  forall Γ, Erel_open Γ ESelf ESelf.
+Proof.
+  intros. unfold Erel_open. intros.
+  apply Erel_Self_compat_closed.
+Qed.
+
+Global Hint Resolve Erel_Self_compat : core.
+
+(** TODO: will be changed in the future: *)
+Lemma Erel_Spawn_compat_closed :
+  forall p1 p2 e1 e2 n,
+  Erel n e1 e2 -> Erel n p1 p2 ->
+  Erel n (ESpawn p1 e1) (ESpawn p2 e2).
+Proof.
+  intros. split. 2: split. 1-2: constructor. 1, 3: apply H0. 1-2: apply H.
+  intros. inversion H2; try inversion_is_value.
+Qed.
+
+(** TODO: will be changed in the future: *)
+Lemma Erel_Spawn_compat :
+  forall p1 p2 e1 e2 Γ,
+  Erel_open Γ e1 e2 -> Erel_open Γ p1 p2 -> 
+  Erel_open Γ (ESpawn p1 e1) (ESpawn p2 e2).
+Proof.
+  intros. unfold Erel_open. intros. simpl. apply Erel_Spawn_compat_closed; auto.
+Qed.
+
+Global Hint Resolve Erel_Spawn_compat : core.
 
 Theorem Erel_Vrel_Fundamental_helper :
   forall (e : Exp),
@@ -856,7 +906,7 @@ Proof.
     apply Vrel_Cons_compat. now apply H0. now apply H2.
   * inversion H3. subst. apply Vrel_Cons_compat. now apply H0. now apply H2.
   * inversion H3. 2: inversion_is_value. subst. apply H in H7. apply H1 in H6. now apply Erel_Send_compat.
-  * apply Erel_Receive_compat.
+  * inversion H3. 2: inversion_is_value. apply Erel_Spawn_compat. now apply H1. now apply H.
 Qed.
 
 Theorem Erel_Fundamental :
@@ -1171,6 +1221,8 @@ Proof.
       apply scope_idsubst.
     - eapply Frel_Cons_tail; eauto.
     - eapply Frel_Cons_head; eauto.
+    - assert (VALCLOSED v1). { eapply Vrel_closed_l; eauto. } inversion H1; subst; inversion_is_value.
+    - assert (VALCLOSED v1). { eapply Vrel_closed_l; eauto. } inversion H1; subst; inversion_is_value.
     - assert (VALCLOSED v1). { eapply Vrel_closed_l; eauto. } inversion H1; subst; inversion_is_value.
     - assert (VALCLOSED v1). { eapply Vrel_closed_l; eauto. } inversion H1; subst; inversion_is_value.
 Qed.

@@ -68,13 +68,19 @@ Definition CompatibleReceive (R : nat -> Exp -> Exp -> Prop) :=
   list_biforall (fun '(p1, e1) '(p2, e2) => p1 = p2 /\ R (pat_vars p1 + Γ) e1 e2) l l2 ->
   R Γ (EReceive l) (EReceive l2).
 
+Definition CompatibleSpawn (R : nat -> Exp -> Exp -> Prop) :=
+  forall Γ e1 e1' e2 e2',
+  EXP Γ ⊢ e1 -> EXP Γ ⊢ e1' -> EXP Γ ⊢ e2 -> EXP Γ ⊢ e2' ->
+  R Γ e1 e1' -> R Γ e2 e2' ->
+  R Γ (ESpawn e1 e2) (ESpawn e1' e2').
+
 Definition IsPreCtxRel (R : nat -> Exp -> Exp -> Prop) :=
   (forall Γ e1 e2, R Γ e1 e2 -> EXP Γ ⊢ e1 /\ EXP Γ ⊢ e2) /\
   Adequate R /\ IsReflexive R /\
   (forall Γ, Transitive (R Γ)) /\
   CompatibleFun R /\ CompatibleApp R /\ CompatibleLet R /\ CompatibleLetRec R /\
   CompatiblePlus R /\ CompatibleCase R /\ CompatibleCons R /\ CompatibleSend R /\ 
-  CompatibleReceive R.
+  CompatibleReceive R /\ CompatibleSpawn R.
 
 Definition IsCtxRel (R : nat -> Exp -> Exp -> Prop) :=
   IsPreCtxRel R /\
@@ -150,7 +156,19 @@ Proof.
     intros. now apply Erel_Cons_compat.
   * unfold CompatibleSend.
     intros. now apply Erel_Send_compat.
-  * intro. intros. now apply Erel_Receive_compat.
+  * intro. intros. apply Erel_Receive_compat; constructor.
+    - rewrite (indexed_to_forall _ _ (PNil, ELit 0)) in H; intros.
+      specialize (H i H2).
+      replace (ELit 0) with (snd (PNil, ELit 0)) by auto.
+      replace 0 with ((fst >>> pat_vars) (PNil, ELit 0)) by auto.
+      do 2 rewrite map_nth. destruct (nth i l (PNil, ELit 0)); auto.
+    - rewrite (indexed_to_forall _ _ (PNil, ELit 0)) in H0; intros.
+      specialize (H0 i H2).
+      replace (ELit 0) with (snd (PNil, ELit 0)) by auto.
+      replace 0 with ((fst >>> pat_vars) (PNil, ELit 0)) by auto.
+      do 2 rewrite map_nth. destruct (nth i l2 (PNil, ELit 0)); auto.
+  * unfold CompatibleSpawn.
+    intros. now apply Erel_Spawn_compat.
 Qed.
 
 Corollary CIU_IsPreCtxRel : IsPreCtxRel CIU_open.
@@ -160,48 +178,51 @@ Proof.
   intuition idtac.
   all: unfold Adequate, Transitive, IsReflexive, CompatibleFun,
     CompatibleApp, CompatibleLet, CompatibleLetRec, CompatiblePlus, CompatibleCase, CompatibleCons,
-    CompatibleSend, CompatibleReceive; intros.
+    CompatibleSend, CompatibleReceive, CompatibleSpawn; intros.
   all: try apply CIU_iff_Erel.
-  * apply CIU_iff_Erel in H11.
-    apply H0 in H11.
+  * apply CIU_iff_Erel in H12.
+    apply H0 in H12.
     intuition.
-  * apply CIU_iff_Erel in H11.
-    apply H0 in H11.
+  * apply CIU_iff_Erel in H12.
+    apply H0 in H12.
     intuition.
-  * apply CIU_iff_Erel in H11.
-    apply H in H11. auto.
+  * apply CIU_iff_Erel in H12.
+    apply H in H12. auto.
   * now apply H1.
-  * apply CIU_iff_Erel in H11.
-    apply CIU_iff_Erel in H13.
+  * apply CIU_iff_Erel in H12.
+    apply CIU_iff_Erel in H14.
     eapply H2; eauto.
-  * apply CIU_iff_Erel in H13.
+  * apply CIU_iff_Erel in H14.
     now eapply H3.
-  * apply CIU_iff_Erel in H16.
-    eapply biforall_impl in H17.
+  * apply CIU_iff_Erel in H17.
+    eapply biforall_impl in H18.
     eapply H4; eauto.
     intros. now apply CIU_iff_Erel.
-  * apply CIU_iff_Erel in H16.
-    apply CIU_iff_Erel in H17.
-    now eapply H5.
   * apply CIU_iff_Erel in H17.
     apply CIU_iff_Erel in H18.
-    now eapply H6.
-  * apply CIU_iff_Erel in H16.
-    apply CIU_iff_Erel in H17.
-    now apply H7.
+    now eapply H5.
   * apply CIU_iff_Erel in H18.
     apply CIU_iff_Erel in H19.
+    now eapply H6.
+  * apply CIU_iff_Erel in H17.
+    apply CIU_iff_Erel in H18.
+    now apply H7.
+  * apply CIU_iff_Erel in H19.
     apply CIU_iff_Erel in H20.
+    apply CIU_iff_Erel in H21.
     eapply H8; eauto.
-  * apply CIU_iff_Erel in H16.
-    apply CIU_iff_Erel in H17.
+  * apply CIU_iff_Erel in H17.
+    apply CIU_iff_Erel in H18.
     now apply H9.
-  * apply CIU_iff_Erel in H16.
-    apply CIU_iff_Erel in H17.
+  * apply CIU_iff_Erel in H17.
+    apply CIU_iff_Erel in H18.
     now apply H10.
-  * apply H12. all: auto.
-    eapply biforall_impl. 2: exact H14.
-    simpl. intros. destruct x, y. split. apply H15. apply CIU_implies_Erel. apply H15.
+  * apply H11. all: auto.
+    eapply biforall_impl. 2: exact H15.
+    simpl. intros. destruct x, y. split. apply H16. apply CIU_implies_Erel. apply H16.
+  * apply CIU_iff_Erel in H17.
+    apply CIU_iff_Erel in H18.
+    now apply H13.
 Qed.
 
 Inductive Ctx :=
@@ -222,7 +243,9 @@ Inductive Ctx :=
 | CCons2    (e1 : Ctx) (e2 : Exp)
 | CSend1    (c : Ctx) (e : Exp)
 | CSend2    (p : Exp) (c : Ctx)
-| CReceive  (l1 : list (Pat * Exp)) (p : Pat) (c : Ctx) (l2 : list (Pat * Exp)).
+| CReceive  (l1 : list (Pat * Exp)) (p : Pat) (c : Ctx) (l2 : list (Pat * Exp))
+| CSpawn1    (c : Ctx) (e : Exp)
+| CSpawn2    (p : Exp) (c : Ctx).
 
 Fixpoint plug (C : Ctx) (p : Exp) :=
 match C with
@@ -244,6 +267,8 @@ match C with
 | CSend1 c e => ESend (plug c p) e
 | CSend2 p0 c => ESend p0 (plug c p)
 | CReceive l1 p0 c l2 => EReceive (l1 ++ [(p0, plug c p)] ++ l2)
+| CSpawn1 c e => ESpawn (plug c p) e
+| CSpawn2 p0 c => ESpawn p0 (plug c p)
 end.
 
 Fixpoint plugc (Where : Ctx) (p : Ctx) :=
@@ -266,6 +291,8 @@ match Where with
 | CSend1 c e => CSend1 (plugc c p) e
 | CSend2 p0 c => CSend2 p0 (plugc c p)
 | CReceive l1 p0 c l2 => CReceive l1 p0 (plugc c p) l2
+| CSpawn1 c e => CSpawn1 (plugc c p) e
+| CSpawn2 p0 c => CSpawn2 p0 (plugc c p)
 end.
 
 Lemma plug_assoc : forall C1 C2 e,
@@ -354,6 +381,14 @@ Inductive EECtxScope (Γh : nat) : nat -> Ctx -> Prop :=
    (forall i, i < length l1 -> EXP (nth i (map (fst >>> pat_vars) l1) 0) + Γ ⊢ nth i (map snd l1) (ELit 0)) ->
    (forall i, i < length l2 -> EXP (nth i (map (fst >>> pat_vars) l2) 0) + Γ ⊢ nth i (map snd l2) (ELit 0)) ->
    EECTX Γh ⊢ CReceive l1 p C l2 ∷ Γ
+| CEScope_Spawn1 : forall Γ e C,
+    EXP Γ ⊢ e ->
+    EECTX Γh ⊢ C ∷ Γ ->
+    EECTX Γh ⊢ CSpawn1 C e ∷ Γ
+| CEScope_Spawn2 : forall Γ p C,
+    EXP Γ ⊢ p ->
+    EECTX Γh ⊢ C ∷ Γ ->
+    EECTX Γh ⊢ CSpawn2 p C ∷ Γ
 | CEScope_val : forall C Γ, VECTX Γh ⊢ C ∷ Γ -> EECTX Γh ⊢ C ∷ Γ
 with VECtxScope (Γh : nat) : nat -> Ctx -> Prop :=
 | CEScope_RecFun : forall Γ vl C,
@@ -448,7 +483,7 @@ Lemma CTX_bigger : forall R' : nat -> Exp -> Exp -> Prop,
     IsPreCtxRel R' -> forall (Γ : nat) (e1 e2 : Exp), R' Γ e1 e2 -> CTX Γ e1 e2.
 Proof.
   intros R' HR.
-  destruct HR as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RLet [RLetRec [RPlus  [ RCase [ RCons [RSend RReceive ] ] ] ] ] ] ] ] ] ] ] ].
+  destruct HR as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RLet [RLetRec [RPlus  [ RCase [ RCons [RSend [ RReceive RSpawn ] ] ] ] ] ] ] ] ] ] ] ] ].
   unfold CTX.
   intros.
   destruct (Rscope _ _ _ H) as [Hscope_e1 Hscope_e2].
@@ -595,6 +630,16 @@ Proof.
         * clear H0. induction l2; constructor; auto. 2: apply IHl2; auto.
           destruct a. split; auto. apply Rrefl. apply (H8 0). simpl. lia.
           intros. apply (H8 (S i)). simpl. lia.
+    - apply RSpawn; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+    - apply RSpawn; auto.
+      + eapply @plug_preserves_scope_exp with (e := e1) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
+      + eapply @plug_preserves_scope_exp with (e := e2) in H0; eauto 2.
+        simpl in H0. inversion H0. auto. inversion H1.
   }
   now apply H2.
 Qed.
@@ -651,6 +696,8 @@ match e with
  | VCons e1 e2 => VCons (default_names e1) (default_names e2)
  | ESend p e => ESend (default_names p) (default_names e)
  | EReceive l => EReceive (map (fun '(p, e) => (p, default_names e)) l)
+ | ESelf => ESelf
+ | ESpawn p e => ESpawn (default_names p) (default_names e)
 end.
 
 Lemma default_scope : forall Γ,
@@ -757,6 +804,10 @@ Proof.
     apply H01.
     epose proof (map_nth (fun '(p, e) => (p, default_names e)) l (PNil, ELit 0) i). simpl in H2.
     rewrite H2 in H0. rewrite EQ in H0. cbn in *. auto.
+  * inversion H; subst. constructor.
+    - now apply IHe1 in H2.
+    - now apply IHe2 in H3.
+    - inversion H0.
 Qed.
 
 Corollary default_value_rev : forall Γ,
@@ -799,6 +850,8 @@ match f with
  | FCons2 e => FCons2 (default_names e)
  | FSend1 e => FSend1 (default_names e)
  | FSend2 p => FSend2 (default_names p)
+ | FSpawn1 e => FSpawn1 (default_names e)
+ | FSpawn2 e => FSpawn2 (default_names e)
 end.
 
 Lemma double_default e :
@@ -819,6 +872,7 @@ Proof.
   * simpl. erewrite map_map. erewrite map_ext_Forall. reflexivity.
     induction l; auto. inversion IHe; subst.
     constructor; auto. destruct a; auto.
+  * simpl. rewrite <- IHe1, <- IHe2. auto.
   * constructor; auto. rewrite <- IHe. auto.
 Qed.
 
@@ -848,6 +902,7 @@ Proof.
     constructor; auto.
     - destruct a. specialize (IHe (uprenn (pat_vars p) ρ)). inversion IHe; subst. auto.
     - apply IHl. intros. specialize (IHe ρ0). inversion IHe. apply H2.
+  * now rewrite IHe1, IHe2.
   * constructor; auto. now rewrite IHe.
 Qed.
 
@@ -887,6 +942,7 @@ Proof.
     - destruct a. specialize (IHe2 (upn (pat_vars p) ξ)). inversion IHe2. subst. 
       rewrite default_names_upn. auto.
     - apply IHl. intros. specialize (IHe2 ξ0). now inversion IHe2.
+  * now rewrite IHe2_1, IHe2_2.
   * constructor; auto. now rewrite IHe2.
 Qed.
 
@@ -946,7 +1002,7 @@ Lemma match_pattern_default_exists :
   forall e p l Γ, VAL Γ ⊢ e -> match_pattern p (default_names e) = Some l ->
   exists l', l = map default_names l' /\ match_pattern p e = Some l'.
 Proof.
-  induction e; intros. 1,3-15: destruct p; cbn; auto; inversion H0; auto; try inversion_is_value.
+  induction e; intros. 1,3-17: destruct p; cbn; auto; inversion H0; auto; try inversion_is_value.
   * break_match_hyp; inversion H2; subst. now exists [].
   * now exists [ELit l].
   * now exists [EVar n].
@@ -1322,14 +1378,33 @@ Proof.
          epose proof (P := H7_3 (plugc C (CReceive [] p0 CHole l2)) _). do 2 rewrite <- plug_assoc in P.
          simpl in P. apply P. auto.
         }
+    all: shelve.
+  * unfold CompatibleSpawn.
+    intros.
+    unfold CTX in *.
+    intuition auto.
+    1-2: constructor; auto. clear H4 H8 H5 H9.
+    assert (EECTX Γ ⊢ plugc C (CSpawn1 CHole e2) ∷ 0) as HC_e1.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H6 in HC_e1. 2: rewrite <- plug_assoc; simpl; auto.
+    assert (EECTX Γ ⊢ plugc C (CSpawn2 e1' CHole) ∷ 0) as HC_e2.
+    { eapply plugc_preserves_scope_exp; eauto.
+      constructor; auto.
+      constructor.
+    }
+    apply H7 in HC_e2. 2: rewrite <- plug_assoc in *; simpl; auto.
+    rewrite <- plug_assoc in HC_e2. simpl in HC_e2; auto.
 Unshelve.
-    1-2: rewrite (indexed_to_forall _ _ (PNil, ELit 0)) in H;
+    7-8: rewrite (indexed_to_forall _ _ (PNil, ELit 0)) in H;
          rewrite (indexed_to_forall _ _ (PNil, ELit 0)) in H0;
          constructor; intros.
-    1-2: replace (ELit 0) with (snd (PNil, ELit 0)) by auto.
-    1-2: replace 0 with ((fst >>> pat_vars) (PNil, ELit 0)) by auto.
-    1-2: do 2 rewrite map_nth.
-    1: apply H in H2. 2: apply H0 in H2. 1-2: break_match_hyp; apply H2.
+    7-8: replace (ELit 0) with (snd (PNil, ELit 0)) by auto.
+    7-8: replace 0 with ((fst >>> pat_vars) (PNil, ELit 0)) by auto.
+    7-8: do 2 rewrite map_nth.
+    7: apply H in H2. 8: apply H0 in H2. 7-8: break_match_hyp; apply H2.
   2-3: exact (ELit 0).
   apply alpha_eval in H4; apply alpha_eval; rewrite default_context in *;
        simpl in *; rewrite map_const in *; rewrite <- H; auto.
@@ -1522,6 +1597,8 @@ Proof.
         -- simpl. apply CTX_IsPreCtxRel; auto.
            3: apply CTX_refl.
            all: apply scoped_val; auto.
+        -- simpl. apply CTX_IsPreCtxRel; auto. now apply CTX_refl.
+        -- simpl. apply CTX_IsPreCtxRel; auto. 1-2: constructor; auto. apply CTX_refl. now constructor.
 Qed.
 
 Theorem Erel_IsCtxRel : IsCtxRel Erel_open.

@@ -42,6 +42,12 @@ Inductive ExpScoped (Γ : nat) : Exp -> Prop :=
   (forall i, i < length l -> EXP (nth i (map (fst >>> pat_vars) l) 0) + Γ ⊢ nth i (map snd l) (ELit 0))
 ->
   EXP Γ ⊢ EReceive l
+| scoped_spawn p e :
+  EXP Γ ⊢ p -> EXP Γ ⊢ e
+->
+  EXP Γ ⊢ ESpawn p e
+| scoped_self :
+  EXP Γ ⊢ ESelf
 
 | scoped_val v :
   VAL Γ ⊢ v -> EXP Γ ⊢ v
@@ -148,6 +154,7 @@ Proof.
     intros. apply (e (S i)). simpl. lia.
     intros. apply (H (S i)). simpl. lia. simpl. auto.
     now apply subst_preserves_upn.
+  * simpl. rewrite H, H0; eauto.
 Qed.
 
 Corollary eclosed_ignores_sub :
@@ -344,8 +351,12 @@ Proof.
         intros. apply (H2 (S i0)). simpl. lia.
         lia.
   * constructor; auto.
+  * subst. constructor.
+    - eapply IHe1; eauto.
+    - eapply IHe2; eauto.
+  * constructor; auto.
   * constructor.
-  * constructor.
+  * constructor; auto.
   * constructor; auto.
 Qed.
 
@@ -544,6 +555,10 @@ Proof.
         lia.
   * constructor; auto.
   * constructor.
+    - eapply IHe1; eauto.
+    - eapply IHe2; eauto.
+  * constructor; auto.
+  * constructor.
   * constructor.
   * constructor; auto.
 Qed.
@@ -702,6 +717,13 @@ Module SUB_IMPLIES_SCOPE.
              simpl in H0. lia.
       - inversion H0.
     * inversion H.
+    * constructor.
+    * inversion H.
+    * inversion H. subst. constructor.
+      - eapply IHe1; eauto.
+      - eapply IHe2; eauto.
+      - inversion H0.
+    * inversion H.
     * constructor; auto.
     * constructor.
     * constructor.
@@ -834,6 +856,8 @@ Module SUB_IMPLIES_SCOPE.
       rewrite upn_magic, upn_magic_2. rewrite <- plus_n_Sm. rewrite H3. reflexivity.
       inversion H. 2: inversion H0. subst. specialize (H2 0 ltac:(simpl;lia)).
       cbn in H2. rewrite upn_magic_2 in H2. auto.
+    * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
+      split; intros; inversion H3. 2: { inversion H4. }  subst; rewrite H, H1; auto.
   Unshelve. exact (ELit 0).
     intros. specialize (IHe Γ'0). inversion IHe. auto.
     inversion H. subst. 2: inversion H0. constructor; auto. intros.
@@ -947,7 +971,9 @@ Inductive Frame : Set :=
 | FCons1 (e1 : Exp) (* [e1 | □] *)
 | FCons2 (v2 : Exp) (* [□ | v2] *)
 | FSend1 (e : Exp) (* □ ! e *)
-| FSend2 (p : Exp) (* p ! □ *).
+| FSend2 (p : Exp) (* p ! □ *)
+| FSpawn1 (e : Exp) (* spawn(□, e) *)
+| FSpawn2 (p : Exp) (* spawn(p, □) *).
 
 Inductive frame_wf : Frame -> Prop :=
 | wf_app1 l : frame_wf (FApp1 l)
@@ -959,7 +985,9 @@ Inductive frame_wf : Frame -> Prop :=
 | wf_cons1 e : frame_wf (FCons1 e)
 | wf_cons2 v : VALCLOSED v -> frame_wf (FCons2 v)
 | wf_send1 e : frame_wf (FSend1 e)
-| wf_send2 p : VALCLOSED p -> frame_wf (FSend2 p).
+| wf_send2 p : VALCLOSED p -> frame_wf (FSpawn2 p)
+| wf_spawn1 e : frame_wf (FSend1 e)
+| wf_spawn2 p : VALCLOSED p -> frame_wf (FSpawn2 p).
 
 Definition plug_f (F : Frame) (e : Exp) : Exp :=
 match F with
@@ -973,6 +1001,8 @@ match F with
  | FCons2 v2 => ECons e v2
  | FSend1 e0 => ESend e e0
  | FSend2 p  => ESend p e
+ | FSpawn1 e2 => ESpawn e e2
+ | FSpawn2 e1 => ESpawn e1 e
 end.
 
 Definition FrameStack := list Frame.
@@ -1013,7 +1043,11 @@ Inductive FCLOSED : Frame -> Prop :=
 | fclosed_send1 e: EXPCLOSED e ->
   FCLOSED (FSend1 e)
 | fclosed_send2 p: VALCLOSED p ->
-  FCLOSED (FSend1 p).
+  FCLOSED (FSend2 p)
+| fclosed_spawn1 e: EXPCLOSED e ->
+  FCLOSED (FSpawn1 e)
+| fclosed_spawn2 p: VALCLOSED p ->
+  FCLOSED (FSpawn2 p).
 
 Definition FSCLOSED (fs : FrameStack) := Forall FCLOSED fs.
 
@@ -1080,6 +1114,8 @@ match goal with
 | [ H: VAL _ ⊢ (ECons _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (ESend _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EReceive _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ ESelf |- _ ] => inversion H
+| [ H: VAL _ ⊢ (ESpawn _ _) |- _ ] => inversion H
 end.
 
 Theorem scoped_dec : 
@@ -1173,6 +1209,14 @@ Proof.
            congruence.
       + split; right; intro; inversion H0. 2: inversion H3. subst.
         specialize (H4 0 ltac:(simpl;lia)). cbn in H4. congruence.
+  * split.
+    - left; constructor.
+    - right; intro. inversion H.
+  * destruct (IHe1 Γ) as [[P1 | P2] ?].
+    - destruct (IHe2 Γ) as [[P1' | P2'] ?].
+      + split. left. constructor; auto. right. intro. inversion_is_value.
+      + split; right; intro; inversion H1. congruence. inversion_is_value.
+    - split; right; intro; inversion H0. congruence. inversion_is_value.
   * constructor; auto.
   * constructor.
   * constructor.

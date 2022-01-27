@@ -41,7 +41,9 @@ Inductive Exp : Set :=
 | VCons (e1 e2 : Exp)
 (** Concurrency *)
 | ESend (p e : Exp)
-| EReceive (l : list (Pat * Exp)).
+| EReceive (l : list (Pat * Exp))
+| ESelf
+| ESpawn (e1 e2 : Exp) (** e1 should be evaluated to a function name, e2 to an object theoretic list *).
 
 Section correct_exp_ind.
 
@@ -68,6 +70,8 @@ Section correct_exp_ind.
    (H12 : forall e1, P e1 -> forall e2, P e2 -> P (VCons e1 e2))
    (H13 : forall e, P e -> forall p, P p -> P (ESend p e))
    (H14 : forall l, W l -> P (EReceive l))
+   (H15 : P ESelf)
+   (H16 : forall e1, P e1 -> forall e2, P e2 -> P (ESpawn e1 e2))
    (H' : forall v : Exp, P v -> forall l:list Exp, Q l -> Q (v :: l))
    (H1' : Q [])
    (J : W [])
@@ -98,6 +102,8 @@ Section correct_exp_ind.
                                          | [] => J
                                          | (p, v)::xs => J0 v (Exp_ind2 v) xs (l_ind xs) p
                                          end) l)
+  | ESelf => H15
+  | ESpawn e1 e2 => H16 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   end.
 
 End correct_exp_ind.

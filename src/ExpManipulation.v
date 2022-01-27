@@ -44,6 +44,8 @@ match e with
  | VCons e1 e2 => VCons (rename ρ e1) (rename ρ e2)
  | ESend p e => ESend (rename ρ p) (rename ρ e)
  | EReceive l => EReceive (map (fun '(p, v) => (p, rename (uprenn (pat_vars p) ρ) v)) l)
+ | ESelf => ESelf
+ | ESpawn e1 e2 => ESpawn (rename ρ e1) (rename ρ e2)
 end.
 
 Definition Substitution := nat -> Exp + nat. (** We need to have the names for the
@@ -91,6 +93,8 @@ match base with
  | VCons e1 e2 => VCons (subst ξ e1) (subst ξ e2)
  | ESend p e => ESend (subst ξ p) (subst ξ e)
  | EReceive l => EReceive (map (fun '(p, v) => (p, subst (upn (pat_vars p) ξ) v)) l)
+ | ESelf => ESelf
+ | ESpawn e1 e2 => ESpawn (subst ξ e1) (subst ξ e2)
 end.
 
 Definition scons {X : Type} (s : X) (σ : nat -> X) (x : nat) : X :=
@@ -179,6 +183,7 @@ Proof.
     - destruct a. specialize (IHe (uprenn (pat_vars p) ρ)). inversion IHe. subst.
       rewrite H1, <- renn_up. reflexivity.
     - apply IHl. intros. specialize (IHe ρ0). inversion IHe. auto.
+  * now rewrite IHe1, IHe2.
   * constructor; auto.
   * constructor.
   * constructor.
@@ -281,6 +286,7 @@ Proof.
     - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
       rewrite <- renn_up, H2, uprenn_subst_upn. reflexivity.
     - apply IHl. intros. specialize (IHe ξ0 σ0). inversion IHe. auto.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Notation "σ >> ξ" := (substcomp σ ξ) (at level 56, left associativity).
@@ -320,6 +326,7 @@ Proof.
     - clear IHl. destruct a. epose proof (IHe _ _ _). inversion H. subst.
       rewrite <- uprenn_comp, H2. reflexivity.
     - apply IHl. intros. epose proof (IHe _ _ _). inversion H. eauto.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Theorem rename_comp :
@@ -342,6 +349,7 @@ Proof.
     - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
       rewrite <- uprenn_comp, H2. reflexivity.
     - apply IHl. intros. epose proof (IHe _ _). inversion H. eauto.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Lemma subst_up_upren : forall σ ξ,
@@ -389,6 +397,7 @@ Proof.
     - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
       rewrite <- renn_up, <- subst_upn_uprenn, H2. reflexivity.
     - apply IHl. intros. epose proof (IHe _ _). inversion H. eauto.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Lemma up_comp ξ η :
@@ -431,6 +440,7 @@ Proof.
     - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
       rewrite H2, upn_comp. reflexivity.
     - apply IHl. intros. epose proof (IHe _ _). inversion H. eauto.
+  * now rewrite IHe1, IHe2.
 Qed.
 
 Theorem rename_subst_core : forall e v,
