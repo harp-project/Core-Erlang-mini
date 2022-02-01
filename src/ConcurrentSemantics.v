@@ -380,12 +380,12 @@ Proof.
   apply nrefl.
 Qed.
 
-Definition bisimulation (R : Node -> Node -> Prop) :=
+Definition strong_bisimulation (R : Node -> Node -> Prop) :=
   (forall p q p' a ι, R p q -> p -[a | ι]ₙ-> p' -> exists q', q -[a | ι]ₙ-> q' /\ R p' q') /\
   (forall p q q' a ι, R p q -> q -[a | ι]ₙ-> q' -> exists p', p -[a | ι]ₙ-> p' /\ R p' q').
 
-Theorem eq_is_bisim :
-  bisimulation eq.
+Theorem eq_is_strong_bisim :
+  strong_bisimulation eq.
 Proof.
   split; intros.
   {
@@ -402,6 +402,12 @@ Proof.
       - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
       - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
       - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+    * inversion H1; subst. eexists. split. 2: reflexivity.
+      eapply nself; try eassumption. reflexivity.
+    * inversion H1; subst. eexists. split. 2: reflexivity.
+      eapply nspawn; try eassumption. reflexivity.
   }
   {
     subst. induction H0.
@@ -417,40 +423,40 @@ Proof.
       - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
       - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
       - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
+    * inversion H1; subst. eexists. split. 2: reflexivity.
+      eapply nself; try eassumption. reflexivity.
+    * inversion H1; subst. eexists. split. 2: reflexivity.
+      eapply nspawn; try eassumption. reflexivity.
   }
 Qed.
 
-Theorem equivalent_is_bisim :
-  bisimulation map_equiv.
+Reserved Notation "n -->* n'" (at level 50).
+Inductive internalSteps : Node -> Node -> Prop :=
+| intrefl n (* n'  *): (* Permutation n n' -> *) n -->* n (* ' *)
+| inttrans n n' n'' ι:
+  n -[AInternal|ι]ₙ-> n' -> n' -->* n''
+->
+  n -->* n''
+where "n -->* n'" := (internalSteps n n').
+
+Definition onlyOne (a : Action) (ι : PID) (n n''' : Node) :=
+  exists n' n'', n -->* n' /\ n' -[a|ι]ₙ-> n'' /\ n'' -->* n'''.
+
+Definition weak_bisimulation (R : Node -> Node -> Prop) :=
+  (forall p q p' a ι, R p q -> p -[a | ι]ₙ-> p' ->
+     exists q', onlyOne a ι q q' /\ R p' q') /\
+  (forall p q q' a ι, R p q -> q -[a | ι]ₙ-> q' ->
+     exists p', onlyOne a ι p p' /\ R p' q').
+
+Definition Node_equivalence (n1 n2 : Node) := exists R, weak_bisimulation R /\ R n1 n2.
+
+Lemma strong_bisim_is_weak : forall R, strong_bisimulation R -> weak_bisimulation R.
 Proof.
-   split; intros.
-  {
-    (* subst. induction H0.
-    * inversion H2. inversion H3. subst. exists (ι : (fs, t0, mb) |||| ι' : q' |||| q). split.
-      eapply nsend1; try eassumption. reflexivity.
-    * inversion H1. inversion H2. subst. eexists. split. 2: reflexivity.
-      eapply nsend2; try eassumption. reflexivity.
-    * inversion H2. subst. eexists. split. 2: reflexivity.
-      eapply nsend3; try eassumption. reflexivity.
-    * inversion H1. subst. eexists. split. 2: reflexivity.
-      eapply nreceive; try eassumption. reflexivity.
-    * inversion H1; subst.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-  }
-  {
-    subst. induction H0.
-    * inversion H2. inversion H3. subst. eexists. split. 2: reflexivity.
-      eapply nsend1; try eassumption. reflexivity.
-    * inversion H1. inversion H2. subst. eexists. split. 2: reflexivity.
-      eapply nsend2; try eassumption. reflexivity.
-    * inversion H2. subst. eexists. split. 2: reflexivity.
-      eapply nsend3; try eassumption. reflexivity.
-    * inversion H1. subst. eexists. split. 2: reflexivity.
-      eapply nreceive; try eassumption. reflexivity.
-    * inversion H1; subst.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity. *)
-Abort.
+  unfold strong_bisimulation, weak_bisimulation; intros. destruct H. split.
+  * intros. eapply H in H2. 2: exact H1. destruct H2 as [q' [H2_1 H2_2]].
+    exists q'. split; auto. exists q, q'. split. 2: split. 1,3: apply intrefl. auto.
+  * intros. eapply H0 in H2. 2: exact H1. destruct H2 as [p' [H2_1 H2_2]].
+    exists p'. split; auto. exists p, p'. split. 2: split. 1,3: apply intrefl. auto.
+Qed.
