@@ -237,10 +237,17 @@ Qed.
 
 Global Hint Resolve var_funid_eqb_refl : core.
 
-Fixpoint in_list (v : VarFunId) (l : list VarFunId) : bool :=
+Section in_list.
+
+Variable A : Type.
+Variable (eqb : A -> A -> bool).
+Hypothesis (eqb_true : forall e1 e2, eqb e1 e2 = true <-> e1 = e2).
+Hypothesis (eqb_false: forall e1 e2, eqb e1 e2 = false <-> e1 <> e2).
+
+Fixpoint in_list (v : A) (l : list A) : bool :=
 match l with
 | [] => false
-| x::xs => if var_funid_eqb v x then true else in_list v xs
+| x::xs => if eqb v x then true else in_list v xs
 end.
 
 Theorem in_list_sound : forall l e, in_list e l = true <-> In e l.
@@ -249,12 +256,13 @@ Proof.
   * split; intros; inversion H.
   * split; intros.
     - simpl in H. break_match_hyp.
-      + apply var_funid_eqb_eq in Heqb. simpl. left. auto.
-      + apply var_funid_eqb_neq in Heqb. simpl. right. apply IHl. auto.
-    - destruct (var_funid_eqb e a) eqn:P.
-      + apply var_funid_eqb_eq in P. subst. simpl. rewrite var_funid_eqb_refl. auto.
+      + apply eqb_true in Heqb. simpl. left. auto.
+      + apply eqb_false in Heqb. simpl. right. apply IHl. auto.
+    - destruct (eqb e a) eqn:P.
+      + apply eqb_true in P. subst. simpl. break_match_goal; auto.
+        rewrite eqb_false in Heqb. congruence.
       + simpl. rewrite P. apply IHl. inversion H.
-        ** apply var_funid_eqb_neq in P. congruence.
+        ** apply eqb_false in P. congruence.
         ** auto.
 Qed.
 
@@ -265,15 +273,14 @@ Proof.
   * split; intros.
     - simpl in H. break_match_hyp.
       + inversion H.
-      + apply var_funid_eqb_neq in Heqb. simpl. intro. inversion H0. symmetry in H1. contradiction.
+      + apply eqb_false in Heqb. simpl. intro. inversion H0. symmetry in H1. contradiction.
         eapply IHl; eauto.
     - simpl. break_match_goal.
-      apply var_funid_eqb_eq in Heqb. subst. exfalso. apply H. intuition.
-      apply var_funid_eqb_neq in Heqb. eapply IHl. apply not_in_cons in H. destruct H. auto.
+      apply eqb_true in Heqb. subst. exfalso. apply H. intuition.
+      apply eqb_false in Heqb. eapply IHl. apply not_in_cons in H. destruct H. auto.
 Qed.
 
-Global Hint Resolve in_list_sound : core.
-Global Hint Resolve not_in_list_sound : core.
+End in_list.
 
 Fixpoint match_pattern (p : Pat) (e : Exp) : option (list Exp) :=
 match p with

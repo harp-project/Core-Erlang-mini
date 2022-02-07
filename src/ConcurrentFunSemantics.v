@@ -109,79 +109,51 @@ Notation "x -⌈ k | xs ⌉-> y" := (LabelStar processLocalSemantics x k xs y) (
 (****************************   NODES  ****************************************)
 (******************************************************************************)
 
-(* Require Import Coq.FSets.FMapList.
-Require Import Coq.Structures.OrderedTypeEx.
+Definition Node := PID -> option Process.
 
-Module Import NatMap := FMapList.Make(Nat_as_OT). *)
-(* From stdpp Require Import natmap fin_maps. *)
+Definition nullnode : Node := fun ι => None.
+Definition par (pid : PID) (proc: Process) (n : Node) : Node :=
+  fun ι => if Nat.eq_dec pid ι then Some proc else n ι.
 
-Definition Node : Set := list (PID * Process).
-Fixpoint put (k : PID) (p : Process) (m : Node) : Node :=
-match m with
-| [] => [(k, p)]
-| (k', p')::xs => if Nat.ltb k k' then (k, p) :: (k', p') :: xs else if Nat.eqb k k' then (k, p)::xs else (k', p') :: (put k p xs)
-end.
-Fixpoint get (k : PID) (m : Node) : option Process :=
-match m with
-| [] => None
-| (k', p)::xs => if Nat.ltb k k' then None else if Nat.eqb k k' then Some p else get k xs
-end.
-Definition dom (m : Node) : list nat := map fst m.
-
-(* Definition Node := natmap Process. Search natmap. *)
-Definition nullnode : Node := [].
-(* Definition par (pid : PID) (proc: Process) (n : Node) : Node := map_insert pid proc n. *)
-
-Notation "pid : p |||| n" := (put pid p n) (at level 30, right associativity).
-
-(* Definition find (x : PID) (Π : Node) : option Process := lookup x Π. *)
+Notation "pid : p |||| n" := (par pid p n) (at level 30, right associativity).
 
 Reserved Notation "n -[ a | ι ]ₙ-> n'" (at level 50).
 Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
-| nsend1 p p' q q' Π Π' (ι ι' : PID) t :
-  get ι Π = Some p -> get ι' Π = Some q ->
-  Π' = ι : p' |||| ι' : q' |||| Π ->
+| nsend1 p p' q q' Π (ι ι' : PID) t :
   p -⌈ASend ι' t⌉-> p' -> q -⌈AArrive t⌉-> q' -> ι <> ι'
 ->
-  Π -[ASend ι' t | ι]ₙ-> Π'
+  ι : p |||| ι' : q |||| Π -[ASend ι' t | ι]ₙ-> ι : p' |||| ι' : q' |||| Π
 
-| nsend2 p p' p'' t (ι : PID) Π Π' :
-  get ι Π = Some p -> Π' = ι : p'' |||| Π ->
+| nsend2 p p' p'' t (ι : PID) Π :
   p -⌈ASend ι t⌉-> p' -> p' -⌈AArrive t⌉-> p'' (** two transitions, because this is atomic! *)
 ->
-  Π -[ASend ι t | ι]ₙ-> Π'
+   ι : p |||| Π  -[ASend ι t | ι]ₙ->  ι : p'' |||| Π 
 
-| nsend3 p p' (ι ι' : PID) Π Π' t :
-  get ι Π = Some p -> get ι' Π = None ->
-  Π' = ι : p' |||| Π ->
-  p -⌈ASend ι' t⌉-> p'
+| nsend3 p p' (ι ι' : PID) Π t :
+  p -⌈ASend ι' t⌉-> p' -> (ι : p |||| Π) ι = None
 ->
-  Π -[ASend ι' t | ι]ₙ-> Π'
+  ι : p |||| Π -[ASend ι' t | ι]ₙ-> ι : p' |||| Π
 
-| nreceive p p' t Π Π' (ι : PID) :
-  get ι Π = Some p -> Π' = ι : p' |||| Π ->
+| nreceive p p' t Π (ι : PID) :
   p -⌈AReceive t⌉-> p'
 ->
-  Π -[AReceive t | ι]ₙ-> Π'
+   ι : p |||| Π -[AReceive t | ι]ₙ-> ι : p' |||| Π
 
-| ninternal p p' Π Π' (ι : PID) :
-  get ι Π = Some p -> Π' = ι : p' |||| Π ->
+| ninternal p p' Π (ι : PID) :
   p -⌈AInternal⌉-> p'
 ->
-  Π -[AInternal | ι]ₙ-> Π'
+   ι : p |||| Π -[AInternal | ι]ₙ-> ι : p' |||| Π
 
-| nself p p' Π Π' ι:
-  get ι Π = Some p -> Π' = ι : p' |||| Π ->
+| nself p p' Π ι:
   p -⌈ASelf ι⌉-> p'
 ->
-  Π -[ASelf ι | ι]ₙ-> Π'
+  ι : p |||| Π -[ASelf ι | ι]ₙ-> ι : p' |||| Π
 
-| nspawn Π Π' p p' v1 v2 l ι ι':
-  mk_list v2 = Some l -> ~In ι' (dom Π) ->
-  get ι Π = Some p -> Π' = ι' : ([], EApp v1 l, []) |||| ι : p' |||| Π ->
+| nspawn Π p p' v1 v2 l ι ι':
+  mk_list v2 = Some l -> (ι : p |||| Π) ι' = None ->
   p -⌈ASpawn ι' v1 v2⌉-> p'
 ->
-  Π -[ASpawn ι' v1 v2 | ι]ₙ-> Π'
+  ι : p |||| Π -[ASpawn ι' v1 v2 | ι]ₙ-> ι' : ([], EApp v1 l, []) |||| ι : p' |||| Π 
 where "n -[ a | ι ]ₙ-> n'" := (nodeSemantics n a ι n').
 
 (*
@@ -244,16 +216,20 @@ Inductive closureNodeSem : Node -> nat -> list (Action * PID) -> Node -> Prop :=
   n -[S k | (a,ι)::l]ₙ->* n''
 where "n -[ k | l ]ₙ->* n'" := (closureNodeSem n k l n').
 
-Ltac perm_solver :=
-match goal with
-| |- Permutation [] [] => apply perm_nil
-| |- Permutation (_::_) (_::_) =>
-  tryif apply perm_skip
-  then  (idtac "ok")
-  else  (idtac "move"; eapply perm_trans; [apply Permutation_cons_append | simpl] )
-| _ => idtac "not permutation goal"
-end.
-Ltac perm_solver_any := repeat perm_solver.
+Lemma parSame :  forall ι p p' Π, ι : p |||| ι : p' |||| Π = ι : p |||| Π.
+Proof.
+  intros. extensionality ι'.
+  unfold par. break_match_goal; auto.
+Qed.
+
+Lemma parSwap :  forall ι ι' p p' Π, ι <> ι' ->
+   ι : p |||| ι' : p' |||| Π = ι' : p' |||| ι : p |||| Π.
+Proof.
+  intros. extensionality ι''.
+  unfold par. break_match_goal; auto.
+  subst. break_match_goal; auto. congruence.
+Qed.
+
 (*
   0 -[ 1 + 1 ]-> 1
   1 -[ 2 ]-> 3
@@ -282,20 +258,33 @@ Proof.
   eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
   constructor. constructor. constructor.
 
+  rewrite parSwap with (ι' := 2). rewrite parSwap with (ι' := 2). 2-3: lia.
+
   (* Some steps with 2 *)
   eapply ntrans. eapply ninternal with (ι := 2); cbn; try reflexivity.
   apply p_send_local1.
   eapply ntrans. eapply ninternal with (ι := 2); cbn; try reflexivity.
   apply p_send_local2. constructor.
+
+  rewrite parSwap with (ι' := 3). rewrite parSwap with (ι' := 3). 2-3: lia.
+
   eapply ntrans. eapply nsend1 with (ι := 2) (ι' := 3); cbn; try reflexivity.
   constructor.
   constructor. constructor. simpl. reflexivity. lia.
 
+  rewrite parSwap with (ι' := 0). rewrite parSwap with (ι' := 0). 2-3: lia.
+
   (* Again with 0 *)
   eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
   constructor. constructor.
+
+  rewrite parSwap with (ι' := 1). rewrite parSwap with (ι' := 1). 2-3: lia.
+
   eapply ntrans. eapply nsend1 with (ι := 0) (ι' := 1); cbn; try reflexivity.
   constructor. constructor. constructor. reflexivity. lia.
+
+  rewrite parSwap with (ι' := 1). 2: lia.
+
   (* Now with 1 *)
   eapply ntrans. eapply nreceive with (ι := 1); cbn; try reflexivity.
   constructor; try reflexivity.
@@ -303,8 +292,14 @@ Proof.
   apply p_send_local1.
   eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
   apply p_send_local2. constructor.
+
+  rewrite parSwap with (ι' := 3). rewrite parSwap with (ι' := 3). 2-3: lia.
+
   eapply ntrans. eapply nsend1 with (ι := 1) (ι' := 3); cbn; try reflexivity.
   constructor. constructor. constructor. reflexivity. lia.
+
+  rewrite parSwap with (ι' := 3). 2: lia.
+
   (* Mailbox processing for 3 *)
   eapply ntrans. eapply nreceive with (ι := 3); cbn; try reflexivity.
   constructor; try reflexivity. cbn.
@@ -321,7 +316,12 @@ Proof.
   constructor. constructor.
 
   break_match_goal. 2: congruence.
+
+  rewrite parSwap with (ι' := 0). rewrite parSwap with (ι' := 0).
+  rewrite parSwap with (ι' := 1). rewrite parSwap with (ι' := 2).
+
   apply nrefl.
+  all: lia.
 Qed.
 
 (*
@@ -337,7 +337,6 @@ Goal exists acts k,
              (ELet "Y"%string (ESend (EVar 0) ESelf)
                  (EReceive [(PVar, EVar 0)]))
                   , [])
-  
   |||| nullnode
   -[ k | acts ]ₙ->*
   0 : ([], EPid 1, []) ||||
@@ -350,14 +349,23 @@ Proof.
   apply p_spawn_local1.
   eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
   apply p_spawn_local2. do 2 constructor. intros. inversion H; subst; cbn. 2: inversion H1. repeat constructor.
-  eapply ntrans. eapply nspawn with (ι := 0) (ι' := 1); simpl. 2: lia. 2: reflexivity.
-  3: constructor. all: simpl; auto.
+  eapply ntrans. eapply nspawn with (ι := 0) (ι' := 1); simpl. 2: reflexivity.
+  2: constructor. all: simpl; auto.
+
+  rewrite parSwap with (ι' := 0). 2: lia.
+
   eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
   do 3 constructor.
+
+  rewrite parSwap with (ι' := 1). 2: lia.
+
   eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
   repeat constructor.
   eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
   repeat constructor. simpl.
+
+  rewrite parSwap with (ι' := 0). 2: lia.
+
   eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
   repeat constructor.
   eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
@@ -370,6 +378,9 @@ Proof.
   constructor. constructor; auto. constructor.
   eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
   repeat constructor. simpl.
+
+  rewrite parSwap with (ι' := 1). 2: lia.
+
   eapply ntrans. eapply nreceive with (ι := 1); cbn; try reflexivity.
   repeat constructor. simpl.
   eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
@@ -380,6 +391,9 @@ Proof.
   constructor.
   eapply ntrans. eapply nsend1 with (ι := 1) (ι' := 0); cbn; try reflexivity; auto.
   constructor. constructor; auto. constructor. simpl.
+
+  rewrite parSwap with (ι' := 0). 2: lia.
+
   eapply ntrans. eapply nreceive with (ι := 0); simpl; try reflexivity.
   constructor; auto. reflexivity. simpl.
   break_match_goal. 2: congruence.
@@ -397,45 +411,37 @@ Proof.
   split; intros.
   {
     subst. induction H0.
-    * inversion H2. inversion H3. subst. eexists. split. 2: reflexivity.
-      eapply nsend1; try eassumption. reflexivity.
-    * inversion H1. inversion H2. subst. eexists. split. 2: reflexivity.
-      eapply nsend2; try eassumption. reflexivity.
-    * inversion H2. subst. eexists. split. 2: reflexivity.
-      eapply nsend3; try eassumption. reflexivity.
-    * inversion H1. subst. eexists. split. 2: reflexivity.
-      eapply nreceive; try eassumption. reflexivity.
-    * inversion H1; subst.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-    * inversion H1; subst. eexists. split. 2: reflexivity.
-      eapply nself; try eassumption. reflexivity.
-    * inversion H1; subst. eexists. split. 2: reflexivity.
-      eapply nspawn; try eassumption. reflexivity.
+    * eexists. split. 2: reflexivity.
+      eapply nsend1; try eassumption.
+    * eexists. split. 2: reflexivity.
+      eapply nsend2; try eassumption.
+    * eexists. split. 2: reflexivity.
+      eapply nsend3; try eassumption.
+    * eexists. split. 2: reflexivity.
+      eapply nreceive; try eassumption.
+    * eexists. split. 2: reflexivity.
+      econstructor; try eassumption.
+    * eexists. split. 2: reflexivity.
+      eapply nself; try eassumption.
+    * eexists. split. 2: reflexivity.
+      eapply nspawn; try eassumption.
   }
   {
     subst. induction H0.
-    * inversion H2. inversion H3. subst. eexists. split. 2: reflexivity.
-      eapply nsend1; try eassumption. reflexivity.
-    * inversion H1. inversion H2. subst. eexists. split. 2: reflexivity.
-      eapply nsend2; try eassumption. reflexivity.
-    * inversion H2. subst. eexists. split. 2: reflexivity.
-      eapply nsend3; try eassumption. reflexivity.
-    * inversion H1. subst. eexists. split. 2: reflexivity.
-      eapply nreceive; try eassumption. reflexivity.
-    * inversion H1; subst.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-      - eexists. split. 2: reflexivity. econstructor; try eassumption. reflexivity.
-    * inversion H1; subst. eexists. split. 2: reflexivity.
-      eapply nself; try eassumption. reflexivity.
-    * inversion H1; subst. eexists. split. 2: reflexivity.
-      eapply nspawn; try eassumption. reflexivity.
+    * eexists. split. 2: reflexivity.
+      eapply nsend1; try eassumption.
+    * eexists. split. 2: reflexivity.
+      eapply nsend2; try eassumption.
+    * eexists. split. 2: reflexivity.
+      eapply nsend3; try eassumption.
+    * eexists. split. 2: reflexivity.
+      eapply nreceive; try eassumption.
+    * eexists. split. 2: reflexivity.
+      econstructor; try eassumption.
+    * eexists. split. 2: reflexivity.
+      eapply nself; try eassumption.
+    * eexists. split. 2: reflexivity.
+      eapply nspawn; try eassumption.
   }
 Qed.
 
@@ -443,7 +449,7 @@ Qed.
 
 
 (** Lanese et. al.:  *)
-Definition ppid (n : Node) : list PID := map fst n.
+(* Definition ppid (n : Node) : list PID := map fst n. *)
 (*
 Fixpoint expPids (e : Exp) : list PID :=
 match e with
@@ -513,72 +519,13 @@ pidCompatibleNode A A' /\ .
 
 
 
+Definition internals (n n' : Node) : Prop :=
+  exists l k, Forall (fun e => fst e = AInternal) l /\ n -[k|l]ₙ->* n'.
+
+Notation "n -->* n'" := (internals n n') (at level 30).
 
 
-
-Reserved Notation "n -->* n'" (at level 50).
-Inductive internalSteps : Node -> Node -> Prop :=
-| intrefl n (* n'  *): (* Permutation n n' -> *) n -->* n (* ' *)
-| inttrans n n' n'' ι:
-  n -[AInternal|ι]ₙ-> n' -> n' -->* n''
-->
-  n -->* n''
-where "n -->* n'" := (internalSteps n n').
-
-Lemma ppidPar : forall n ι x p',
-  get ι n = Some x -> ppid n = ppid (ι : p' |||| n).
-Proof.
-  induction n; intros; simpl.
-  * inversion H.
-  * destruct a; simpl. simpl in H. break_match_hyp. congruence. break_match_hyp.
-    - apply Nat.eqb_eq in Heqb0. subst. simpl. auto.
-    - simpl. eapply IHn in H. rewrite H. auto.
-Qed.
-
-Theorem internalPids :
-  forall p p', p -->* p' -> ppid p = ppid p'.
-Proof.
-  intros. induction H; auto.
-  inversion H; subst.
-  rewrite <- IHinternalSteps. erewrite ppidPar; eauto.
-Qed.
-
-Lemma getNotIn : forall n ι,
-  ~In ι (ppid n) -> get ι n = None.
-Proof.
-  induction n; intros; auto. simpl in H.
-  apply not_in_cons in H. destruct a,H. simpl in *.
-  break_match_goal; auto. break_match_goal.
-  apply Nat.eqb_eq in Heqb0. congruence.
-  apply IHn. auto.
-Qed.
-
-(* 
-NOT TRUE: n is not necesarily ordered!
-
-Lemma notInGet : forall n ι,
-   get ι n = None -> ~In ι (ppid n).
-Proof.
-  induction n; intros; auto. simpl in H. destruct a.
-  simpl. intro. destruct H0.
-  * break_match_hyp. apply Nat.ltb_lt in Heqb. lia.
-    break_match_hyp. congruence.
-    subst. apply Nat.eqb_neq in Heqb0. lia.
-  * apply IHn in H0.
-Qed. *)
-
-Theorem getInternal :
-  forall p p', p -->* p' -> (forall ι, (get ι p = None -> get ι p' = None) \/
-                              exists x, get ι p = Some x -> exists y, get ι p' = Some y /\ 
-                                 ι : x |||| nullnode -->* ι : y |||| nullnode).
-Proof.
-  intros. induction H; auto.
-  destruct IHinternalSteps.
-  * left. intros. apply getNotIn. erewrite <- internalPids. 2: eapply inttrans; eauto.
-  
-Admitted.
-
-Theorem extendStep : forall n n' ι,
+(* Theorem extendStep : forall n n' ι,
   n -[ AInternal | ι ]ₙ-> n' -> forall r ι', ~In ι' (ppid n) -> ι' : r |||| n -[ AInternal | ι ]ₙ-> ι' : r |||| n'.
 Proof.
   intros n n' ι H. inversion H; subst.
@@ -593,7 +540,7 @@ Proof.
    * eapply inttrans. 2: apply IHIND; erewrite internalPids. 3: exact IND.
      2: { erewrite <- internalPids. 2: eapply inttrans; eauto. auto. }
      instantiate (1 := ι). apply extendStep; auto.
-Qed.
+Qed. *)
 
 Definition onlyOne (a : Action) (ι : PID) (n n''' : Node) :=
   exists n' n'', n -->* n' /\ n' -[a|ι]ₙ-> n'' /\ n'' -->* n'''.
@@ -610,9 +557,11 @@ Lemma strong_bisim_is_weak : forall R, strong_bisimulation R -> weak_bisimulatio
 Proof.
   unfold strong_bisimulation, weak_bisimulation; intros. destruct H. split.
   * intros. eapply H in H2. 2: exact H1. destruct H2 as [q' [H2_1 H2_2]].
-    exists q'. split; auto. exists q, q'. split. 2: split. 1,3: apply intrefl. auto.
+    exists q'. split; auto. exists q, q'. split. 2: split. 2: auto.
+    all: exists [], 0; split; [constructor | constructor ]; auto.
   * intros. eapply H0 in H2. 2: exact H1. destruct H2 as [p' [H2_1 H2_2]].
-    exists p'. split; auto. exists p, p'. split. 2: split. 1,3: apply intrefl. auto.
+    exists p'. split; auto. exists p, p'. split. 2: split. 2: auto.
+    all: exists [], 0; split; [constructor | constructor ]; auto.
 Qed.
 
 (* Theorem processLocalDeterminism :
