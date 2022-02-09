@@ -1,6 +1,7 @@
 (* This part of the work is based on https://dl.acm.org/doi/10.1145/3123569.3123576 *)
 Require Export SubstSemantics.
 Require Export Coq.Sorting.Permutation.
+Require Export Coq.Classes.EquivDec.
 
 Import ListNotations.
 
@@ -82,14 +83,14 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 | p_arrive mb mb' fs e v : VALCLOSED v -> mb' = mb ++ [v] ->
   (fs, e, mb) -⌈ AArrive v ⌉-> (fs, e, mb')
 
-| p_send ι v mb fs : 
+| p_send ι v mb fs : VALCLOSED v ->
   (FSend2 (EPid ι) :: fs, v, mb) -⌈ ASend ι v ⌉-> (fs, v, mb)
 
 | p_self ι fs mb :
   ( fs, ESelf, mb ) -⌈ ASelf ι ⌉-> ( fs, EPid ι, mb )
 
 | p_spawn ι fs mb vl e l:
-  Some (length vl) = len l ->
+  Some (length vl) = len l -> VALCLOSED l ->
   (FSpawn2 (EFun vl e) :: fs, l, mb) -⌈ASpawn ι (EFun vl e) l⌉-> (fs, EPid ι, mb)
 
 | p_receive mb l fs e m mb' bindings :
@@ -109,17 +110,56 @@ Notation "x -⌈ k | xs ⌉-> y" := (LabelStar processLocalSemantics x k xs y) (
 (****************************   NODES  ****************************************)
 (******************************************************************************)
 
-Definition Node := PID -> option Process.
+Definition GlobalMailbox : Set := list (PID * Exp).
+Definition ProcessPool : Set := (PID -> option Process).
+Definition Node : Set := GlobalMailbox * ProcessPool.
 
-Definition nullnode : Node := fun ι => None.
-Definition par (pid : PID) (proc: Process) (n : Node) : Node :=
+Definition nullpool : ProcessPool := fun ι => None.
+Definition par (pid : PID) (proc: Process) (n : ProcessPool) : ProcessPool :=
   fun ι => if Nat.eq_dec pid ι then Some proc else n ι.
 
 Notation "pid : p |||| n" := (par pid p n) (at level 30, right associativity).
+Lemma par_same :  forall ι p p' Π, ι : p |||| ι : p' |||| Π = ι : p |||| Π.
+Proof.
+  intros. unfold par. extensionality ι'.
+  break_match_goal; auto.
+Qed.
+
+Lemma par_swap :  forall ι ι' p p' Π, ι <> ι' ->
+   ι : p |||| ι' : p' |||| Π = ι' : p' |||| ι : p |||| Π.
+Proof.
+  intros. unfold par. extensionality ι''.
+  break_match_goal; auto.
+  subst. break_match_goal; auto. congruence.
+Qed.
 
 Reserved Notation "n -[ a | ι ]ₙ-> n'" (at level 50).
 Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
-| nsend1 p p' q q' Π (ι ι' : PID) t :
+| nsend p p' ether prs (ι ι' : PID) t :
+  p -⌈ASend ι' t⌉-> p'
+->
+  (ether, ι : p |||| prs) -[ASend ι' t | ι]ₙ->  (ether ++ [(ι', t)], ι : p' |||| prs)
+
+(** This leads to the loss of determinism: *)
+| narrive ι p p' ether prs t:
+  In (ι, t) ether ->
+  p -⌈AArrive t⌉-> p' ->
+  (ether, ι : p |||| prs) -[AArrive t | ι]ₙ-> (removeFirst (prod_eqdec Nat.eq_dec Exp_eq_dec) (ι, t) ether,
+                                            ι : p' |||| prs)
+
+| nother p p' a Π (ι : PID) ether:
+  p -⌈a⌉-> p' ->
+  (a = AInternal \/ a = ASelf ι \/ (exists t, a = AReceive t))
+->
+   (ether, ι : p |||| Π) -[a| ι]ₙ-> (ether, ι : p' |||| Π)
+
+| nspawn Π p p' v1 v2 l ι ι' ether:
+  mk_list v2 = Some l -> (ι : p |||| Π) ι' = None ->
+  p -⌈ASpawn ι' v1 v2⌉-> p'
+->
+  (ether, ι : p |||| Π) -[ASpawn ι' v1 v2 | ι]ₙ-> (ether, ι' : ([], EApp v1 l, []) |||| ι : p' |||| Π)
+
+(* | nsend1 p p' q q' Π (ι ι' : PID) t :
   p -⌈ASend ι' t⌉-> p' -> q -⌈AArrive t⌉-> q' -> ι <> ι'
 ->
   ι : p |||| ι' : q |||| Π -[ASend ι' t | ι]ₙ-> ι : p' |||| ι' : q' |||| Π
@@ -132,9 +172,8 @@ Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
 | nsend3 p p' (ι ι' : PID) Π t :
   p -⌈ASend ι' t⌉-> p' -> (ι : p |||| Π) ι = None
 ->
-  ι : p |||| Π -[ASend ι' t | ι]ₙ-> ι : p' |||| Π
-
-| nreceive p p' t Π (ι : PID) :
+  ι : p |||| Π -[ASend ι' t | ι]ₙ-> ι : p' |||| Π *)
+(* | nreceive p p' t Π (ι : PID) :
   p -⌈AReceive t⌉-> p'
 ->
    ι : p |||| Π -[AReceive t | ι]ₙ-> ι : p' |||| Π
@@ -147,13 +186,9 @@ Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
 | nself p p' Π ι:
   p -⌈ASelf ι⌉-> p'
 ->
-  ι : p |||| Π -[ASelf ι | ι]ₙ-> ι : p' |||| Π
+  ι : p |||| Π -[ASelf ι | ι]ₙ-> ι : p' |||| Π *)
 
-| nspawn Π p p' v1 v2 l ι ι':
-  mk_list v2 = Some l -> (ι : p |||| Π) ι' = None ->
-  p -⌈ASpawn ι' v1 v2⌉-> p'
-->
-  ι : p |||| Π -[ASpawn ι' v1 v2 | ι]ₙ-> ι' : ([], EApp v1 l, []) |||| ι : p' |||| Π 
+(* *)
 where "n -[ a | ι ]ₙ-> n'" := (nodeSemantics n a ι n').
 
 (*
@@ -216,20 +251,6 @@ Inductive closureNodeSem : Node -> nat -> list (Action * PID) -> Node -> Prop :=
   n -[S k | (a,ι)::l]ₙ->* n''
 where "n -[ k | l ]ₙ->* n'" := (closureNodeSem n k l n').
 
-Lemma parSame :  forall ι p p' Π, ι : p |||| ι : p' |||| Π = ι : p |||| Π.
-Proof.
-  intros. extensionality ι'.
-  unfold par. break_match_goal; auto.
-Qed.
-
-Lemma parSwap :  forall ι ι' p p' Π, ι <> ι' ->
-   ι : p |||| ι' : p' |||| Π = ι' : p' |||| ι : p |||| Π.
-Proof.
-  intros. extensionality ι''.
-  unfold par. break_match_goal; auto.
-  subst. break_match_goal; auto. congruence.
-Qed.
-
 (*
   0 -[ 1 + 1 ]-> 1
   1 -[ 2 ]-> 3
@@ -237,88 +258,100 @@ Qed.
   3 : 2 + 3 == 5
 *)
 Goal exists acts k,
-  0 : ([], ESend (EPid 1) (EPlus (ELit 1) (ELit 1)), []) ||||
-  1 : ([], EReceive [(PVar, ESend (EPid 3) (EVar 0))], []) ||||
-  2 : ([], ESend (EPid 3) (ELit 3), []) ||||
-  3 : ([], EReceive [(PVar, EReceive [(PVar, EPlus (EVar 0) (EVar 1))])], []) |||| nullnode
+  ([], 0 : ([], ESend (EPid 1) (EPlus (ELit 1) (ELit 1)), []) ||||
+       1 : ([], EReceive [(PVar, ESend (EPid 3) (EVar 0))], []) ||||
+       2 : ([], ESend (EPid 3) (ELit 3), []) ||||
+       3 : ([], EReceive [(PVar, EReceive [(PVar, EPlus (EVar 0) (EVar 1))])], []) |||| nullpool)
   -[ k | acts ]ₙ->*
-  0 : ([], ELit 2, []) ||||
-  1 : ([], ELit 2, []) ||||
-  2 : ([], ELit 3, []) ||||
-  3 : ([], ELit 5, []) |||| nullnode.
+  ([], 0 : ([], ELit 2, []) ||||
+       1 : ([], ELit 2, []) ||||
+       2 : ([], ELit 3, []) ||||
+       3 : ([], ELit 5, []) |||| nullpool).
 Proof.
-  eexists. exists 18.
+  eexists. exists 21.
   (* Some steps with 0 *)
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  apply p_send_local1.
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  apply p_send_local2. constructor.
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  constructor. constructor.
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  constructor. constructor. constructor.
+  eapply ntrans. eapply nother with (ι := 0).
+    apply p_send_local1. auto.
+  eapply ntrans. eapply nother with (ι := 0).
+    apply p_send_local2. constructor. auto.
+  eapply ntrans. eapply nother with (ι := 0).
+    constructor. constructor. auto.
+  eapply ntrans. eapply nother with (ι := 0).
+    do 3 constructor. auto.
 
-  rewrite parSwap with (ι' := 2). rewrite parSwap with (ι' := 2). 2-3: lia.
+  rewrite par_swap with (ι' := 2). rewrite par_swap with (ι' := 2). 2-3: lia.
 
   (* Some steps with 2 *)
-  eapply ntrans. eapply ninternal with (ι := 2); cbn; try reflexivity.
-  apply p_send_local1.
-  eapply ntrans. eapply ninternal with (ι := 2); cbn; try reflexivity.
-  apply p_send_local2. constructor.
+  eapply ntrans. eapply nother with (ι := 2).
+    apply p_send_local1. auto.
+  eapply ntrans. eapply nother with (ι := 2).
+    apply p_send_local2. constructor. auto.
 
-  rewrite parSwap with (ι' := 3). rewrite parSwap with (ι' := 3). 2-3: lia.
+  rewrite par_swap with (ι' := 3). rewrite par_swap with (ι' := 3). 2-3: lia.
 
-  eapply ntrans. eapply nsend1 with (ι := 2) (ι' := 3); cbn; try reflexivity.
-  constructor.
-  constructor. constructor. simpl. reflexivity. lia.
+  eapply ntrans. eapply nsend with (ι := 2) (ι' := 3).
+    constructor. constructor.
+  simpl.
 
-  rewrite parSwap with (ι' := 0). rewrite parSwap with (ι' := 0). 2-3: lia.
+  rewrite par_swap with (ι' := 3). 2: lia.
+  eapply ntrans. apply narrive. 
+    constructor. reflexivity. repeat constructor.
+  simpl. break_match_goal. 2: congruence.
+
+  rewrite par_swap with (ι' := 0). rewrite par_swap with (ι' := 0). 2-3: lia.
 
   (* Again with 0 *)
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  constructor. constructor.
+  eapply ntrans. eapply nother with (ι := 0).
+  constructor. constructor. auto.
 
-  rewrite parSwap with (ι' := 1). rewrite parSwap with (ι' := 1). 2-3: lia.
+  rewrite par_swap with (ι' := 1). rewrite par_swap with (ι' := 1). 2-3: lia.
 
-  eapply ntrans. eapply nsend1 with (ι := 0) (ι' := 1); cbn; try reflexivity.
-  constructor. constructor. constructor. reflexivity. lia.
+  eapply ntrans. eapply nsend with (ι := 0) (ι' := 1).
+  constructor. constructor. simpl.
 
-  rewrite parSwap with (ι' := 1). 2: lia.
+  rewrite par_swap with (ι' := 1). 2: lia.
+  eapply ntrans. apply narrive.
+    constructor. reflexivity. repeat constructor.
+  simpl. break_match_goal. 2: congruence.
 
   (* Now with 1 *)
-  eapply ntrans. eapply nreceive with (ι := 1); cbn; try reflexivity.
-  constructor; try reflexivity.
-  eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
-  apply p_send_local1.
-  eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
-  apply p_send_local2. constructor.
+  eapply ntrans. eapply nother with (ι := 1).
+    apply p_receive; try reflexivity. right. right. eexists. auto.
+  simpl.
+  eapply ntrans. eapply nother with (ι := 1).
+    apply p_send_local1. auto.
+  eapply ntrans. eapply nother with (ι := 1).
+    apply p_send_local2. constructor. auto.
 
-  rewrite parSwap with (ι' := 3). rewrite parSwap with (ι' := 3). 2-3: lia.
+  cbn. break_match_goal. 2: congruence.
+  rewrite par_swap with (ι' := 3). 2: lia.
 
-  eapply ntrans. eapply nsend1 with (ι := 1) (ι' := 3); cbn; try reflexivity.
-  constructor. constructor. constructor. reflexivity. lia.
+  eapply ntrans. eapply nsend with (ι := 1) (ι' := 3).
+    constructor. constructor. simpl.
 
-  rewrite parSwap with (ι' := 3). 2: lia.
+  rewrite par_swap with (ι' := 3). 2: lia.
+
+  eapply ntrans. apply narrive.
+    constructor. reflexivity. repeat constructor.
+    simpl. break_match_goal. 2: congruence.
 
   (* Mailbox processing for 3 *)
-  eapply ntrans. eapply nreceive with (ι := 3); cbn; try reflexivity.
-  constructor; try reflexivity. cbn.
+  eapply ntrans. eapply nother with (ι := 3).
+    apply p_receive; try reflexivity. right. right. eexists. auto. cbn.
   break_match_goal. 2: congruence.
-  break_match_goal. 2: congruence.
-  eapply ntrans. eapply nreceive with (ι := 3); cbn; try reflexivity.
-  constructor; try reflexivity.
+  eapply ntrans. eapply nother with (ι := 3).
+    apply p_receive; try reflexivity. right. right. eexists. auto.
+    cbn. break_match_goal. 2: congruence.
 
-  eapply ntrans. eapply ninternal with (ι := 3); cbn; try reflexivity.
-  constructor. constructor.
-  eapply ntrans. eapply ninternal with (ι := 3); cbn; try reflexivity.
-  constructor. constructor. constructor.
-  eapply ntrans. eapply ninternal with (ι := 3); cbn; try reflexivity.
-  constructor. constructor.
+  eapply ntrans. eapply nother with (ι := 3).
+    constructor. constructor. auto.
+  eapply ntrans. eapply nother with (ι := 3).
+    constructor. constructor. constructor. auto.
+  eapply ntrans. eapply nother with (ι := 3).
+    constructor. constructor. auto.
 
-  break_match_goal. 2: congruence.
-
-  rewrite parSwap with (ι' := 0). rewrite parSwap with (ι' := 0).
-  rewrite parSwap with (ι' := 1). rewrite parSwap with (ι' := 2).
+  rewrite par_swap with (ι' := 0). rewrite par_swap with (ι' := 0).
+  rewrite par_swap with (ι' := 1). rewrite par_swap with (ι' := 2).
 
   apply nrefl.
   all: lia.
@@ -332,72 +365,82 @@ let X = spawn(fun() -> receive X -> X ! self() end end, [])
 
 *)
 Goal exists acts k,
-  0 : ([], ELet "X"%string (ESpawn (EFun [] (EReceive [(PVar, ESend (EVar 0) ESelf)]
+  ([], 0 : ([], ELet "X"%string (ESpawn (EFun [] (EReceive [(PVar, ESend (EVar 0) ESelf)]
                                             )) ENil)
              (ELet "Y"%string (ESend (EVar 0) ESelf)
                  (EReceive [(PVar, EVar 0)]))
                   , [])
-  |||| nullnode
+  |||| nullpool)
   -[ k | acts ]ₙ->*
-  0 : ([], EPid 1, []) ||||
-  1 : ([], EPid 1, []) |||| nullnode.
+  ([], 0 : ([], EPid 1, []) ||||
+       1 : ([], EPid 1, []) |||| nullpool).
 Proof.
-  eexists. exists 19.
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  do 2 constructor.
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  apply p_spawn_local1.
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  apply p_spawn_local2. do 2 constructor. intros. inversion H; subst; cbn. 2: inversion H1. repeat constructor.
+  eexists. exists 21.
+  eapply ntrans. eapply nother with (ι := 0).
+    do 2 constructor. auto.
+  eapply ntrans. eapply nother with (ι := 0).
+    apply p_spawn_local1. auto.
+  eapply ntrans. eapply nother with (ι := 0).
+    apply p_spawn_local2. do 2 constructor. intros.
+    inversion H; subst; cbn. 2: inversion H1. repeat constructor.
+    auto.
   eapply ntrans. eapply nspawn with (ι := 0) (ι' := 1); simpl. 2: reflexivity.
-  2: constructor. all: simpl; auto.
+    2: constructor. all: simpl; auto. constructor.
 
-  rewrite parSwap with (ι' := 0). 2: lia.
+  rewrite par_swap with (ι' := 0). 2: lia.
 
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  do 3 constructor.
+  eapply ntrans. eapply nother with (ι := 0).
+    do 3 constructor. auto.
 
-  rewrite parSwap with (ι' := 1). 2: lia.
+  rewrite par_swap with (ι' := 1). 2: lia.
 
-  eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
-  repeat constructor.
-  eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
-  repeat constructor. simpl.
+  eapply ntrans. eapply nother with (ι := 1).
+    repeat constructor. auto.
+  eapply ntrans. eapply nother with (ι := 1).
+    repeat constructor. simpl. auto.
 
-  rewrite parSwap with (ι' := 0). 2: lia.
+  rewrite par_swap with (ι' := 0). 2: lia.
 
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  repeat constructor.
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  apply p_send_local1.
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  apply p_send_local2. constructor.
-  eapply ntrans. eapply nself with (ι := 0); cbn; try reflexivity.
-  constructor.
-  eapply ntrans. eapply nsend1 with (ι := 0) (ι' := 1); cbn; try reflexivity; auto.
-  constructor. constructor; auto. constructor.
-  eapply ntrans. eapply ninternal with (ι := 0); cbn; try reflexivity.
-  repeat constructor. simpl.
+  simpl.
+  eapply ntrans. eapply nother with (ι := 0).
+    repeat constructor. auto.
+  eapply ntrans. eapply nother with (ι := 0).
+    apply p_send_local1. auto.
+  eapply ntrans. eapply nother with (ι := 0).
+    apply p_send_local2. constructor. auto.
+  eapply ntrans. eapply nother with (ι := 0).
+    apply p_self. auto.
+  eapply ntrans. eapply nsend with (ι := 0) (ι' := 1).
+    constructor. constructor. simpl.
+  eapply ntrans. eapply nother with (ι := 0); cbn; try reflexivity.
+    repeat constructor. simpl. auto.
 
-  rewrite parSwap with (ι' := 1). 2: lia.
+  rewrite par_swap with (ι' := 1). 2: lia.
 
-  eapply ntrans. eapply nreceive with (ι := 1); cbn; try reflexivity.
-  repeat constructor. simpl.
-  eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
-  apply p_send_local1.
-  eapply ntrans. eapply ninternal with (ι := 1); cbn; try reflexivity.
-  apply p_send_local2. constructor.
-  eapply ntrans. eapply nself with (ι := 1); cbn; try reflexivity.
-  constructor.
-  eapply ntrans. eapply nsend1 with (ι := 1) (ι' := 0); cbn; try reflexivity; auto.
-  constructor. constructor; auto. constructor. simpl.
+  eapply ntrans. apply narrive.
+    constructor. reflexivity. repeat constructor.
+  simpl. break_match_goal. 2: congruence.
+  eapply ntrans. eapply nother with (ι := 1).
+    apply p_receive; auto; try reflexivity. right. right. eexists. auto.
+  simpl.
+  eapply ntrans. eapply nother with (ι := 1).
+    apply p_send_local1. auto.
+  eapply ntrans. eapply nother with (ι := 1).
+    apply p_send_local2. constructor. auto.
+  eapply ntrans. eapply nother with (ι := 1).
+    apply p_self. auto.
+  eapply ntrans. eapply nsend with (ι := 1) (ι' := 0).
+    constructor. constructor. simpl.
 
-  rewrite parSwap with (ι' := 0). 2: lia.
+  rewrite par_swap with (ι' := 0). 2: lia.
 
-  eapply ntrans. eapply nreceive with (ι := 0); simpl; try reflexivity.
-  constructor; auto. reflexivity. simpl.
+  eapply ntrans. apply narrive.
+    constructor. reflexivity. repeat constructor.
+  eapply ntrans. eapply nother with (ι := 0).
+    apply p_receive; auto. reflexivity. right. right. eexists. auto. simpl.
   break_match_goal. 2: congruence.
   cbn. break_match_goal. 2: congruence.
+  break_match_goal. 2: congruence.
   apply nrefl.
 Qed.
 
@@ -412,34 +455,22 @@ Proof.
   {
     subst. induction H0.
     * eexists. split. 2: reflexivity.
-      eapply nsend1; try eassumption.
+      eapply nsend; try eassumption.
     * eexists. split. 2: reflexivity.
-      eapply nsend2; try eassumption.
+      eapply narrive; try eassumption.
     * eexists. split. 2: reflexivity.
-      eapply nsend3; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply nreceive; try eassumption.
-    * eexists. split. 2: reflexivity.
-      econstructor; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply nself; try eassumption.
+      eapply nother; try eassumption.
     * eexists. split. 2: reflexivity.
       eapply nspawn; try eassumption.
   }
   {
     subst. induction H0.
     * eexists. split. 2: reflexivity.
-      eapply nsend1; try eassumption.
+      eapply nsend; try eassumption.
     * eexists. split. 2: reflexivity.
-      eapply nsend2; try eassumption.
+      eapply narrive; try eassumption.
     * eexists. split. 2: reflexivity.
-      eapply nsend3; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply nreceive; try eassumption.
-    * eexists. split. 2: reflexivity.
-      econstructor; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply nself; try eassumption.
+      eapply nother; try eassumption.
     * eexists. split. 2: reflexivity.
       eapply nspawn; try eassumption.
   }
@@ -522,7 +553,7 @@ pidCompatibleNode A A' /\ .
 Definition internals (n n' : Node) : Prop :=
   exists l k, Forall (fun e => fst e = AInternal) l /\ n -[k|l]ₙ->* n'.
 
-Notation "n -->* n'" := (internals n n') (at level 30).
+Notation "n -->* n'" := (internals n n') (at level 50).
 
 
 (* Theorem extendStep : forall n n' ι,
@@ -570,15 +601,217 @@ Proof.
   intros p p' a ι IND. induction IND; intros.
 Qed. *)
 
-Theorem internalSteps_weak_bisim : weak_bisimulation internalSteps.
+Lemma internal_determinism :
+  forall p p' a, p -⌈a⌉-> p' -> forall p'', p -⌈a⌉-> p'' -> p' = p''.
+Proof.
+  intros p p' a IH. induction IH; intros.
+  * inversion H0; subst; try (inversion H; inversion_is_value).
+    2-3: inversion H; subst; try inversion_is_value.
+    - eapply step_determinism in H. 2: exact H5. destruct H; now subst.
+  * inversion H; subst; try inversion_is_value.
+    - inversion H4; inversion_is_value.
+    - auto.
+  * inversion H0; subst; try inversion_is_value.
+    - inversion H5; subst; inversion_is_value.
+    - auto.
+  * inversion H; subst; try inversion_is_value.
+    - inversion H4; subst; inversion_is_value.
+    - auto.
+  * inversion H0; subst; try inversion_is_value.
+    - inversion H5; subst; inversion_is_value.
+    - auto.
+  * inversion H1; subst; try inversion_is_value. auto.
+  * inversion H0; now subst.
+  * inversion H; now subst.
+  * inversion H1; now subst.
+  * inversion H1. subst. rewrite H in H7. now inversion H7.
+Qed.
+
+(* Lemma internal_alt : forall ether ether' procs procs' a ι p,
+  (ether, procs) -[ a | ι ]ₙ-> (ether', procs') -> Some p = proc' ι -> Π -[ a | ι ]ₙ-> ι : p |||| Π'.
+Proof.
+  intros. generalize dependent p. induction H; intros; try rewrite par_same.
+  * unfold par in H2; break_match_hyp. 2: congruence. inversion H2. subst. now apply nsend1.
+  * unfold par in H1; break_match_hyp. 2: congruence. inversion H1. subst. eapply nsend2; eauto.
+  * unfold par in H1; break_match_hyp. 2: congruence. inversion H1. subst. apply nsend3; eauto.
+  * unfold par in H0; break_match_hyp. 2: congruence. inversion H0. subst. constructor; eauto.
+  * unfold par in H0; break_match_hyp. 2: congruence. inversion H0. subst. constructor; eauto.
+  * unfold par in H0; break_match_hyp. 2: congruence. inversion H0. subst. constructor; eauto.
+  * unfold par in H2; break_match_hyp.
+    - subst. unfold par in H0; break_match_hyp; congruence.
+    - break_match_hyp. 2: congruence. inversion H2. subst. 
+      rewrite par_swap, par_same. constructor; eauto. auto.
+Qed. *)
+
+Definition actionPid (a : Action) : option PID :=
+match a with
+ | ASend p t => Some p
+ | AReceive t => None
+ | AArrive t => None
+ | ASelf ι => None
+ | ASpawn ι t1 t2 => Some ι
+ | AInternal => None
+end.
+
+Lemma par_eq : forall ι p p' Π Π',
+  ι : p |||| Π = ι : p' |||| Π' -> p = p'.
+Proof.
+  intros. apply equal_f with ι in H as H'.
+  unfold par in H'; break_match_hyp. 2: congruence. inversion H'. auto.
+Qed.
+
+(* Lemma concurrent_determinism :
+  forall Π a ι Π', Π -[a | ι]ₙ-> Π' -> forall Π'', Π -[a | ι]ₙ-> Π'' -> Π' = Π''.
+Proof.
+  intros Π a ι Π' IH. induction IH; intros.
+  * inversion H0; subst.
+    - rewrite <- H3 in *.
+      apply par_eq in H3 as H3'. subst.
+      eapply internal_determinism in H. 2:exact H7. subst. auto. f_equal.
+      extensionality ι''. apply equal_f with ι'' in H3. unfold par in *.
+      break_match_goal; auto.
+    - intuition; try congruence. destruct H4. congruence.
+  * inversion H0; subst.
+    apply par_eq in H3 as H3'. inversion H3'. subst.
+    eapply internal_determinism in H. 2: exact H3. subst.
+    extensionality ι''. apply equal_f with ι'' in H1. unfold par in *.
+    break_match_goal; auto.
+  * inversion H0; subst.
+    apply par_eq in H1 as H1'. subst.
+    eapply internal_determinism in H. 2: exact H2. subst.
+    extensionality ι''. apply equal_f with ι'' in H1. unfold par in *.
+    break_match_goal; auto.
+  * inversion H0; subst.
+    apply par_eq in H1 as H1'. subst.
+    eapply internal_determinism in H. 2: exact H3. subst.
+    extensionality ι''. apply equal_f with ι'' in H1. unfold par in *.
+    break_match_goal; auto.
+  * inversion H2; subst.
+    apply par_eq in H3 as H3'. subst.
+    eapply internal_determinism in H1. 2: exact H11. subst.
+    extensionality ι''. apply equal_f with ι'' in H3. unfold par in *.
+    break_match_goal; auto.
+    rewrite H in H7. now inversion H7.
+    break_match_goal; auto.
+Qed. *)
+
+(* Lemma action_swap : forall n n' n'' a ι a' ι',
+  n -[a | ι]ₙ-> n' -> n -[a' | ι']ₙ-> n''
+->
+  n' -[a' | ι']ₙ-> n''. *)
+
+(* Lemma none_action : forall n a ι p Π',
+  n -[ a | ι ]ₙ-> ι : p |||| Π' ->
+  actionPid a = None
+->
+  n -[a | ι]ₙ-> ι : p |||| n.
+Proof.
+  intros n a ι p Π' IH. dependent induction IH; subst; intro; simpl in *; try congruence.
+  * apply par_eq in x as x'. subst. rewrite par_same. constructor; auto.
+  * apply par_eq in x as x'. subst. rewrite par_same. constructor; auto.
+  * apply par_eq in x as x'. subst. rewrite par_same. constructor; auto.
+Qed. *)
+
+(* Lemma internal_ordering_none_action :
+  forall Π Θ, Π -->* Θ -> forall Π' a ι, Π -[a | ι]ₙ-> Π' ->
+  forall p, Some p = Π' ι ->
+  actionPid a = None
+->
+  Θ -[a | ι]ₙ-> ι : p |||| Θ.
+Proof.
+  intros Π Θ IH.
+  destruct IH as [l [k [ALL IH]]]. dependent induction IH; intros.
+  * eapply internal_alt in H0. 2: exact H. eapply concurrent_determinism in H. 2: exact H0.
+    apply none_action in H0; auto.
+  * inversion ALL; simpl in H5. subst.
+    specialize (IHIH H6).
+Qed. *)
+
+Lemma internal_equal :
+  forall p p', p -⌈ AInternal ⌉-> p' -> forall p'' a, p -⌈ a ⌉-> p''
+->
+  (a = AInternal /\ p'' = p') \/ (exists t, a = AArrive t /\ p'' = (fst (fst p), snd (fst p), snd p ++ [t])).
+Proof.
+  intros. inversion H; subst; inversion H0; subst.
+  all: try (inversion H1; subst; inversion_is_value); auto; try inversion_is_value.
+  * eapply step_determinism in H1. 2: exact H7. destruct H1. subst. auto.
+  * right. exists v. auto.
+  * inversion H6; inversion_is_value.
+  * right. exists v. auto.
+  * inversion H7; subst; inversion_is_value.
+  * right. exists v0. auto.
+  * inversion H6; subst; inversion_is_value.
+  * right. exists v. auto. 
+  * inversion H7; subst; inversion_is_value.
+  * right. exists v0. auto.
+Qed.
+
+Definition modifyMailbox (p : PID) (ι0 : PID) (t : Exp) (n : Node) : Node :=
+  let (g, procs) := n in (removeFirst (prod_eqdec Nat.eq_dec Exp_eq_dec) (ι0, t) g, 
+                          fun ι => if Nat.eq_dec p ι
+                                   then match procs ι with
+                                         | Some (fs, e, mb) => Some (fs, e, mb ++ [t])
+                                         | None => None
+                                         end
+                                    else procs ι).
+
+Lemma internal_det :
+  forall n n' n'' ι a, n -[AInternal | ι]ₙ-> n' -> n -[a | ι]ₙ-> n''
+->
+  (a = AInternal /\ n''= n') \/ (exists t, a = AArrive t /\ 
+                                 n'' = modifyMailbox ι ι t n).
+Proof.
+  intros. inversion H. inversion H0; subst.
+  * inversion H8; subst. apply par_eq in H5. subst.
+    eapply internal_equal in H7; eauto. destruct H7 as [[? ?] | [? [? ?]]]; congruence.
+  * right. inversion H9; subst. apply par_eq in H5; subst.
+    eapply internal_equal in H8. 2: exact H1. destruct H8 as [[? ?] | [? [? ?]]]; try congruence.
+    destruct p,p. simpl in H4. subst. exists t. simpl.
+    split; auto. f_equal. extensionality ι'. unfold par.
+    break_match_goal; auto. now inversion H3.
+  * inversion H9; subst. apply par_eq in H5; subst.
+    eapply internal_equal in H7. 2: exact H1. destruct H7 as [[? ?] | [? [? ?]]]; try congruence.
+    - subst. left; split; auto. f_equal. inversion H9.
+      extensionality x. apply equal_f with x in H4. unfold par in *. break_match_goal; auto.
+    - subst. inversion H8. 2: inversion H3. 3: destruct H4. all: try congruence.
+  * inversion H10; subst. apply par_eq in H5. subst.
+    eapply internal_equal in H9; eauto. destruct H9 as [[? ?] | [? [? ?]]]; congruence.
+Qed.
+
+Lemma step_swap :
+  forall n n' ι, n -[AInternal | ι]ₙ-> n' -> forall n'' a' ι', n -[a' | ι']ₙ-> n'' ->
+  ι <> ι'
+->
+  exists n''', n' -[a' | ι']ₙ-> n'''.
+Proof.
+  intros n n' a ι IH. induction IH; intros.
+  * inversion H0; subst.
+    - exists (ether ++ [(ι', t)] ++ [(ι'1, t0)], ι'0 : p'0 |||| ι : p' |||| prs).
+      destruct (Nat.eq_dec ι ι'0).
+      + subst. apply par_eq in H4 as H4'. subst. eapply internal_determinism in H7. 2: exact H.
+      eapply nsend.
+Admitted.
+
+Corollary alma :
+  forall n n', n -->* n' -> forall n'' a ι, n -[a | ι]ₙ-> n''
+->
+  n' = n'' \/ exists n''', n' -[a | ι]ₙ-> n'''.
+Proof.
+
+Admitted. *)
+
+Theorem internalSteps_weak_bisim : weak_bisimulation internals.
 Proof.
   split; intros.
-  * inversion H0; subst; unfold onlyOne.
-    - exists (ι : p'0 |||| ι' : q' |||| q). split.
+  * (* inversion H0; subst;  *) unfold onlyOne.
+    eapply alma in H as H'. 2: exact H0. destruct H'; subst.
+    - exists p'. split. 2: exists [], 0; repeat constructor.
+      exists 
+    - exists ((ether, ι : p'0 |||| ι' : q' |||| q)). split.
       + exists q. eexists. split. 2: split.
-        ** apply intrefl.
-        ** erewrite getInternal in H1, H2; eauto. econstructor; eauto.
-        ** apply intrefl.
+        ** exists [], 0; repeat constructor.
+        ** admit.
+        ** exists [], 0; repeat constructor.
       + 
 Qed.
 
