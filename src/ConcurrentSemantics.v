@@ -621,7 +621,7 @@ Proof.
   intros p p' a ι IND. induction IND; intros.
 Qed. *)
 
-Theorem internalSteps_weak_bisim : weak_bisimulation internalSteps.
+(* Theorem internalSteps_weak_bisim : weak_bisimulation internalSteps.
 Proof.
   split; intros.
   * inversion H0; subst; unfold onlyOne.
@@ -645,4 +645,4 @@ Goal Node_equivalence (
                       ).
 Proof.
   
-Qed.
+Qed. *)
