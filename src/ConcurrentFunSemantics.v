@@ -34,14 +34,8 @@ match m with
            end
 end.
 
-Fixpoint removeFirst {A : Type} (eq_dec : forall x y : A, {x = y} + {x <> y})
-                     (x : A) (l : list A) {struct l} : list A :=
-  match l with
-  | [] => []
-  | y :: tl => if eq_dec x y then tl else y :: removeFirst eq_dec x tl
-  end.
-
 Definition pop (v : Exp) (m : Mailbox) := removeFirst Exp_eq_dec v m.
+Definition etherPop := removeFirst (prod_eqdec Nat.eq_dec Exp_eq_dec).
 
 Fixpoint len (l : Exp) : option nat :=
 match l with
@@ -144,7 +138,7 @@ Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
 | narrive ι p p' ether prs t:
   In (ι, t) ether ->
   p -⌈AArrive t⌉-> p' ->
-  (ether, ι : p |||| prs) -[AArrive t | ι]ₙ-> (removeFirst (prod_eqdec Nat.eq_dec Exp_eq_dec) (ι, t) ether,
+  (ether, ι : p |||| prs) -[AArrive t | ι]ₙ-> (etherPop (ι, t) ether,
                                             ι : p' |||| prs)
 
 | nother p p' a Π (ι : PID) ether:
@@ -251,6 +245,17 @@ Inductive closureNodeSem : Node -> nat -> list (Action * PID) -> Node -> Prop :=
   n -[S k | (a,ι)::l]ₙ->* n''
 where "n -[ k | l ]ₙ->* n'" := (closureNodeSem n k l n').
 
+Theorem closureNodeSem_trans :
+  forall n n' k l, n -[k | l]ₙ->* n' -> forall n'' k' l', n' -[k'|l']ₙ->* n''
+->
+  n -[k + k' | l ++ l']ₙ->* n''.
+Proof.
+  intros n n' k l D1. induction D1; intros; simpl.
+  * exact H.
+  * eapply ntrans. exact H.
+    eapply IHD1 in H0. exact H0.
+Qed.
+
 (*
   0 -[ 1 + 1 ]-> 1
   1 -[ 2 ]-> 3
@@ -296,7 +301,7 @@ Proof.
   rewrite par_swap with (ι' := 3). 2: lia.
   eapply ntrans. apply narrive. 
     constructor. reflexivity. repeat constructor.
-  simpl. break_match_goal. 2: congruence.
+  cbn. break_match_goal. 2: congruence.
 
   rewrite par_swap with (ι' := 0). rewrite par_swap with (ι' := 0). 2-3: lia.
 
@@ -312,7 +317,7 @@ Proof.
   rewrite par_swap with (ι' := 1). 2: lia.
   eapply ntrans. apply narrive.
     constructor. reflexivity. repeat constructor.
-  simpl. break_match_goal. 2: congruence.
+  cbn. break_match_goal. 2: congruence.
 
   (* Now with 1 *)
   eapply ntrans. eapply nother with (ι := 1).
@@ -333,7 +338,7 @@ Proof.
 
   eapply ntrans. apply narrive.
     constructor. reflexivity. repeat constructor.
-    simpl. break_match_goal. 2: congruence.
+    cbn. break_match_goal. 2: congruence.
 
   (* Mailbox processing for 3 *)
   eapply ntrans. eapply nother with (ι := 3).
@@ -419,7 +424,7 @@ Proof.
 
   eapply ntrans. apply narrive.
     constructor. reflexivity. repeat constructor.
-  simpl. break_match_goal. 2: congruence.
+  cbn. break_match_goal. 2: congruence.
   eapply ntrans. eapply nother with (ι := 1).
     apply p_receive; auto; try reflexivity. right. right. eexists. auto.
   simpl.
@@ -437,7 +442,7 @@ Proof.
   eapply ntrans. apply narrive.
     constructor. reflexivity. repeat constructor.
   eapply ntrans. eapply nother with (ι := 0).
-    apply p_receive; auto. reflexivity. right. right. eexists. auto. simpl.
+    apply p_receive; auto. reflexivity. right. right. eexists. auto. cbn.
   break_match_goal. 2: congruence.
   cbn. break_match_goal. 2: congruence.
   break_match_goal. 2: congruence.
