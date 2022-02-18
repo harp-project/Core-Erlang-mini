@@ -126,7 +126,7 @@ Qed.
 
 Section Tests.
 
-  Local Definition e1 := ELit 0.
+  Local Definition e1 := ELit 0%Z.
   Local Definition e2 := EFun [] e1.
   Local Definition e3 := EFun [] (EPlus e1 e1).
 
@@ -160,7 +160,7 @@ Section Tests.
     1-2: repeat constructor. intros.
     destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
     apply length_zero_iff_nil in H3. apply length_zero_iff_nil in H4. subst. intros. cbn. cbn in H4.
-    destruct H3, H6. epose (H7 m1 _ (ELit 0) (ELit 0) _ H4).
+    destruct H3, H6. epose (H7 m1 _ (ELit 0%Z) (ELit 0%Z) _ H4).
     destruct t. exists (S (S (S x))). constructor. econstructor. constructor.
     constructor. assumption.
     

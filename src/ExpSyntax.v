@@ -12,15 +12,22 @@ Definition FunctionIdentifier : Set := string * nat.
 
 Definition PID : Set := nat.
 
+Inductive Lit : Set :=
+| Atom (s : string)
+| Int (z : Z).
+
+Coercion Atom : string >-> Lit.
+Coercion Int  : Z >-> Lit.
+
 Inductive Pat : Set :=
-| PLit (l : Z)
+| PLit (l : Lit)
 | PPid (p : PID)
 | PVar (** will be assigned in increasing order *)
 | PNil
 | PCons (p1 p2 : Pat).
 
 Inductive Exp : Set :=
-| ELit    (l : Z)
+| ELit    (l : Lit)
 | EPid    (p : PID)
 | EVar    (n : nat) (** (v : Var) <- these will be assigned by a naming function *)
 | EFunId  (n : nat) (** (f : FunctionIdentifier) <- these will be assigned by a naming function *)
@@ -40,10 +47,8 @@ Inductive Exp : Set :=
 (** Recursive data structures which are values: *)
 | VCons (e1 e2 : Exp)
 (** Concurrency *)
-| ESend (p e : Exp)
 | EReceive (l : list (Pat * Exp))
-| ESelf
-| ESpawn (e1 e2 : Exp) (** e1 should be evaluated to a function name, e2 to an object theoretic list *).
+| EConcBIF (e : Exp) (l : list Exp).
 
 Section correct_exp_ind.
 
@@ -51,7 +56,7 @@ Section correct_exp_ind.
     (P : Exp -> Prop)(Q : list Exp -> Prop)(W : list (Pat * Exp) -> Prop).
 
   Hypotheses
-   (H0 : forall (l : Z), P (ELit l))
+   (H0 : forall (l : Lit), P (ELit l))
    (H00 : forall (l : PID), P (EPid l))
    (H1 : forall (n : nat), P (EVar n))
    (H2 : forall (n : nat), P (EFunId n))
@@ -68,12 +73,10 @@ Section correct_exp_ind.
    (H10 : forall e1, P e1 -> forall e2, P e2 -> P (ECons e1 e2))
    (H11 : P ENil)
    (H12 : forall e1, P e1 -> forall e2, P e2 -> P (VCons e1 e2))
-   (H13 : forall e, P e -> forall p, P p -> P (ESend p e))
+   (H13 : forall e1, P e1 -> forall l, Q l -> P (EConcBIF e1 l))
    (H14 : forall l, W l -> P (EReceive l))
-   (H15 : P ESelf)
-   (H16 : forall e1, P e1 -> forall e2, P e2 -> P (ESpawn e1 e2))
-   (H' : forall v : Exp, P v -> forall l:list Exp, Q l -> Q (v :: l))
    (H1' : Q [])
+   (H'  : forall e, P e -> forall l, Q l -> Q (e :: l))
    (J : W [])
    (J0 : forall e, P e -> forall xs, W xs -> forall p, W ((p, e)::xs)).
 
@@ -96,14 +99,16 @@ Section correct_exp_ind.
   | ECons e1 e2 => H10 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ENil => H11
   | VCons e1 e2 => H12 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
-  | ESend p e => H13 e (Exp_ind2 e) p (Exp_ind2 p)
+  | EConcBIF e l => H13 e (Exp_ind2 e) l ((fix l_ind (l':list Exp) : Q l' :=
+                                         match l' as x return Q x with
+                                         | [] => H1'
+                                         | v::xs => H' v (Exp_ind2 v) xs (l_ind xs)
+                                         end) l)
   | EReceive l => H14 l ((fix l_ind (l':list (Pat * Exp)) : W l' :=
                                          match l' as x return W x with
                                          | [] => J
                                          | (p, v)::xs => J0 v (Exp_ind2 v) xs (l_ind xs) p
                                          end) l)
-  | ESelf => H15
-  | ESpawn e1 e2 => H16 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   end.
 
 End correct_exp_ind.
@@ -120,10 +125,10 @@ Definition ZVar : Var := "Z"%string.
 Definition F0 : FunctionIdentifier := ("f"%string, 0).
 Definition F1 : FunctionIdentifier := ("f"%string, 1).
 
-Definition inc (n : Z) := ELet XVar (ELit n) (EPlus (EVar 0) (ELit 1)).
-Definition sum (n : Z) := ELetRec F1 [XVar] (ECase (EVar 1) (PLit 0) (EVar 1) (
+Definition inc (n : Z) := ELet XVar (ELit n) (EPlus (EVar 0) (ELit 1%Z)).
+Definition sum (n : Z) := ELetRec F1 [XVar] (ECase (EVar 1) (PLit 0%Z) (EVar 1) (
                                             (EPlus (EVar 1)
-                                            (EApp (EFunId 0) [EPlus (EVar 1) (ELit (-1))]))))
+                                            (EApp (EFunId 0) [EPlus (EVar 1) (ELit ((-1)%Z))]))))
                         (EApp (EFunId 0) [ELit n]).
 Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar 0) []).
 Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar 1) (EVar 2))) [ELit n; ELit m].
@@ -282,6 +287,27 @@ Qed.
 
 End in_list.
 
+Definition lit_eqb (l1 l2 : Lit) : bool :=
+match l1, l2 with
+ | Atom s, Atom s2 => String.eqb s s2
+ | Int z , Int z2  => Z.eqb z z2
+ | _     , _       => false
+end.
+
+Lemma lit_eqb_eq : forall l1 l2, lit_eqb l1 l2 = true <-> l1 = l2.
+Proof.
+  destruct l1, l2; split; intros; subst; auto; simpl in H; try congruence.
+  * apply eqb_eq in H. now inversion H.
+  * inversion H. subst. simpl. now rewrite eqb_refl.
+  * apply Z.eqb_eq in H. now inversion H.
+  * inversion H. subst. simpl. now rewrite Z.eqb_refl.
+Qed.
+
+Lemma lit_eqb_refl : forall l, lit_eqb l l = true.
+Proof.
+  intro. rewrite lit_eqb_eq. reflexivity.
+Qed.
+
 Fixpoint match_pattern (p : Pat) (e : Exp) : option (list Exp) :=
 match p with
 | PVar => Some [e]
@@ -294,7 +320,7 @@ match p with
           | _    => None
           end
 | PLit l0 => match e with
-             | ELit l => if Z.eqb l l0 then Some [] else None
+             | ELit l => if lit_eqb l l0 then Some [] else None
              | _      => None
              end
 | PCons p1 p2 => 

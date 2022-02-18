@@ -39,8 +39,8 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 
 | red_plus_left e2 xs v (H : VALCLOSED v): ⟨ (FPlus1 e2)::xs, v ⟩ --> ⟨ (FPlus2 v (* H *))::xs, e2 ⟩
 
-| red_plus_right xs n m :
-   ⟨ (FPlus2 (ELit n) (* P *))::xs, (ELit m) ⟩ --> ⟨ xs, ELit (n + m) ⟩ 
+| red_plus_right xs (n m : Z) :
+   ⟨ (FPlus2 (ELit n%Z) (* P *))::xs, (ELit m%Z) ⟩ --> ⟨ xs, ELit (n + m)%Z ⟩ 
 
 | red_letrec xs f vl b e:
   ⟨ xs, ELetRec f vl b e ⟩ --> ⟨ xs, e.[EFun vl b/] ⟩
@@ -75,6 +75,7 @@ Definition step_any (fs : FrameStack) (e : Exp) (v : Exp) : Prop :=
 
 Notation "⟨ fs , e ⟩ -->* v" := (step_any fs e v) (at level 50).
 
+Open Scope Z_scope.
 Goal ⟨ [], inc 1 ⟩ -->* ELit 2.
 Proof.
   repeat econstructor.
@@ -94,7 +95,7 @@ Proof.
   all : try constructor.
 Qed.
 
-Local Goal ⟨ [], sum 1 ⟩ -->* ELit 1.
+Local Goal ⟨ [], sum 1 ⟩ -->* ELit 1%Z.
 Proof.
   assert (VALCLOSED (EFun [XVar]
              (ECase (EVar 1) (PLit 0) (EVar 1)
@@ -131,7 +132,7 @@ Qed.
 
 Local Goal ⟨[], ECons (EPlus (ELit 1) (ELit 1)) (ECons (ELit 1) (ECons (ELit 0) ENil))⟩ -->* VCons (ELit 2) (VCons (ELit 1) (VCons (ELit 0) ENil)).
 Proof.
-  split. repeat constructor. exists 12.
+  split. repeat constructor. exists 12%nat.
   econstructor. constructor.
   econstructor. apply step_cons.
   econstructor. apply step_cons. econstructor. constructor. constructor.
@@ -265,7 +266,7 @@ Definition terminates_sem (fs : FrameStack) (e : Exp) : Prop :=
 Definition terminates_in_k_sem (fs : FrameStack) (e : Exp) (k : nat) : Prop :=
   exists v, ⟨fs, e⟩ -[k]-> ⟨[], v⟩ /\ VALCLOSED v.
 
-
+Open Scope nat_scope.
 
 Reserved Notation "| fs , e | k ↓" (at level 80).
 Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
@@ -280,7 +281,7 @@ Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
  -> 
   | (FCase p e1 e2)::fs , v | S k ↓
 | term_plus_left e2 v fs (H : VALCLOSED v) k : | (FPlus2 v)::fs , e2 | k ↓ -> | (FPlus1 e2)::fs, v | S k ↓
-| term_plus_right n m fs k : | fs , ELit (n + m) | k ↓ -> | (FPlus2 (ELit n))::fs, ELit m | S k ↓
+| term_plus_right (n m : Z) fs k : | fs , ELit (n + m)%Z | k ↓ -> | (FPlus2 (ELit n))::fs, ELit m | S k ↓
 | term_let_subst v e2 fs k x : VALCLOSED v -> | fs, e2.[v/] | k ↓ -> | (FLet x e2)::fs, v | S k ↓
 | term_letrec_subst vl b e fs f k : | fs, e.[EFun vl b/] | k ↓ -> | fs, ELetRec f vl b e | S k ↓
 | term_app_start v hd tl (H : VALCLOSED v) fs k : 
@@ -697,7 +698,7 @@ Proof.
     apply H in H9 as HH. destruct HH, H3, H3. 2: lia.
     eapply (terminates_step_any_2 _ _ _ _ H9) in H5 as H5'.
     inversion H5'; subst; try inversion_is_value.
-    exists (ELit (n + m)), (S (x1 + (S (x3 + 1)))).
+    exists (ELit (n + m)%Z), (S (x1 + (S (x3 + 1)))).
     split. constructor.
     econstructor. constructor. eapply transitive_eval; eauto. 
     econstructor. constructor; auto. eapply transitive_eval; eauto.
@@ -913,7 +914,7 @@ Proof.
     eapply frame_indep_nil in H5 as H5_1.
     eapply (terminates_step_any_2 _ _ _ _ H9) in H5_1 as H5'.
     inversion H5'; subst; try inversion_is_value.
-    exists (ELit (n + m)), (S (x1 + (S (x3 + 1)))).
+    exists (ELit (n + m)%Z), (S (x1 + (S (x3 + 1)))).
     split. constructor.
     econstructor. constructor. eapply transitive_eval; eauto.
     eapply frame_indep_nil in H2. exact H2.
@@ -1111,17 +1112,11 @@ Proof.
   * inversion H. exists (S x). constructor. auto.
   * inversion H. exists (S x). constructor. auto.
   * inversion H. exists (S (S x)). inversion P2. do 2 constructor; auto.
-  * destruct H. assert (| FSend1 e :: Fs, e0 | x ↓) by auto.
+  * destruct H. (* duplicate H *) assert (| FConcBIF1 l :: Fs, e | x ↓) by auto.
     apply term_eval in H as [v [k [Cl H']]]; auto.
     eapply terminates_step_any_2 in H'. 2: exact H0. inversion H'; subst; try inversion_is_value.
-  * destruct H. assert (| FSend2 p :: Fs, e | x ↓) by auto.
-    apply term_eval in H as [v [k [Cl H']]]; auto.
-    eapply terminates_step_any_2 in H'. 2: exact H0. inversion H'; subst; try inversion_is_value.
-  * destruct H. assert (| FSpawn1 e :: Fs, e0 | x ↓) by auto.
-    apply term_eval in H as [v [k [Cl H']]]; auto.
-    eapply terminates_step_any_2 in H'. 2: exact H0. inversion H'; subst; try inversion_is_value.
-  * destruct H. assert (| FSpawn2 p :: Fs, e | x ↓) by auto.
-    apply term_eval in H as [v [k [Cl H']]]; auto.
+  * destruct H. (* duplicate H *) assert (| FConcBIF2 v l1 l2 :: Fs, e | x ↓) by auto.
+    apply term_eval in H as [v' [k [Cl H']]]; auto.
     eapply terminates_step_any_2 in H'. 2: exact H0. inversion H'; subst; try inversion_is_value.
 Unshelve.
   now inversion P2.
@@ -1157,8 +1152,6 @@ Proof.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value.
     inversion H. subst. inversion H5; subst; try inversion_is_value.
     eexists. eauto.
-  * simpl in H0. destruct H0. inversion H0; try inversion_is_value.
-  * simpl in H0. destruct H0. inversion H0; try inversion_is_value.
   * simpl in H0. destruct H0. inversion H0; try inversion_is_value.
   * simpl in H0. destruct H0. inversion H0; try inversion_is_value.
 Qed.
