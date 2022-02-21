@@ -1067,9 +1067,13 @@ Proof.
                       (default_names b) .: idsubst) with (default_names_sub (EFun vl b .: idsubst)). auto.
       unfold idsubst, default_names_sub. extensionality n. destruct n; auto.
     * simpl. constructor; auto. now apply IHk in H4.
+    * simpl. constructor; auto. apply IHk in H4. now simpl in H4.
     * simpl. constructor; auto. apply IHk in H3. rewrite alpha_helper in H3.
       replace (EFun [] (default_names e0) .: idsubst) with (default_names_sub (EFun [] e0 .: idsubst)). auto.
       unfold idsubst, default_names_sub. extensionality n. destruct n; auto.
+    * simpl. constructor; auto.
+      - apply Forall_map; auto. eapply Forall_impl. 2: exact H2. intros. apply default_value. auto.
+      - apply IHk in H5. simpl in H5. rewrite map_app in H5. auto.
     * simpl. constructor; auto.
       - apply Forall_map; auto. eapply Forall_impl. 2: exact H2. intros. apply default_value. auto.
       - apply IHk in H5. simpl in H5. rewrite map_app in H5. auto.
@@ -1088,6 +1092,7 @@ Proof.
         rewrite <- map_app, alpha_list_subst. auto.
     * simpl. constructor; auto. apply IHk in H4. exact H4.
     * simpl. constructor; auto. apply IHk in H5. exact H5.
+    * simpl. constructor; auto. apply IHk in H3. exact H3.
     * simpl. constructor; auto. apply IHk in H3. exact H3.
     * simpl. constructor; auto. apply IHk in H3. exact H3.
     * simpl. constructor; auto. apply IHk in H3. exact H3.
@@ -1121,9 +1126,15 @@ Proof.
       now rewrite alpha_helper, <- scons_alpha.
     * destruct fs; inversion H0. destruct f; inversion H3. destruct l; inversion H6.
       subst. apply term_app_start; auto.
+    * destruct fs; inversion H0. destruct f; inversion H3. destruct l; inversion H6.
+      subst. apply term_concbif_start; auto.
     * destruct e; inversion H1. destruct fs; inversion H0. destruct f; inversion H6.
       subst. destruct l; inversion H8. inversion H1. destruct vl; inversion H4.
       constructor. apply IHk. now rewrite alpha_helper, <- scons_alpha.
+    * destruct fs; inversion H0. destruct f; inversion H4. destruct l1; inversion H8.
+      subst. apply default_value in H2. apply default_value in H'.
+      constructor; auto. eapply map_Forall; eauto.
+      apply IHk. simpl. rewrite map_app. auto.
     * destruct fs; inversion H0. destruct f; inversion H4. destruct l1; inversion H8.
       subst. apply default_value in H2. apply default_value in H'.
       constructor; auto. eapply map_Forall; eauto.
@@ -1140,6 +1151,7 @@ Proof.
     * destruct fs; simpl in H0; inversion H0. subst.
       destruct f; inversion H4; subst. apply default_value_rev in H3.
       constructor; auto.
+    * destruct e; inversion H0. constructor. subst. now apply IHk.
     * destruct e; inversion H0. constructor. subst. now apply IHk.
     * destruct e; inversion H0. constructor. subst. now apply IHk.
     * destruct e; inversion H0. constructor. subst. now apply IHk.

@@ -242,7 +242,7 @@ Proof.
   inversion H10; subst. 2-6: inversion H12.
   epose (H4 k _ (FPlus2 v1 (* H14 *) :: F1) (FPlus2 v2 (* H13 *) :: F2) _ H18). destruct t.
   exists (S x). econstructor; eauto.
-  inversion_is_value.
+  inversion_is_value. inversion_is_value.
 
   Unshelve. lia.
   split. 2: split.
@@ -255,7 +255,7 @@ Proof.
   rewrite Vrel_Fix_eq in H13. destruct H13, H19. destruct v3; inversion H20. subst.
   rewrite Vrel_Fix_eq in H9. destruct H9, H20. destruct v2; inversion H22. subst.
   apply term_plus_right. subst. exact H17. lia. apply Vrel_Lit_compat_closed.
-  inversion_is_value.
+  inversion_is_value. inversion_is_value.
 Qed.
 
 Lemma match_pattern_Vrel : forall p v1 v2 n,
@@ -424,7 +424,7 @@ Proof.
     exists (S x0). constructor. auto. exact H12. 2: exact H8. lia. lia.
 
     split. 2: split. all: auto. intros. eapply H7. 3: exact H15. lia. auto.
-    inversion_is_value.
+    inversion_is_value. inversion_is_value.
 Qed.
 
 Global Hint Resolve Erel_Let_compat_closed : core.
@@ -628,7 +628,8 @@ Proof.
     - inversion H0. inversion H7.
     - inversion H0. inversion H7.
     - inversion H0. inversion H7.
-    - assert (VALCLOSED (ECons e1 e2)) by apply H0. inversion_is_value.
+    - inversion H0. inversion H7.
+    - inversion H0. inversion H7.
   * inversion H. subst.
     apply biforall_length in H0 as LEN.
     apply biforall_vrel_closed in H0 as v. destruct v.
@@ -651,7 +652,8 @@ Proof.
     - inversion H13. inversion H16.
     - inversion H13. inversion H16.
     - inversion H13. inversion H16.
-    - assert (VALCLOSED (ECons e1 e2)) by apply H13. inversion_is_value.
+    - inversion H13. inversion H16.
+    - inversion H13. inversion H16.
 Unshelve.
   all: auto; try lia.
   ** rewrite app_length. simpl. lia.
@@ -684,7 +686,8 @@ Proof.
     - inversion H2. inversion H5.
     - inversion H2. inversion H5.
     - inversion H2. inversion H5.
-    - inversion H2. inversion_is_value. 
+    - inversion H2. inversion_is_value.
+    - inversion H2. inversion_is_value.
   * inversion H3; subst.
     - inversion H2. inversion H5.
     - inversion H0. subst.
@@ -699,6 +702,7 @@ Proof.
     - inversion H2. inversion H5.
     - inversion H2. inversion H5.
     - inversion H2. inversion H5.
+    - inversion H2. inversion_is_value.
     - inversion H2. inversion_is_value.
 Unshelve.
   auto. all: lia.
@@ -789,7 +793,9 @@ Lemma Erel_ConcBIF_compat_closed :
 Proof.
   intros. unfold Erel, exp_rel. split. 2: split.
   1-2: auto.
-  intros. inversion H2; subst; try inversion_is_value.
+  intros. inversion H; subst; try inversion_is_value.
+  apply ConcBIF_nonterminating in H2; auto. contradiction.
+  now apply indexed_to_forall in H6.
 Qed.
 
 (** TODO: will be changed in the future: *)
@@ -1187,8 +1193,12 @@ Proof.
       apply scope_idsubst.
     - eapply Frel_Cons_tail; eauto.
     - eapply Frel_Cons_head; eauto.
-    - assert (VALCLOSED v1). { eapply Vrel_closed_l; eauto. } inversion H1; subst; inversion_is_value.
-    - assert (VALCLOSED v1). { eapply Vrel_closed_l; eauto. } inversion H1; subst; inversion_is_value.
+    - assert (| F, EConcBIF v1 l | S m ↓) by now constructor.
+      apply Vrel_closed_l in H0.
+      apply ConcBIF_nonterminating in H8; auto. contradiction. now constructor.
+    - subst. apply Vrel_closed_l in H0.
+      eapply ConcBIF_nonterminating_helper in H1; auto. contradiction.
+      intros. eapply term_eval; eauto.
 Qed.
 
 Global Hint Resolve Frel_Fundamental_closed : core.
