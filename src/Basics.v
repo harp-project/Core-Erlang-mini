@@ -275,3 +275,6 @@ Proof.
     - break_match_goal; subst; auto. eapply IHl in H1; eauto.
       now constructor 2.
 Qed.
+
+Notation "x '.1'" := (fst x) (at level 65, left associativity).
+Notation "x '.2'" := (snd x) (at level 65, left associativity).

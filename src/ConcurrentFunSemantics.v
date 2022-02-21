@@ -8,9 +8,6 @@ Import ListNotations.
 Definition Mailbox : Set := list Exp.
 Definition Process : Set := FrameStack * Exp * Mailbox.
 
-Notation "x '.1'" := (fst x) (at level 65, left associativity).
-Notation "x '.2'" := (snd x) (at level 65, left associativity).
-
 Inductive Action : Set :=
 | ASend (p : PID) (t : Exp)
 | AReceive (t : Exp)
@@ -68,28 +65,19 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 ->
   (fs, e, mb) -⌈ AInternal ⌉-> (fs', e', mb)
 
-| p_send_local1 fs e ι mb :
-  (fs, ESend ι e, mb) -⌈ AInternal ⌉-> (FSend1 e :: fs, ι, mb)
-| p_send_local2 fs e v mb : VALCLOSED v ->
-  (FSend1 e :: fs, v, mb) -⌈ AInternal ⌉-> (FSend2 v :: fs, e, mb)
-| p_spawn_local1 fs e ι mb :
-  (fs, ESpawn ι e, mb) -⌈ AInternal ⌉-> (FSpawn1 e :: fs, ι, mb)
-| p_spawn_local2 fs e v mb : VALCLOSED v ->
-  (FSpawn1 e :: fs, v, mb) -⌈ AInternal ⌉-> (FSpawn2 v :: fs, e, mb)
-
-
 | p_arrive mb mb' fs e v : VALCLOSED v -> mb' = mb ++ [v] ->
   (fs, e, mb) -⌈ AArrive v ⌉-> (fs, e, mb')
 
 | p_send ι v mb fs : VALCLOSED v ->
-  (FSend2 (EPid ι) :: fs, v, mb) -⌈ ASend ι v ⌉-> (fs, v, mb)
+  (FConcBIF2 (ELit "send"%string) [] [EPid ι] :: fs, v, mb) -⌈ ASend ι v ⌉-> (fs, v, mb)
 
 | p_self ι fs mb :
-  ( fs, ESelf, mb ) -⌈ ASelf ι ⌉-> ( fs, EPid ι, mb )
+  ( FConcBIF1 [] :: fs, ELit "self"%string, mb ) -⌈ ASelf ι ⌉-> ( fs, EPid ι, mb )
 
 | p_spawn ι fs mb vl e l:
   Some (length vl) = len l -> VALCLOSED l ->
-  (FSpawn2 (EFun vl e) :: fs, l, mb) -⌈ASpawn ι (EFun vl e) l⌉-> (fs, EPid ι, mb)
+  (FConcBIF2 (ELit "spawn"%string) [] [(EFun vl e)] :: fs, l, mb) 
+    -⌈ASpawn ι (EFun vl e) l⌉-> (fs, EPid ι, mb)
 
 | p_receive mb l fs e m mb' bindings :
   receive mb l = Some (m, e, bindings) -> mb' = pop m mb
@@ -173,36 +161,6 @@ Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
   VALCLOSED v ->
   (ether, ι : ([], v, mb) |||| Π) -[AExit | ι]ₙ-> (ether, Π -- ι)
 
-(* | nsend1 p p' q q' Π (ι ι' : PID) t :
-  p -⌈ASend ι' t⌉-> p' -> q -⌈AArrive t⌉-> q' -> ι <> ι'
-->
-  ι : p |||| ι' : q |||| Π -[ASend ι' t | ι]ₙ-> ι : p' |||| ι' : q' |||| Π
-
-| nsend2 p p' p'' t (ι : PID) Π :
-  p -⌈ASend ι t⌉-> p' -> p' -⌈AArrive t⌉-> p'' (** two transitions, because this is atomic! *)
-->
-   ι : p |||| Π  -[ASend ι t | ι]ₙ->  ι : p'' |||| Π 
-
-| nsend3 p p' (ι ι' : PID) Π t :
-  p -⌈ASend ι' t⌉-> p' -> (ι : p |||| Π) ι = None
-->
-  ι : p |||| Π -[ASend ι' t | ι]ₙ-> ι : p' |||| Π *)
-(* | nreceive p p' t Π (ι : PID) :
-  p -⌈AReceive t⌉-> p'
-->
-   ι : p |||| Π -[AReceive t | ι]ₙ-> ι : p' |||| Π
-
-| ninternal p p' Π (ι : PID) :
-  p -⌈AInternal⌉-> p'
-->
-   ι : p |||| Π -[AInternal | ι]ₙ-> ι : p' |||| Π
-
-| nself p p' Π ι:
-  p -⌈ASelf ι⌉-> p'
-->
-  ι : p |||| Π -[ASelf ι | ι]ₙ-> ι : p' |||| Π *)
-
-(* *)
 where "n -[ a | ι ]ₙ-> n'" := (nodeSemantics n a ι n').
 
 (*
@@ -282,21 +240,26 @@ Qed.
   2 -[ 3 ]-> 3
   3 : 2 + 3 == 5
 *)
+Open Scope string_scope.
 Goal exists acts k,
-  ([], 0 : ([], ESend (EPid 1) (EPlus (ELit 1) (ELit 1)), []) ||||
-       1 : ([], EReceive [(PVar, ESend (EPid 3) (EVar 0))], []) ||||
-       2 : ([], ESend (EPid 3) (ELit 3), []) ||||
+  ([], 0 : ([], EConcBIF (ELit "send") [EPid 1;EPlus (ELit 1%Z) (ELit 1%Z)], []) ||||
+       1 : ([], EReceive [(PVar, EConcBIF (ELit "send") [EPid 3;EVar 0])], []) ||||
+       2 : ([], EConcBIF (ELit "send") [EPid 3;ELit 3%Z], []) ||||
        3 : ([], EReceive [(PVar, EReceive [(PVar, EPlus (EVar 0) (EVar 1))])], []) |||| nullpool)
   -[ k | acts ]ₙ->*
-  ([], 0 : ([], ELit 2, []) ||||
-       1 : ([], ELit 2, []) ||||
-       2 : ([], ELit 3, []) ||||
-       3 : ([], ELit 5, []) |||| nullpool).
+  ([], 0 : ([], ELit 2%Z, []) ||||
+       1 : ([], ELit 2%Z, []) ||||
+       2 : ([], ELit 3%Z, []) ||||
+       3 : ([], ELit 5%Z, []) |||| nullpool).
 Proof.
-  eexists. exists 21.
+  eexists. exists 24.
   (* Some steps with 0 *)
   eapply n_trans. eapply n_other with (ι := 0).
-    apply p_send_local1. auto.
+    apply p_concbif_start. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    apply p_concbif_2. constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    apply p_concbif_step; constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
     apply p_send_local2. constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
