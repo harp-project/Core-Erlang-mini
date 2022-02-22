@@ -459,3 +459,5 @@ Proof.
   break_match_goal. 2: congruence.
   apply n_refl.
 Qed.
+
+Close Scope string_scope.

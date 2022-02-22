@@ -4,7 +4,6 @@ src/ExpSyntax.v
 src/ExpManipulation.v
 src/Scoping.v
 src/SubstSemantics.v
-src/ConcurrentSemantics.v
 src/ConcurrentFunSemantics.v
 src/Bisimulations.v
 src/LaneseBisimulations.v

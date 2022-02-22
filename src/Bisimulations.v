@@ -141,20 +141,7 @@ Lemma internal_determinism :
 Proof.
   intros p p' a IH. induction IH; intros.
   * inversion H0; subst; try (inversion H; inversion_is_value).
-    2-3: inversion H; subst; try inversion_is_value.
-    - eapply step_determinism in H. 2: exact H5. destruct H; now subst.
-  * inversion H; subst; try inversion_is_value.
-    - inversion H4; inversion_is_value.
-    - auto.
-  * inversion H0; subst; try inversion_is_value.
-    - inversion H5; subst; inversion_is_value.
-    - auto.
-  * inversion H; subst; try inversion_is_value.
-    - inversion H4; subst; inversion_is_value.
-    - auto.
-  * inversion H0; subst; try inversion_is_value.
-    - inversion H5; subst; inversion_is_value.
-    - auto.
+    eapply step_determinism in H. 2: exact H5. destruct H. now subst.
   * inversion H1; subst; try inversion_is_value. auto.
   * inversion H0; now subst.
   * inversion H; now subst.
@@ -219,14 +206,6 @@ Proof.
   all: try (inversion H1; subst; inversion_is_value); auto; try inversion_is_value.
   * eapply step_determinism in H1. 2: exact H7. destruct H1. subst. auto.
   * right. exists v. auto.
-  * inversion H6; inversion_is_value.
-  * right. exists v. auto.
-  * inversion H7; subst; inversion_is_value.
-  * right. exists v0. auto.
-  * inversion H6; subst; inversion_is_value.
-  * right. exists v. auto. 
-  * inversion H7; subst; inversion_is_value.
-  * right. exists v0. auto.
 Qed.
 
 Definition modifyMailbox (p : PID) (ι0 : PID) (t : Exp) (n : Node) : Node :=
@@ -727,10 +706,6 @@ Proof.
     inversion H10; subst.
     inversion H2; simpl; subst.
     - constructor; auto.
-    - apply p_send_local1; auto.
-    - apply p_send_local2; auto.
-    - apply p_spawn_local1; auto.
-    - apply p_spawn_local2; auto.
 Qed.
 
 Corollary chain_to_front_iff :
@@ -822,13 +797,13 @@ Proof.
 Qed.
 
 Goal Node_equivalence ([], 
-                         0 : ([], ELet "X"%string (ELit 0) (EVar 0), []) ||||
-                         1 : ([], ESend (EPid 0) (ELit 1), []) ||||
+                         0 : ([], ELet "X"%string (ELit 0%Z) (EVar 0), []) ||||
+                         1 : ([], EConcBIF (ELit "send"%string) [EPid 0;ELit 1%Z], []) ||||
                          nullpool
                       )
                       ([],
-                        0 : ([], ELit 0, []) ||||
-                        1 : ([], ESend (EPid 0) (ELit 1), []) ||||
+                        0 : ([], ELit 0%Z, []) ||||
+                        1 : ([], EConcBIF (ELit "send"%string) [EPid 0;ELit 1%Z], []) ||||
                         nullpool
                       ).
 Proof.
