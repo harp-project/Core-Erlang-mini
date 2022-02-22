@@ -255,25 +255,29 @@ Proof.
   eexists. exists 24.
   (* Some steps with 0 *)
   eapply n_trans. eapply n_other with (ι := 0).
-    apply p_concbif_start. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    apply p_concbif_2. constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    apply p_concbif_step; constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    apply p_send_local2. constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    constructor. constructor. auto.
+    do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 4 constructor. auto.
+  simpl. eapply n_trans. eapply n_other with (ι := 0).
+    do 2 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 2 constructor. auto.
+  simpl.
 
   rewrite par_swap with (ι' := 2). rewrite par_swap with (ι' := 2). 2-3: lia.
 
   (* Some steps with 2 *)
   eapply n_trans. eapply n_other with (ι := 2).
-    apply p_send_local1. auto.
+    do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 2).
-    apply p_send_local2. constructor. auto.
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 2).
+    do 3 constructor. auto.
+  simpl.
 
   rewrite par_swap with (ι' := 3). rewrite par_swap with (ι' := 3). 2-3: lia.
 
@@ -289,8 +293,6 @@ Proof.
   rewrite par_swap with (ι' := 0). rewrite par_swap with (ι' := 0). 2-3: lia.
 
   (* Again with 0 *)
-  eapply n_trans. eapply n_other with (ι := 0).
-  constructor. constructor. auto.
 
   rewrite par_swap with (ι' := 1). rewrite par_swap with (ι' := 1). 2-3: lia.
 
@@ -307,13 +309,15 @@ Proof.
     apply p_receive; try reflexivity. right. right. eexists. auto.
   simpl.
   eapply n_trans. eapply n_other with (ι := 1).
-    apply p_send_local1. auto.
+    do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 1).
-    apply p_send_local2. constructor. auto.
+    do 3 constructor. auto.
 
   cbn. break_match_goal. 2: congruence.
   rewrite par_swap with (ι' := 3). 2: lia.
 
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto.
   eapply n_trans. eapply n_send with (ι := 1) (ι' := 3).
     constructor. constructor. simpl.
 
@@ -345,6 +349,11 @@ Proof.
   all: lia.
 Qed.
 
+
+#[export]
+Hint Constructors ValScoped : core.
+#[export]
+Hint Constructors ExpScoped : core.
 (*
 
 let X = spawn(fun() -> receive X -> X ! self() end end, [])
@@ -353,9 +362,9 @@ let X = spawn(fun() -> receive X -> X ! self() end end, [])
 
 *)
 Goal exists acts k,
-  ([], 0 : ([], ELet "X"%string (ESpawn (EFun [] (EReceive [(PVar, ESend (EVar 0) ESelf)]
-                                            )) ENil)
-             (ELet "Y"%string (ESend (EVar 0) ESelf)
+  ([], 0 : ([], ELet "X" (EConcBIF (ELit "spawn") [EFun [] (EReceive [(PVar, EConcBIF (ELit "send") [EVar 0; EConcBIF (ELit "self") []])]);
+                                             ENil])
+             (ELet "Y"%string (EConcBIF (ELit "send") [EVar 0; EConcBIF (ELit "self") []])
                  (EReceive [(PVar, EVar 0)]))
                   , [])
   |||| nullpool)
@@ -363,23 +372,31 @@ Goal exists acts k,
   ([], 0 : ([], EPid 1, []) ||||
        1 : ([], EPid 1, []) |||| nullpool).
 Proof.
-  eexists. exists 21.
+  eexists. exists 26.
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
-    apply p_spawn_local1. auto.
+    apply p_local. apply step_concbif. auto.
   eapply n_trans. eapply n_other with (ι := 0).
-    apply p_spawn_local2. do 2 constructor. intros.
-    inversion H; subst; cbn. 2: inversion H1. repeat constructor.
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 2 constructor; auto.
+    do 2 constructor. intros. simpl in H.
+    inversion H; subst; cbn. 2: inversion H1.
+    constructor. repeat constructor. intros. simpl in H0. inversion H0.
+    simpl. repeat constructor. inversion H1.
+    inversion H2; subst.
+    repeat constructor.
+    inversion H4; subst.
     auto.
   eapply n_trans. eapply n_spawn with (ι := 0) (ι' := 1); simpl. 2: reflexivity.
-    2: constructor. all: simpl; auto. constructor.
+    2: constructor. all: simpl; auto.
 
   rewrite par_swap with (ι' := 0). 2: lia.
 
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
-
+  simpl.
   rewrite par_swap with (ι' := 1). 2: lia.
 
   eapply n_trans. eapply n_other with (ι := 1).
@@ -393,16 +410,22 @@ Proof.
   eapply n_trans. eapply n_other with (ι := 0).
     repeat constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
-    apply p_send_local1. auto.
+    do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
-    apply p_send_local2. constructor. auto.
+    do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
-    apply p_self. auto.
+    do 3 constructor. auto.
+  simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0) (a := ASelf 0).
+    constructor. auto.
   eapply n_trans. eapply n_send with (ι := 0) (ι' := 1).
     constructor. constructor. simpl.
   eapply n_trans. eapply n_other with (ι := 0); cbn; try reflexivity.
     repeat constructor. simpl. auto.
 
+  simpl.
   rewrite par_swap with (ι' := 1). 2: lia.
 
   eapply n_trans. apply n_arrive.
@@ -412,11 +435,16 @@ Proof.
     apply p_receive; auto; try reflexivity. right. right. eexists. auto.
   simpl.
   eapply n_trans. eapply n_other with (ι := 1).
-    apply p_send_local1. auto.
+    do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 1).
-    apply p_send_local2. constructor. auto.
+    do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 1).
-    apply p_self. auto.
+    do 3 constructor. auto.
+  simpl.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 1) (a := ASelf 1).
+    constructor. auto.
   eapply n_trans. eapply n_send with (ι := 1) (ι' := 0).
     constructor. constructor. simpl.
 
