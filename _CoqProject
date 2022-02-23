@@ -5,6 +5,7 @@ src/ExpManipulation.v
 src/Scoping.v
 src/SubstSemantics.v
 src/ConcurrentFunSemantics.v
+src/Examples.v
 src/Bisimulations.v
 src/LaneseBisimulations.v
 src/LogRel.v

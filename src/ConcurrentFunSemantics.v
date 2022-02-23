@@ -6,16 +6,25 @@ Require Export Coq.Classes.EquivDec.
 Import ListNotations.
 
 Definition Mailbox : Set := list Exp.
-Definition Process : Set := FrameStack * Exp * Mailbox.
+Definition ProcessFlag : Set := bool.
+Definition LiveProcess : Set := FrameStack * Exp * Mailbox * (list PID) * ProcessFlag.
+Definition DeadProcess : Set := list (PID * Exp).
+Definition Process : Set := LiveProcess + DeadProcess.
+
+Inductive Signal : Set :=
+| Message (e : Exp)
+| Exit (r : Exp)
+| Link (* TODO *)
+| Unlink (* TODO *) .
 
 Inductive Action : Set :=
-| ASend (p : PID) (t : Exp)
+| ASend (sender receiver : PID) (t : Signal)
 | AReceive (t : Exp)
-| AArrive (t : Exp)
+| AArrive (sender receiver : PID) (t : Signal)
 | ASelf (ι : PID)
 | ASpawn (ι : PID) (t1 t2 : Exp)
 | AInternal
-| AExit.
+| ATerminate.
 
 Fixpoint find_clause (v : Exp) (c : list (Pat * Exp)) : option (Exp * list Exp) :=
 match c with
@@ -36,7 +45,6 @@ match m with
 end.
 
 Definition pop (v : Exp) (m : Mailbox) := removeFirst Exp_eq_dec v m.
-Definition etherPop := removeFirst (prod_eqdec Nat.eq_dec Exp_eq_dec).
 
 Fixpoint len (l : Exp) : option nat :=
 match l with
@@ -58,31 +66,85 @@ match l with
 | _ => None
 end.
 
+Definition lit_from_bool (b : bool) : Exp :=
+match b with
+| true => ELit "true"%string
+| false => ELit "false"%string
+end.
+Definition bool_from_lit (e : Exp) : option bool :=
+match e with
+| ELit (Atom x) =>
+  if eqb x "true"%string
+  then Some true
+  else if eqb x "false"%string
+       then Some false
+       else None
+| _ => None
+end.
+
 Reserved Notation "p -⌈ a ⌉-> p'" (at level 50).
 Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
-| p_local fs e fs' e' mb :
+(* local steps *)
+| p_local fs e fs' e' mb links flag :
   ⟨fs, e⟩ --> ⟨fs', e'⟩
 ->
-  (fs, e, mb) -⌈ AInternal ⌉-> (fs', e', mb)
+  inl (fs, e, mb, links, flag) -⌈ AInternal ⌉-> inl (fs', e', mb, links, flag)
 
-| p_arrive mb mb' fs e v : VALCLOSED v -> mb' = mb ++ [v] ->
-  (fs, e, mb) -⌈ AArrive v ⌉-> (fs, e, mb')
+(* message arrival *)
+| p_arrive mb mb' fs e v flag links source dest : VALCLOSED v -> mb' = mb ++ [v] ->
+  inl (fs, e, mb, links, flag) -⌈ AArrive source dest (Message v) ⌉-> inl (fs, e, mb', links, flag)
+(* exiting actions should come here *)
+(* dropping exit signals *)
+| p_exit_drop fs e mb links flag dest source reason :
+  (
+    reason = ELit "normal"%string /\ dest <> source /\ flag = false \/
+    ~ In source links
+  ) ->
+  inl (fs, e, mb, links, flag) -⌈ AArrive source dest (Exit reason) ⌉->
+  inl (fs, e, mb, links, flag)
+(* terminating process *)
 
-| p_send ι v mb fs : VALCLOSED v ->
-  (FConcBIF2 (ELit "send"%string) [] [EPid ι] :: fs, v, mb) -⌈ ASend ι v ⌉-> (fs, v, mb)
+(* convert exit signal to message *)
 
-| p_self ι fs mb :
-  ( FConcBIF1 [] :: fs, ELit "self"%string, mb ) -⌈ ASelf ι ⌉-> ( fs, EPid ι, mb )
 
-| p_spawn ι fs mb vl e l:
+(* message send *)
+| p_send ι v mb fs flag links source : VALCLOSED v ->
+  inl (FConcBIF2 (ELit "send"%string) [] [EPid ι] :: fs, v, mb, links, flag)
+  -⌈ ASend source ι (Message v) ⌉-> inl (fs, v, mb, links, flag)
+(* exit *)
+| p_exit fs v mb flag ι self links :
+  VALCLOSED v ->
+  inl (FConcBIF2 (ELit "exit"%string) [] [EPid ι] :: fs, v, mb, links, flag) -⌈ ASend self ι (Exit v) ⌉->
+  inl (fs, ELit "true"%string, mb, links, flag)
+
+
+(* self *)
+| p_self ι fs mb flag links :
+  inl (FConcBIF1 [] :: fs, ELit "self"%string, mb, links, flag) -⌈ ASelf ι ⌉-> inl (fs, EPid ι, mb, links, flag)
+
+(* spawn *)
+| p_spawn ι fs mb vl e l flag links :
   Some (length vl) = len l -> VALCLOSED l ->
-  (FConcBIF2 (ELit "spawn"%string) [] [(EFun vl e)] :: fs, l, mb) 
-    -⌈ASpawn ι (EFun vl e) l⌉-> (fs, EPid ι, mb)
+  inl (FConcBIF2 (ELit "spawn"%string) [] [(EFun vl e)] :: fs, l, mb, links, flag) 
+    -⌈ASpawn ι (EFun vl e) l⌉-> inl (fs, EPid ι, mb, links, flag)
 
-| p_receive mb l fs e m mb' bindings :
+(* receive *)
+| p_receive mb l fs e m mb' bindings flag links :
   receive mb l = Some (m, e, bindings) -> mb' = pop m mb
 ->
-  (fs, EReceive l, mb) -⌈ AReceive m ⌉-> (fs, e.[list_subst bindings idsubst], mb')
+  inl (fs, EReceive l, mb, links, flag) -⌈ AReceive m ⌉-> inl (fs, e.[list_subst bindings idsubst], mb', links, flag)
+
+(* Replace process flags *)
+| p_set_flag fs mb flag y v links :
+  Some y = bool_from_lit v ->
+  inl (FConcBIF2 (ELit "process_flag"%string) [] [ELit "trap_exit"%string] :: fs, v, mb, links, flag) 
+   -⌈ AInternal ⌉-> inl (fs, lit_from_bool flag, mb, links, y)
+
+(* termination *)
+| p_terminate v mb links flag:
+  VALCLOSED v ->
+  inl ([], v, mb, links, flag) -⌈AInternal⌉->
+   inr (map (fun l => (l, ELit "normal"%string)) links) (* TODO: is internal enough here? *)
 
 where "p -⌈ a ⌉-> p'" := (processLocalSemantics p a p').
 
@@ -96,17 +158,20 @@ Notation "x -⌈ k | xs ⌉-> y" := (LabelStar processLocalSemantics x k xs y) (
 (****************************   NODES  ****************************************)
 (******************************************************************************)
 
-Definition GlobalMailbox : Set := list (PID * Exp).
+Theorem Signal_eq_dec (s s' : Signal) : {s = s'} + {s <> s'}.
+Proof. decide equality; try apply Exp_eq_dec; apply Nat.eq_dec. Qed.
+
+Definition Ether : Set := list (PID * PID * Signal).
+Definition etherPop := removeFirst (prod_eqdec (prod_eqdec Nat.eq_dec Nat.eq_dec) Signal_eq_dec).
+
 Definition ProcessPool : Set := (PID -> option Process).
-Definition Node : Set := GlobalMailbox * ProcessPool.
+Definition Node : Set := Ether * ProcessPool.
 
 Definition nullpool : ProcessPool := fun ι => None.
 Definition update (pid : PID) (p : option Process) (n : ProcessPool) :=
   fun ι => if Nat.eq_dec pid ι then p else n ι.
-Definition par (pid : PID) (proc: Process) (n : ProcessPool) : ProcessPool :=
-  update pid (Some proc) n.
 
-Notation "pid : p |||| n" := (par pid p n) (at level 30, right associativity).
+Notation "pid : p |||| n" := (update pid (Some p) n) (at level 32, right associativity).
 Notation "n -- pid" := (update pid None n) (at level 31, left associativity).
 Lemma update_same : forall ι p p' Π, update ι p (update ι p' Π) = update ι p Π.
 Proof.
@@ -130,89 +195,46 @@ Corollary par_swap :  forall ι ι' p p' Π, ι <> ι' ->
 Proof.
   intros. now apply update_swap.
 Qed.
+Lemma nullpool_remove : forall ι, nullpool -- ι = nullpool.
+Proof.
+  intros. extensionality ι'.
+  unfold update. break_match_goal; auto.
+Qed.
 
 Reserved Notation "n -[ a | ι ]ₙ-> n'" (at level 50).
 Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
+(* sending any signal *)
 | n_send p p' ether prs (ι ι' : PID) t :
-  p -⌈ASend ι' t⌉-> p'
+  p -⌈ASend ι ι' t⌉-> p'
 ->
-  (ether, ι : p |||| prs) -[ASend ι' t | ι]ₙ->  (ether ++ [(ι', t)], ι : p' |||| prs)
+  (ether, ι : p |||| prs) -[ASend ι ι' t | ι]ₙ->  (ether ++ [(ι, ι', t)], ι : p' |||| prs)
 
 (** This leads to the loss of determinism: *)
-| n_arrive ι p p' ether prs t:
-  In (ι, t) ether ->
-  p -⌈AArrive t⌉-> p' ->
-  (ether, ι : p |||| prs) -[AArrive t | ι]ₙ-> (etherPop (ι, t) ether,
+(* arrial of any signal *)
+| n_arrive ι ι0 p p' ether prs t:
+  In (ι0, ι, t) ether ->
+  p -⌈AArrive ι0 ι t⌉-> p' ->
+  (ether, ι : p |||| prs) -[AArrive ι0 ι t | ι]ₙ-> (etherPop (ι0, ι, t) ether,
                                             ι : p' |||| prs)
-
+(* internal actions *)
 | n_other p p' a Π (ι : PID) ether:
   p -⌈a⌉-> p' ->
   (a = AInternal \/ a = ASelf ι \/ (exists t, a = AReceive t))
 ->
    (ether, ι : p |||| Π) -[a| ι]ₙ-> (ether, ι : p' |||| Π)
 
+(* spawning processes *)
 | n_spawn Π p p' v1 v2 l ι ι' ether:
   mk_list v2 = Some l -> (ι : p |||| Π) ι' = None ->
   p -⌈ASpawn ι' v1 v2⌉-> p'
 ->
-  (ether, ι : p |||| Π) -[ASpawn ι' v1 v2 | ι]ₙ-> (ether, ι' : ([], EApp v1 l, []) |||| ι : p' |||| Π)
+  (ether, ι : p |||| Π) -[ASpawn ι' v1 v2 | ι]ₙ-> (ether, ι' : inl ([], EApp v1 l, [], [], false) |||| ι : p' |||| Π)
 
-| n_terminate ether v mb ι Π :
-  VALCLOSED v ->
-  (ether, ι : ([], v, mb) |||| Π) -[AExit | ι]ₙ-> (ether, Π -- ι)
+(* Process termination, no more notifyable links *)
+| n_terminate ether ι Π :
+  (ether, ι : inr [] |||| Π) -[ATerminate | ι]ₙ-> (ether, Π -- ι)
 
 where "n -[ a | ι ]ₙ-> n'" := (nodeSemantics n a ι n').
-
-(*
-Fixpoint Pat_eqb (p1 p2 : Pat) : bool :=
-match p1, p2 with
- | PLit l, PLit l2 => Z.eqb l l2
- | PPid p, PPid p2 => p =? p2
- | PVar, PVar => true
- | PNil, PNil => true
- | PCons p1 p2, PCons p12 p22 => Pat_eqb p1 p12 && Pat_eqb p2 p22
- | _, _ => false
-end.
-
-Fixpoint list_eqb {A} (eq : A -> A -> bool) (l1 l2 : list A) : bool :=
-match l1, l2 with
-| [], [] => true
-| x::xs, y::ys => eq x y && list_eqb eq xs ys
-| _, _ => false
-end.
-
-Fixpoint Exp_eqb (e1 e2 : Exp) : bool :=
-match e1, e2 with
- | ELit l, ELit l2 => Z.eqb l l2
- | EPid p, EPid p2 => p =? p2
- | EVar n, EVar n2 => n =? n2
- | EFunId n, EFunId n2 => n =? n2
- | EFun vl e, EFun vl2 e2 => list_eqb String.eqb vl vl2 && Exp_eqb e e2
- | EApp exp l, EApp exp2 l2 => Exp_eqb exp exp2 && list_eqb Exp_eqb l l2
- | ELet v e1 e2, ELet v2 e12 e22 => Exp_eqb e1 e12 && Exp_eqb e12 e22
- | ELetRec f vl b e, ELetRec f2 vl2 b2 e2 => _
- | EPlus e1 e2, EPlus e12 e22 => _
- | ECase e0 p e1 e2, ECase e02 p2 e12 e22 => _
- | ECons e1 e2, ECons e12 e22 => _
- | ENil, ENil => true
- | VCons e1 e2, VCons e12 e22 => _
- | ESend p e, ESend p2 e2 => _
- | EReceive l, EReceive l2 => _
- | _, _ => false
-end. *)
-(* 
-Fixpoint list_eq_Node (l : list (PID * Process)) (n : Node) : Prop :=
-match l with
-| [] => True
-| (p, pr)::xs => find p n = Some pr /\ list_eq_Node xs n
-end.
-
-Definition equivalent (n1 n2 : Node) : Prop :=
-match n1 with
-| {| this := x; sorted := y |} => length n2 = length x /\ list_eq_Node x n2
-end. *)
-
-(* #[export] Instance processEq : Equiv Process := eq. *)
 
 Reserved Notation "n -[ k | l ]ₙ->* n'" (at level 50).
 Inductive closureNodeSem : Node -> nat -> list (Action * PID) -> Node -> Prop :=
@@ -233,231 +255,3 @@ Proof.
   * eapply n_trans. exact H.
     eapply IHD1 in H0. exact H0.
 Qed.
-
-(*
-  0 -[ 1 + 1 ]-> 1
-  1 -[ 2 ]-> 3
-  2 -[ 3 ]-> 3
-  3 : 2 + 3 == 5
-*)
-Open Scope string_scope.
-Goal exists acts k,
-  ([], 0 : ([], EConcBIF (ELit "send") [EPid 1;EPlus (ELit 1%Z) (ELit 1%Z)], []) ||||
-       1 : ([], EReceive [(PVar, EConcBIF (ELit "send") [EPid 3;EVar 0])], []) ||||
-       2 : ([], EConcBIF (ELit "send") [EPid 3;ELit 3%Z], []) ||||
-       3 : ([], EReceive [(PVar, EReceive [(PVar, EPlus (EVar 0) (EVar 1))])], []) |||| nullpool)
-  -[ k | acts ]ₙ->*
-  ([], 0 : ([], ELit 2%Z, []) ||||
-       1 : ([], ELit 2%Z, []) ||||
-       2 : ([], ELit 3%Z, []) ||||
-       3 : ([], ELit 5%Z, []) |||| nullpool).
-Proof.
-  eexists. exists 24.
-  (* Some steps with 0 *)
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 2 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 3 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 4 constructor. auto.
-  simpl. eapply n_trans. eapply n_other with (ι := 0).
-    do 2 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 3 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 2 constructor. auto.
-  simpl.
-
-  rewrite par_swap with (ι' := 2). rewrite par_swap with (ι' := 2). 2-3: lia.
-
-  (* Some steps with 2 *)
-  eapply n_trans. eapply n_other with (ι := 2).
-    do 2 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 2).
-    do 3 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 2).
-    do 3 constructor. auto.
-  simpl.
-
-  rewrite par_swap with (ι' := 3). rewrite par_swap with (ι' := 3). 2-3: lia.
-
-  eapply n_trans. eapply n_send with (ι := 2) (ι' := 3).
-    constructor. constructor.
-  simpl.
-
-  rewrite par_swap with (ι' := 3). 2: lia.
-  eapply n_trans. apply n_arrive. 
-    constructor. reflexivity. repeat constructor.
-  cbn. break_match_goal. 2: congruence.
-
-  rewrite par_swap with (ι' := 0). rewrite par_swap with (ι' := 0). 2-3: lia.
-
-  (* Again with 0 *)
-
-  rewrite par_swap with (ι' := 1). rewrite par_swap with (ι' := 1). 2-3: lia.
-
-  eapply n_trans. eapply n_send with (ι := 0) (ι' := 1).
-  constructor. constructor. simpl.
-
-  rewrite par_swap with (ι' := 1). 2: lia.
-  eapply n_trans. apply n_arrive.
-    constructor. reflexivity. repeat constructor.
-  cbn. break_match_goal. 2: congruence.
-
-  (* Now with 1 *)
-  eapply n_trans. eapply n_other with (ι := 1).
-    apply p_receive; try reflexivity. right. right. eexists. auto.
-  simpl.
-  eapply n_trans. eapply n_other with (ι := 1).
-    do 2 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 1).
-    do 3 constructor. auto.
-
-  cbn. break_match_goal. 2: congruence.
-  rewrite par_swap with (ι' := 3). 2: lia.
-
-  eapply n_trans. eapply n_other with (ι := 1).
-    do 3 constructor. auto.
-  eapply n_trans. eapply n_send with (ι := 1) (ι' := 3).
-    constructor. constructor. simpl.
-
-  rewrite par_swap with (ι' := 3). 2: lia.
-
-  eapply n_trans. apply n_arrive.
-    constructor. reflexivity. repeat constructor.
-    cbn. break_match_goal. 2: congruence.
-
-  (* Mailbox processing for 3 *)
-  eapply n_trans. eapply n_other with (ι := 3).
-    apply p_receive; try reflexivity. right. right. eexists. auto. cbn.
-  break_match_goal. 2: congruence.
-  eapply n_trans. eapply n_other with (ι := 3).
-    apply p_receive; try reflexivity. right. right. eexists. auto.
-    cbn. break_match_goal. 2: congruence.
-
-  eapply n_trans. eapply n_other with (ι := 3).
-    constructor. constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 3).
-    constructor. constructor. constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 3).
-    constructor. constructor. auto.
-
-  rewrite par_swap with (ι' := 0). rewrite par_swap with (ι' := 0).
-  rewrite par_swap with (ι' := 1). rewrite par_swap with (ι' := 2).
-
-  apply n_refl.
-  all: lia.
-Qed.
-
-
-#[export]
-Hint Constructors ValScoped : core.
-#[export]
-Hint Constructors ExpScoped : core.
-(*
-
-let X = spawn(fun() -> receive X -> X ! self() end end, [])
-  in let Y = X ! self()
-    in receive X -> X end
-
-*)
-Goal exists acts k,
-  ([], 0 : ([], ELet "X" (EConcBIF (ELit "spawn") [EFun [] (EReceive [(PVar, EConcBIF (ELit "send") [EVar 0; EConcBIF (ELit "self") []])]);
-                                             ENil])
-             (ELet "Y"%string (EConcBIF (ELit "send") [EVar 0; EConcBIF (ELit "self") []])
-                 (EReceive [(PVar, EVar 0)]))
-                  , [])
-  |||| nullpool)
-  -[ k | acts ]ₙ->*
-  ([], 0 : ([], EPid 1, []) ||||
-       1 : ([], EPid 1, []) |||| nullpool).
-Proof.
-  eexists. exists 26.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 2 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    apply p_local. apply step_concbif. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 3 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 2 constructor; auto.
-    do 2 constructor. intros. simpl in H.
-    inversion H; subst; cbn. 2: inversion H1.
-    constructor. repeat constructor. intros. simpl in H0. inversion H0.
-    simpl. repeat constructor. inversion H1.
-    inversion H2; subst.
-    repeat constructor.
-    inversion H4; subst.
-    auto.
-  eapply n_trans. eapply n_spawn with (ι := 0) (ι' := 1); simpl. 2: reflexivity.
-    2: constructor. all: simpl; auto.
-
-  rewrite par_swap with (ι' := 0). 2: lia.
-
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 3 constructor. auto.
-  simpl.
-  rewrite par_swap with (ι' := 1). 2: lia.
-
-  eapply n_trans. eapply n_other with (ι := 1).
-    repeat constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 1).
-    repeat constructor. simpl. auto.
-
-  rewrite par_swap with (ι' := 0). 2: lia.
-
-  simpl.
-  eapply n_trans. eapply n_other with (ι := 0).
-    repeat constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 3 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 3 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 3 constructor. auto.
-  simpl.
-  eapply n_trans. eapply n_other with (ι := 0).
-    do 3 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 0) (a := ASelf 0).
-    constructor. auto.
-  eapply n_trans. eapply n_send with (ι := 0) (ι' := 1).
-    constructor. constructor. simpl.
-  eapply n_trans. eapply n_other with (ι := 0); cbn; try reflexivity.
-    repeat constructor. simpl. auto.
-
-  simpl.
-  rewrite par_swap with (ι' := 1). 2: lia.
-
-  eapply n_trans. apply n_arrive.
-    constructor. reflexivity. repeat constructor.
-  cbn. break_match_goal. 2: congruence.
-  eapply n_trans. eapply n_other with (ι := 1).
-    apply p_receive; auto; try reflexivity. right. right. eexists. auto.
-  simpl.
-  eapply n_trans. eapply n_other with (ι := 1).
-    do 2 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 1).
-    do 3 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 1).
-    do 3 constructor. auto.
-  simpl.
-  eapply n_trans. eapply n_other with (ι := 1).
-    do 3 constructor. auto.
-  eapply n_trans. eapply n_other with (ι := 1) (a := ASelf 1).
-    constructor. auto.
-  eapply n_trans. eapply n_send with (ι := 1) (ι' := 0).
-    constructor. constructor. simpl.
-
-  rewrite par_swap with (ι' := 0). 2: lia.
-
-  eapply n_trans. apply n_arrive.
-    constructor. reflexivity. repeat constructor.
-  eapply n_trans. eapply n_other with (ι := 0).
-    apply p_receive; auto. reflexivity. right. right. eexists. auto. cbn.
-  break_match_goal. 2: congruence.
-  cbn. break_match_goal. 2: congruence.
-  break_match_goal. 2: congruence.
-  apply n_refl.
-Qed.
-
-Close Scope string_scope.
