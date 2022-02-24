@@ -72,7 +72,7 @@ Proof.
 
   (* Now with 1 *)
   eapply n_trans. eapply n_other with (ι := 1).
-    apply p_receive; try reflexivity. right. right. eexists. auto.
+    apply p_receive; try reflexivity. right. right. left. eexists. auto.
   simpl.
   eapply n_trans. eapply n_other with (ι := 1).
     do 2 constructor. auto.
@@ -95,10 +95,10 @@ Proof.
 
   (* Mailbox processing for 3 *)
   eapply n_trans. eapply n_other with (ι := 3).
-    apply p_receive; try reflexivity. right. right. eexists. auto. cbn.
+    apply p_receive; try reflexivity. right. right. left. eexists. auto. cbn.
   break_match_goal. 2: congruence.
   eapply n_trans. eapply n_other with (ι := 3).
-    apply p_receive; try reflexivity. right. right. eexists. auto.
+    apply p_receive; try reflexivity. right. right. left. eexists. auto.
     cbn. break_match_goal. 2: congruence.
 
   eapply n_trans. eapply n_other with (ι := 3).
@@ -198,7 +198,7 @@ Proof.
     constructor. reflexivity. repeat constructor.
   cbn. break_match_goal. 2: congruence.
   eapply n_trans. eapply n_other with (ι := 1).
-    apply p_receive; auto; try reflexivity. right. right. eexists. auto.
+    apply p_receive; auto; try reflexivity. right. right. left. eexists. auto.
   simpl.
   eapply n_trans. eapply n_other with (ι := 1).
     do 2 constructor. auto.
@@ -219,7 +219,7 @@ Proof.
   eapply n_trans. apply n_arrive.
     constructor. reflexivity. repeat constructor.
   eapply n_trans. eapply n_other with (ι := 0).
-    apply p_receive; auto. reflexivity. right. right. eexists. auto. cbn.
+    apply p_receive; auto. reflexivity. right. right. left. eexists. auto. cbn.
   break_match_goal. 2: congruence.
   cbn. break_match_goal. 2: congruence.
   break_match_goal. 2: congruence.

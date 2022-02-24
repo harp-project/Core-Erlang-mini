@@ -24,7 +24,8 @@ Inductive Action : Set :=
 | ASelf (ι : PID)
 | ASpawn (ι : PID) (t1 t2 : Exp)
 | AInternal
-| ATerminate.
+| ATerminate
+| ASetFlag.
 
 Fixpoint find_clause (v : Exp) (c : list (Pat * Exp)) : option (Exp * list Exp) :=
 match c with
@@ -138,12 +139,12 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 | p_set_flag fs mb flag y v links :
   Some y = bool_from_lit v ->
   inl (FConcBIF2 (ELit "process_flag"%string) [] [ELit "trap_exit"%string] :: fs, v, mb, links, flag) 
-   -⌈ AInternal ⌉-> inl (fs, lit_from_bool flag, mb, links, y)
+   -⌈ ASetFlag ⌉-> inl (fs, lit_from_bool flag, mb, links, y)
 
 (* termination *)
 | p_terminate v mb links flag:
   VALCLOSED v ->
-  inl ([], v, mb, links, flag) -⌈AInternal⌉->
+  inl ([], v, mb, links, flag) -⌈ATerminate⌉->
    inr (map (fun l => (l, ELit "normal"%string)) links) (* TODO: is internal enough here? *)
 
 where "p -⌈ a ⌉-> p'" := (processLocalSemantics p a p').
@@ -219,7 +220,7 @@ Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
 (* internal actions *)
 | n_other p p' a Π (ι : PID) ether:
   p -⌈a⌉-> p' ->
-  (a = AInternal \/ a = ASelf ι \/ (exists t, a = AReceive t))
+  (a = AInternal \/ a = ASelf ι \/ (exists t, a = AReceive t) \/ a = ATerminate \/ a = ASetFlag)
 ->
    (ether, ι : p |||| Π) -[a| ι]ₙ-> (ether, ι : p' |||| Π)
 
