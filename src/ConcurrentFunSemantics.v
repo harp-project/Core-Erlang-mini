@@ -85,12 +85,13 @@ end.
 
 Reserved Notation "p -⌈ a ⌉-> p'" (at level 50).
 Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
-(* local steps *)
+(********** LOCAL STEPS **********)
 | p_local fs e fs' e' mb links flag :
   ⟨fs, e⟩ --> ⟨fs', e'⟩
 ->
   inl (fs, e, mb, links, flag) -⌈ AInternal ⌉-> inl (fs', e', mb, links, flag)
 
+(********** SIGNAL ARRIVAL **********)
 (* message arrival *)
 | p_arrive mb mb' fs e v flag links source dest : VALCLOSED v -> mb' = mb ++ [v] ->
   inl (fs, e, mb, links, flag) -⌈ AArrive source dest (Message v) ⌉-> inl (fs, e, mb', links, flag)
@@ -99,15 +100,28 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 | p_exit_drop fs e mb links flag dest source reason :
   (
     reason = ELit "normal"%string /\ dest <> source /\ flag = false \/
-    ~ In source links
+    ~ In source links /\ reason <> ELit "kill"%string
   ) ->
   inl (fs, e, mb, links, flag) -⌈ AArrive source dest (Exit reason) ⌉->
   inl (fs, e, mb, links, flag)
 (* terminating process *)
-
+| p_exit_terminate fs e mb links flag dest source reason reason' :
+  (reason = ELit "kill"%string /\ ~ In source links /\ reason' = ELit "killed"%string) \/
+  (flag = false /\ reason <> ELit "normal"%string /\ reason' = reason /\ In source links)
+ \/
+  (reason = ELit "normal"%string /\ source = dest /\ In source links /\ reason' = reason) ->
+  inl (fs, e, mb, links, flag) -⌈ AArrive source dest (Exit reason) ⌉->
+  inr (map (fun l => (l, reason')) links)
 (* convert exit signal to message *)
+(* TODO, NOTE: here tuple should be used instead of list! *)
+| p_exit_convert fs e mb links dest source reason :
+  (~ In source links /\ reason <> ELit "kill"%string) \/
+  In source links ->
+  inl (fs, e, mb, links, true) -⌈ AArrive source dest (Exit reason) ⌉->
+  inl (fs, e, mb ++ [VCons (ELit "EXIT"%string) 
+                           (VCons (EPid source) (VCons reason ENil))], links, true)
 
-
+(********** SIGNAL SENDING **********)
 (* message send *)
 | p_send ι v mb fs flag links source : VALCLOSED v ->
   inl (FConcBIF2 (ELit "send"%string) [] [EPid ι] :: fs, v, mb, links, flag)
@@ -118,29 +132,33 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
   inl (FConcBIF2 (ELit "exit"%string) [] [EPid ι] :: fs, v, mb, links, flag) -⌈ ASend self ι (Exit v) ⌉->
   inl (fs, ELit "true"%string, mb, links, flag)
 
-
+(********** SELF **********)
 (* self *)
 | p_self ι fs mb flag links :
   inl (FConcBIF1 [] :: fs, ELit "self"%string, mb, links, flag) -⌈ ASelf ι ⌉-> inl (fs, EPid ι, mb, links, flag)
 
+(********** SPAWN **********)
 (* spawn *)
 | p_spawn ι fs mb vl e l flag links :
   Some (length vl) = len l -> VALCLOSED l ->
   inl (FConcBIF2 (ELit "spawn"%string) [] [(EFun vl e)] :: fs, l, mb, links, flag) 
     -⌈ASpawn ι (EFun vl e) l⌉-> inl (fs, EPid ι, mb, links, flag)
 
+(********** RECEVIE **********)
 (* receive *)
 | p_receive mb l fs e m mb' bindings flag links :
   receive mb l = Some (m, e, bindings) -> mb' = pop m mb
 ->
   inl (fs, EReceive l, mb, links, flag) -⌈ AReceive m ⌉-> inl (fs, e.[list_subst bindings idsubst], mb', links, flag)
 
+(********** PROCESS FLAG **********)
 (* Replace process flags *)
 | p_set_flag fs mb flag y v links :
   Some y = bool_from_lit v ->
   inl (FConcBIF2 (ELit "process_flag"%string) [] [ELit "trap_exit"%string] :: fs, v, mb, links, flag) 
    -⌈ ASetFlag ⌉-> inl (fs, lit_from_bool flag, mb, links, y)
 
+(********** NORMAL TERMINATION **********)
 (* termination *)
 | p_terminate v mb links flag:
   VALCLOSED v ->

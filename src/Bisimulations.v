@@ -150,7 +150,18 @@ Proof.
   * inversion H0; subst; try (inversion H; inversion_is_value).
     - eapply step_determinism in H. 2: exact H7. destruct H. now subst.
   * inversion H1; subst; try inversion_is_value. auto.
-  * inversion H0; now subst.
+  * inversion H0; subst.
+    - reflexivity.
+    - intuition; subst; try congruence.
+    - intuition; subst; try congruence.
+  * inversion H0; subst.
+    - admit.
+    - admit.
+    - admit.
+  * inversion H0; subst.
+    - admit.
+    - admit.
+    - admit.
   * inversion H0; now subst.
   * inversion H0; now subst.
   * inversion H; now subst.
