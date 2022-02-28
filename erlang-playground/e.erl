@@ -97,11 +97,13 @@ h2() ->
 
 j2() ->
   %io:format("j : ~w~n",[self()]),
+  process_flag(trap_exit, true),
   timer:sleep(2000),
   io:format("Process j2: ~w was not killed!",[self()]).
 
 i2(Pid, Ph) ->
   %io:format("i : ~w~n",[self()]),
+%  link(Pid),
   unlink(Pid),
   process_flag(trap_exit, true),
   exit(Pid, alma),
@@ -152,4 +154,33 @@ fv3() ->
     P -> io:format("~w received", [P])
   end,
   ok.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+main3() ->
+  Pid1 = spawn(e, sub5, []),
+  Pid2 = spawn(e, sub6, [Pid1]).
+
+sub5() -> 
+   timer:sleep(2000),
+   throw(kill).
+
+sub6(Ph) ->
+  timer:sleep(1000),
+  process_flag(trap_exit, true),
+  link(Ph),
+  receive
+    P -> io:format("sub2 received : ~w~n",[P])
+  after
+    5000 -> ok
+  end,
+  io:format("Process sub2: ~w was not killed!~n",[self()]).
+  
+%%%%%%%%%%%%%%%%
+
+
+
+
 
