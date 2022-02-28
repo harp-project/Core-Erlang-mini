@@ -155,15 +155,19 @@ Proof.
     - intuition; subst; try congruence.
     - intuition; subst; try congruence.
   * inversion H0; subst.
-    - admit.
-    - admit.
-    - admit.
+    - intuition; subst; try congruence.
+    - intuition; subst; auto; congruence.
+    - intuition; subst; try congruence.
   * inversion H0; subst.
-    - admit.
-    - admit.
-    - admit.
+    - intuition; subst; try congruence.
+    - intuition; subst; try congruence.
+    - reflexivity.
+  * inversion H; now subst.
+  * inversion H; now subst.
   * inversion H0; now subst.
   * inversion H0; now subst.
+  * inversion H; now subst.
+  * inversion H; now subst.
   * inversion H; now subst.
   * inversion H1; now subst.
   * inversion H1. subst. rewrite H in H9. now inversion H9.
@@ -243,6 +247,18 @@ Proof.
     split; auto. eexists. constructor; auto.
   * right. exists (Exit reason),source,dest.
     split; auto. eexists. constructor; auto.
+  * right. do 3 eexists. split. reflexivity.
+    intuition; subst; eexists.
+    - apply p_exit_terminate. auto.
+    - apply p_exit_terminate. right. left. auto.
+    - apply p_exit_terminate. right. right. auto.
+  * right. do 3 eexists. split. reflexivity.
+    intuition; subst; eexists.
+    - apply p_exit_convert. auto.
+  * right. do 3 eexists. split. reflexivity.
+    intuition; subst; eexists. constructor.
+  * right. do 3 eexists. split. reflexivity.
+    intuition; subst; eexists. constructor.
   * apply bool_from_lit_val in H9. inversion H2; subst; inversion_is_value.
 Qed.
 
@@ -589,13 +605,7 @@ Proof.
       + destruct H0' as [source [eq [n''' D]]]. subst.
         inversion H1; subst.
         2: { intuition; try congruence. destruct H4; congruence. }
-        inversion H10; subst.
-        ** specialize (IHSteps H5 _ _ _ D).
-           destruct IHSteps as [[n3 [n4 [l1 [l2 [k1 [k2 H2]]]]]]| [n3 D2]].
-           -- left. destruct H2 as [eq1 [D1 [D2 [ D3 [eq2 eq3]]]]]. subst.
-              congruence.
-           -- right. eexists; eauto.
-        ** specialize (IHSteps H5 _ _ _ D).
+        specialize (IHSteps H5 _ _ _ D).
            destruct IHSteps as [[n3 [n4 [l1 [l2 [k1 [k2 H2]]]]]]| [n3 D2]].
            -- left. destruct H2 as [eq1 [D1 [D2 [ D3 [eq2 eq3]]]]]. subst.
               congruence.
@@ -619,7 +629,7 @@ Proof.
   simpl. unfold update. break_match_goal; auto. congruence.
 Qed.
 
-(* general case wont work: message ordering is desructed *)
+(* general case wont work: message ordering is not the same *)
 Theorem diamond_derivations :
   forall n1 n2 n3 n4 a ι1 ι2, ι1 <> ι2 ->
   n1 -[AInternal | ι1]ₙ-> n2 -> n1 -[a | ι2]ₙ-> n3 -> n2 -[a | ι2]ₙ-> n4
@@ -629,8 +639,8 @@ Proof.
   intros.
   inversion H2; subst.
   * inversion H1; subst.
-    inversion H0; subst.
     2: { intuition; try congruence. destruct H6; congruence. }
+    inversion H0; subst.
     assert (p = p0). {
       apply internal_keep with (x := ι2) in H0. simpl in H0.
       unfold update in H0. break_match_hyp. now inversion H0. congruence.
@@ -765,7 +775,7 @@ Theorem delay_internal_same :
   forall n2 a, n1 -[a | ι]ₙ-> n2 ->
        forall n3, n -[a | ι]ₙ-> n3
 ->
-  n3 -[AInternal | ι]ₙ-> n2.
+  n3 -[AInternal | ι]ₙ-> n2 \/ n3 = n2.
 Proof.
   intros. inversion H; subst.
   eapply internal_det in H1 as H1'. 2: exact H.
@@ -776,10 +786,39 @@ Proof.
     simpl. apply par_eq in H5 as H5'. subst.
     inversion H1; subst.
     - simpl. apply par_eq in H6 as H5'. subst.
-      apply n_other. 2: now left.
-      inversion H10; subst.
-      inversion H2; simpl; subst.
-      - constructor; auto.
+      clear H9 H7 H3.
+      replace (ι : p'1 |||| prs0) with (ι : p'1 |||| prs).
+      2: { extensionality xx.
+           apply equal_f with xx in H5. apply equal_f with xx in H6.
+           unfold update in *. break_match_hyp; auto. now rewrite <- H5 in H6.
+         }
+      inversion H12; subst.
+      + left. apply n_other.
+        inversion H16; subst.
+        ** inversion H2; subst. now constructor.
+        ** auto.
+      (* drop signal *)
+      + intuition. subst.
+        inversion H16; subst; intuition; subst; try congruence.
+        ** left. constructor. inversion H2; subst. now constructor. auto.
+        ** left. constructor. inversion H2; subst. auto.
+      (* terminate process *)
+      + inversion H2; subst. inversion H16; subst; intuition; subst; try congruence.
+        all: now right.
+      (* add signal to message queue *)
+      + intuition. subst.
+        inversion H16; subst; intuition; subst; try congruence.
+        all: left; constructor; inversion H2; subst; auto.
+        constructor; auto.
+      + left. apply n_other.
+        inversion H16; subst.
+        ** inversion H2; subst. now constructor.
+        ** auto.
+      + left. apply n_other.
+        inversion H16; subst.
+        ** inversion H2; subst. now constructor.
+        ** auto.
+    - intuition; subst; try congruence. now inversion H3. now inversion H9.
 Qed.
 
 Corollary chain_to_front_iff :
@@ -796,7 +835,7 @@ Proof.
     destruct (Nat.eq_dec ι0 ι).
     - subst.
       eapply internal_det in H1 as H2'. 2: exact H.
-      destruct H2' as [[? ?] | [t [? [? [n4 [D1 ?]]]]]]; subst.
+      destruct H2' as [[? ?] | [t [ι' [? [n4 D1]]]]]; subst.
       + eapply internals_trans.
         exists l, k. split; eauto.
         exists [(AInternal, ι)], 1. split. repeat constructor.
@@ -804,8 +843,10 @@ Proof.
       + epose proof (delay_internal_same _ _ _ H _ _ D1 _ H1).
         epose proof (IHD H5 _ _ _ _ H0 D1).
         eapply internals_trans. 2: exact H3.
-        exists [(AInternal, ι)], 1. split. repeat constructor.
-        eapply n_trans. exact H2. apply n_refl.
+        destruct H2.
+        ** exists [(AInternal, ι)], 1. split. repeat constructor.
+           eapply n_trans. exact H2. apply n_refl.
+        ** subst. apply internals_refl.
     - apply not_eq_sym in n0.
       epose proof (D2 := step_chain _ _ _ _ H _ _ _ _ H1 n0).
       destruct D2 as [n4 D2].
@@ -862,8 +903,7 @@ Proof.
     - destruct H0 as [n3 D2].
       exists n3. split.
       + exists q, n3. split. 2: split. 1,3: apply internals_refl. auto.
-      + 
-        eapply chain_to_front_iff in H1. 3: exact D2. 2: auto. exact H1.
+      + eapply chain_to_front_iff in H1. 3: exact D2. 2: auto. exact H1.
         exists l, k. now split.
   * unfold onlyOne.
     exists q'. split. 2: apply internals_refl.
