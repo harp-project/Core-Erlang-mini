@@ -160,7 +160,7 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 | p_send ι v mb fs flag links source : VALCLOSED v ->
   inl (FConcBIF2 send [] [EPid ι] :: fs, v, mb, links, flag)
   -⌈ ASend source ι (Message v) ⌉-> inl (fs, v, mb, links, flag)
-(* exit *)
+(* exit, 2 parameters *)
 | p_exit fs v mb flag ι selfι links :
   VALCLOSED v ->
   inl (FConcBIF2 exit [] [EPid ι] :: fs, v, mb, links, flag) -⌈ ASend selfι ι (Exit v false) ⌉->
@@ -206,12 +206,17 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
   inl (FConcBIF2 process_flag [] [trap_exit] :: fs, v, mb, links, flag) 
    -⌈ ASetFlag ⌉-> inl (fs, lit_from_bool flag, mb, links, y)
 
-(********** NORMAL TERMINATION **********)
+(********** TERMINATION **********)
 (* termination *)
 | p_terminate v mb links flag:
   VALCLOSED v ->
   inl ([], v, mb, links, flag) -⌈ATerminate⌉->
    inr (map (fun l => (l, normal)) links) (* NOTE: is internal enough here? - no, it's not for bisimulations *)
+(* exit with one parameter *)
+| p_exit_self fs v mb links flag :
+  VALCLOSED v ->
+  inl (FConcBIF2 exit [] [] :: fs, v, mb, links, flag) -⌈ ATerminate ⌉->
+  inr (map (fun e => (e, v)) links)
 
 where "p -⌈ a ⌉-> p'" := (processLocalSemantics p a p').
 
@@ -283,6 +288,9 @@ Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
   p -⌈AArrive ι0 ι t⌉-> p' ->
   (ether, ι : p |||| prs) -[AArrive ι0 ι t | ι]ₙ-> (etherPop (ι0, ι, t) ether,
                                             ι : p' |||| prs)
+(* TODO: link sent to non-existing process triggers exit, messages should be discarded when sent to non-existing process *)
+
+
 (* internal actions *)
 | n_other p p' a Π (ι : PID) ether:
   p -⌈a⌉-> p' ->

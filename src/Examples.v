@@ -265,4 +265,289 @@ Proof.
   apply n_refl.
 Qed.
 
+(* trapping kill which comes from link *)
+Goal exists k acts,
+  ([], 0 : inl ([], ELet "X" (EConcBIF link [EPid 1])
+                             (EConcBIF exit [kill]), [], [], false) ||||
+       1 : inl ([], EReceive [(PVar, EVar 0)], [], [], true) |||| nullpool)
+  -[k | acts]ₙ->*
+  ([], 1 : inl ([], VCons (EXIT) (VCons (EPid 0) (VCons kill ENil)), [], [0], true)
+           |||| nullpool).
+Proof.
+  do 2 eexists.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_send with (ι := 0).
+    apply p_link.
+  simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    apply p_exit_self. constructor. auto.
+  simpl.
+  eapply n_trans. eapply n_send with (ι := 0).
+    apply p_dead.
+  simpl.
+  eapply n_trans. apply n_terminate.
+    rewrite update_swap. rewrite nullpool_remove. 2: lia.
+  eapply n_trans. eapply n_arrive.
+    do 2 constructor.
+    do 2 constructor.
+  cbn. break_match_goal. 2: congruence.
+  eapply n_trans. eapply n_arrive.
+    do 2 constructor.
+    eapply p_exit_convert. right. split; auto. now constructor.
+  cbn. break_match_goal. 2: congruence.
+  eapply n_trans. eapply n_other with (ι := 1).
+    apply p_receive; try reflexivity. do 2 right. left. eexists. reflexivity.
+  cbn. break_match_goal. 2: congruence.
+  apply n_refl.
+Qed.
+
+(* kill through link, without traps -> no conversion to killed *)
+Goal exists k acts,
+  ([], 0 : inl ([], ELet "X" (EConcBIF link [EPid 1])
+                             (EConcBIF exit [kill]), [], [], false) ||||
+       1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
+  -[k | acts]ₙ->*
+  ([], 1 : inr [(0, kill)]
+           |||| nullpool).
+Proof.
+  do 2 eexists.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_send with (ι := 0).
+    apply p_link.
+  simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    apply p_exit_self. constructor. auto.
+  simpl.
+  eapply n_trans. eapply n_send with (ι := 0).
+    apply p_dead.
+  simpl.
+  eapply n_trans. apply n_terminate.
+    rewrite update_swap. rewrite nullpool_remove. 2: lia.
+  eapply n_trans. eapply n_arrive.
+    do 2 constructor.
+    do 2 constructor.
+  cbn. break_match_goal. 2: congruence.
+  eapply n_trans. eapply n_arrive.
+    do 2 constructor.
+  eapply p_exit_terminate. right. left. repeat split; auto.
+    1-3: intros; try congruence. now constructor.
+  cbn. break_match_goal. 2: congruence.
+  apply n_refl.
+Qed.
+
+(* kill sent explicitly, converted to killed *)
+Goal exists k acts,
+  ([], 0 : inl ([], ELet "X" (EConcBIF link [EPid 1])
+                             (ELet "X" (EConcBIF exit [EPid 1; kill])
+                                       (EReceive [(PVar, ENil)])), [], [], false) ||||
+       1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
+  -[k | acts]ₙ->*
+  ([], 0 : inr [(1, killed)]
+           |||| nullpool).
+Proof.
+  do 2 eexists.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_send with (ι := 0).
+    apply p_link.
+  simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_send with (ι := 0).
+    apply p_exit. constructor.
+  simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  simpl.
+  rewrite par_swap. 2: lia.
+  eapply n_trans. eapply n_arrive.
+    do 2 constructor.
+    do 2 constructor.
+  cbn. break_match_goal. 2: congruence.
+  eapply n_trans. eapply n_arrive.
+    do 2 constructor.
+    apply p_exit_terminate. auto.
+  cbn. break_match_goal. 2: congruence.
+  eapply n_trans. apply n_send.
+    apply p_dead. simpl.
+  eapply n_trans. apply n_terminate.
+    rewrite update_swap, nullpool_remove. 2: lia.
+  eapply n_trans. eapply n_arrive.
+    do 2 constructor.
+    apply p_exit_terminate.
+    right. left. intuition; auto. congruence.
+  cbn. break_match_goal. 2: congruence.
+  apply n_refl.
+Qed.
+
+(* trapping exits *)
+Goal exists k acts,
+  ([], 0 : inl ([], EReceive [(PVar, EConcBIF exit [EPid 1; ELit "foo"])], [], [], false) ||||
+       1 : inl ([], ELet "X" (ELet "X" (EConcBIF process_flag [trap_exit; tt]) 
+                                       (EConcBIF send [EPid 0; ENil])) 
+                             (EReceive [(PVar, EVar 0)]), [], [], false) |||| nullpool)
+  -[k | acts]ₙ->*
+  ([], 1 : inl ([], VCons EXIT (VCons (EPid 0) (VCons (ELit "foo") ENil)), [], [], true)
+           |||| nullpool).
+Proof.
+  do 2 eexists.
+  rewrite par_swap. 2: lia.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 1).
+    eapply p_set_flag. reflexivity. auto.
+  cbn.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto. simpl.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto. simpl.
+  eapply n_trans. eapply n_send with (ι := 1).
+    do 3 constructor. simpl.
+  eapply n_trans. eapply n_other with (ι := 1).
+    do 3 constructor. auto. simpl.
+  rewrite par_swap. 2: lia.
+  eapply n_trans. eapply n_arrive.
+    do 2 constructor.
+    do 2 constructor.
+  cbn. break_match_goal. 2: congruence.
+  eapply n_trans. eapply n_other.
+    apply p_receive. 1-2: reflexivity. do 2 right. left. now eexists.
+  cbn. break_match_goal. 2: congruence.
+  eapply n_trans. eapply n_other.
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other.
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other.
+    do 3 constructor. auto. simpl.
+  eapply n_trans. eapply n_send.
+    do 3 constructor. simpl.
+  eapply n_trans. eapply n_other.
+    apply p_terminate. constructor. auto.
+  eapply n_trans. apply n_terminate.
+  rewrite update_swap, nullpool_remove. 2: lia.
+  eapply n_trans. apply n_arrive.
+    do 2 constructor.
+    apply p_exit_convert. left. split; auto. congruence.
+  cbn. break_match_goal. 2: congruence.
+  eapply n_trans. apply n_other.
+    apply p_receive. 1-2: reflexivity. do 2 right; left; now eexists.
+  cbn. break_match_goal. 2: congruence.
+  apply n_refl.
+Qed.
+
+(* explicit exit signal drop *)
+Goal exists k acts,
+  ([], 0 : inl ([], ELet "X" (EConcBIF exit [EPid 1; ELit "normal"]) 
+                             (EConcBIF send [EPid 1; ENil]), [], [], false) ||||
+       1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
+  -[k | acts]ₙ->*
+  ([], 0 : inl ([], ENil, [], [], false) ||||
+       1 : inl ([], ENil, [], [], false) |||| nullpool).
+Proof.
+  do 2 eexists.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_send with (ι := 0).
+    do 3 constructor. simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto. simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto. simpl.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto. simpl.
+  eapply n_trans. eapply n_send with (ι := 0).
+    do 3 constructor. simpl.
+  rewrite par_swap. 2: lia.
+  eapply n_trans. apply n_arrive.
+    do 2 constructor.
+    apply p_exit_drop. left. auto.
+  cbn. break_match_goal. 2: congruence.
+  eapply n_trans. apply n_arrive.
+    do 2 constructor.
+    apply p_arrive; constructor.
+  cbn. break_match_goal. 2: congruence.
+  eapply n_trans. apply n_other.
+    apply p_receive. 1-2: reflexivity. do 2 right; left; now eexists.
+  cbn. break_match_goal. 2: congruence.
+  rewrite par_swap. 2: lia.
+  apply n_refl.
+Qed.
+
+(* implicit exit signal drop *)
+Goal exists k acts,
+  ([], 0 : inl ([], ELet "X" (ELit 1%Z) (EVar 0), [], [], false) ||||
+       1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
+  -[k | acts]ₙ->*
+  ([], 1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool).
+Proof.
+  do 2 eexists.
+  eapply n_trans. eapply n_other.
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other.
+    do 3 constructor. auto. simpl.
+  eapply n_trans. eapply n_other.
+    apply p_terminate. constructor. auto.
+  eapply n_trans. eapply n_terminate.
+  rewrite update_swap, nullpool_remove. 2: lia.
+  (* cannot make more steps here *)
+  apply n_refl.
+Qed.
+
 Close Scope string_scope.

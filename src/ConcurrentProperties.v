@@ -66,6 +66,7 @@ Proof.
     - rewrite <- H in H7. inversion H7. now subst.
   * inversion H0; subst.
     - reflexivity.
+  * inversion H0; now subst.
 Qed.
 
 Lemma par_eq : forall ι p p' Π Π',

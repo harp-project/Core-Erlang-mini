@@ -180,6 +180,27 @@ sub6(Ph) ->
   
 %%%%%%%%%%%%%%%%
 
+main4() ->
+  Pid1 = spawn(e, foo, []),
+  Pid2 = spawn(e, bar, [Pid1]).
+
+foo() ->
+  timer:sleep(2000),
+  exit(alma)
+  .
+
+bar(Ph) ->
+  timer:sleep(1000),
+  process_flag(trap_exit, true),
+  link(Ph),
+  io:format("Alive~n"),
+  receive
+    P -> io:format("Received: ~w~n", [P])
+  after
+    4000 -> io:format("Received nothing")
+  end
+  .
+
 
 
 
