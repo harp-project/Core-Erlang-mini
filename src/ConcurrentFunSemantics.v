@@ -5,6 +5,14 @@ Require Export Coq.Classes.EquivDec.
 
 Import ListNotations.
 
+Ltac eqb_to_eq_prim :=
+  match goal with
+  | [H : Nat.eqb _ _ = true  |- _] => apply Nat.eqb_eq  in H
+  | [H : Nat.eqb _ _ = false |- _] => apply Nat.eqb_neq in H
+  end.
+
+Ltac eqb_to_eq := repeat eqb_to_eq_prim.
+
 Definition Mailbox : Set := list Exp.
 Definition ProcessFlag : Set := bool.
 Definition LiveProcess : Set := FrameStack * Exp * Mailbox * (list PID) * ProcessFlag.
@@ -233,36 +241,44 @@ Notation "x -⌈ k | xs ⌉-> y" := (LabelStar processLocalSemantics x k xs y) (
 Theorem Signal_eq_dec (s s' : Signal) : {s = s'} + {s <> s'}.
 Proof. decide equality; try apply Exp_eq_dec; try apply Nat.eq_dec. decide equality. Qed.
 
-Definition Ether : Set := list (PID * PID * Signal).
-Definition etherPop := removeFirst (prod_eqdec (prod_eqdec Nat.eq_dec Nat.eq_dec) Signal_eq_dec).
+Definition update {T : Type} (pid : PID) (p : T) (n : PID -> T) : PID -> T :=
+  fun ι => if Nat.eqb pid ι then p else n ι.
+
+(** This representation assures that messages sent from the same process,
+    are delivered in the same order *)
+Definition Ether : Set := PID -> list (PID * Signal).
+Definition etherPop (source : PID) (n : Ether) : option ((PID * Signal) * Ether) :=
+match n source with
+| [] => None
+| x::xs => Some (x, update source xs n)
+end.
 
 Definition ProcessPool : Set := (PID -> option Process).
 Definition Node : Set := Ether * ProcessPool.
 
 Definition nullpool : ProcessPool := fun ι => None.
-Definition update (pid : PID) (p : option Process) (n : ProcessPool) :=
-  fun ι => if Nat.eq_dec pid ι then p else n ι.
 
 Notation "pid : p |||| n" := (update pid (Some p) n) (at level 32, right associativity).
 Notation "n -- pid" := (update pid None n) (at level 31, left associativity).
-Lemma update_same : forall ι p p' Π, update ι p (update ι p' Π) = update ι p Π.
+Lemma update_same : forall T ι (p p' : T) Π, update ι p (update ι p' Π) = update ι p Π.
 Proof.
   intros. unfold update. extensionality ι'.
   break_match_goal; auto.
 Qed.
-Corollary par_same :  forall ι p p' Π, ι : p |||| ι : p' |||| Π = ι : p |||| Π.
+Corollary par_same :  forall T ι (p p' : T) Π, ι : p |||| ι : p' |||| Π = ι : p |||| Π.
 Proof.
   intros. apply update_same.
 Qed.
 
-Lemma update_swap : forall ι ι' p p' Π, ι <> ι' ->
+Lemma update_swap : forall T ι ι' (p p' : T) Π, ι <> ι' ->
    update ι p (update ι' p' Π) = update ι' p' (update ι p Π).
 Proof.
   intros. unfold update. extensionality ι''.
   break_match_goal; auto.
-  subst. break_match_goal; auto. congruence.
+  subst. break_match_goal; auto.
+  apply Nat.eqb_eq in Heqb0. apply Nat.eqb_eq in Heqb. congruence.
 Qed.
-Corollary par_swap :  forall ι ι' p p' Π, ι <> ι' ->
+Corollary par_swap :  forall T ι ι' (p p' : T) Π, ι <> ι' ->
    ι : p |||| ι' : p' |||| Π = ι' : p' |||| ι : p |||| Π.
 Proof.
   intros. now apply update_swap.
@@ -273,20 +289,49 @@ Proof.
   unfold update. break_match_goal; auto.
 Qed.
 
+Definition etherAdd (source : PID) (m : PID * Signal) (n : Ether) : Ether :=
+  update source (n source ++ [m]) n.
+
+Theorem update_noop :
+  forall T x (xval : T) n, n x = xval -> update x xval n = n.
+Proof.
+  intros. extensionality y.
+  unfold update. break_match_goal.
+  apply Nat.eqb_eq in Heqb. now subst.
+  reflexivity.
+Qed.
+
+Lemma etherPop_greater :
+  forall ι ether t ι' ether', etherPop ι ether = Some (ι', t, ether') ->
+  forall ι'' t', etherPop ι (etherAdd ι'' t' ether) = Some (ι', t, etherAdd ι'' t' ether').
+Proof.
+  intros. unfold etherPop, etherAdd, update in *.
+  destruct (Nat.eqb ι'' ι) eqn:Eq1; eqb_to_eq; subst.
+  * break_match_hyp; simpl. congruence.
+    inversion H. subst.
+    do 3 f_equal. extensionality ι0.
+    break_match_goal; eqb_to_eq; subst; auto. now rewrite Nat.eqb_refl.
+  * break_match_goal; inversion H; subst.
+    do 3 f_equal.
+    extensionality ι0. do 2 break_match_goal; eqb_to_eq; subst; auto.
+    now rewrite Nat.eqb_refl.
+    apply Nat.eqb_neq in Heqb. now rewrite Heqb.
+Qed.
+
 Reserved Notation "n -[ a | ι ]ₙ-> n'" (at level 50).
 Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
 (* sending any signal *)
 | n_send p p' ether prs (ι ι' : PID) t :
   p -⌈ASend ι ι' t⌉-> p'
 ->
-  (ether, ι : p |||| prs) -[ASend ι ι' t | ι]ₙ->  (ether ++ [(ι, ι', t)], ι : p' |||| prs)
+  (ether, ι : p |||| prs) -[ASend ι ι' t | ι]ₙ->  (etherAdd ι (ι', t) ether, ι : p' |||| prs)
 
 (** This leads to the loss of determinism: *)
 (* arrial of any signal *)
-| n_arrive ι ι0 p p' ether prs t:
-  In (ι0, ι, t) ether ->
+| n_arrive ι ι0 p p' ether ether' prs t:
+  etherPop ι0 ether = Some ((ι, t), ether') ->
   p -⌈AArrive ι0 ι t⌉-> p' ->
-  (ether, ι : p |||| prs) -[AArrive ι0 ι t | ι]ₙ-> (etherPop (ι0, ι, t) ether,
+  (ether, ι : p |||| prs) -[AArrive ι0 ι t | ι]ₙ-> (ether',
                                             ι : p' |||| prs)
 (* TODO: link sent to non-existing process triggers exit, messages should be discarded when sent to non-existing process *)
 

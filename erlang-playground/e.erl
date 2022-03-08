@@ -3,11 +3,16 @@
 
 f() ->
   Pid = spawn(e, g, []),
-  exit(Pid, normal),
+  erlang:yield(),
+  exit(Pid, asd),
 %  exit("alma"),
   io:fwrite("Hello world").
 
 g() ->
+  process_flag(trap_exit, true),
+  receive
+    P -> io:format("~n~w~n~n", [P])
+  end,
   io:fwrite("Hello world")
   .
 
