@@ -1,0 +1,714 @@
+module 'e' ['f'/0,
+	    'fv'/0,
+	    'fv0'/0,
+	    'fv3'/0,
+	    'g'/0,
+	    'h'/0,
+	    'h2'/0,
+	    'i'/2,
+	    'i2'/2,
+	    'j'/0,
+	    'j2'/0,
+	    'main'/0,
+	    'main2'/0,
+	    'module_info'/0,
+	    'module_info'/1,
+	    'sub1'/0,
+	    'sub2'/1,
+	    'sub3'/0,
+	    'sub4'/1]
+    attributes [%% Line 1
+		'file' =
+		    %% Line 1
+		    [{[101|[46|[101|[114|[108]]]]],1}],
+		%% Line 2
+		'compile' =
+		    %% Line 2
+		    ['export_all']]
+'f'/0 =
+    %% Line 4
+    ( fun () ->
+	  let <Pid> =
+	      call %% Line 5
+		   'erlang':%% Line 5
+			    'spawn'
+		  (%% Line 5
+		   'e', %% Line 5
+			'g', %% Line 5
+			     [])
+	  in  do  %% Line 6
+		  call 'erlang':'exit'
+		      (Pid, 'normal')
+		  %% Line 8
+		  call 'io':'fwrite'
+		      ([72|[101|[108|[108|[111|[32|[119|[111|[114|[108|[100]]]]]]]]]]])
+      -| [{'function',{'f',0}}] )
+'g'/0 =
+    %% Line 10
+    ( fun () ->
+	  %% Line 11
+	  call 'io':'fwrite'
+	      ([72|[101|[108|[108|[111|[32|[119|[111|[114|[108|[100]]]]]]]]]]])
+      -| [{'function',{'g',0}}] )
+'h'/0 =
+    %% Line 17
+    ( fun () ->
+	  let <Pid> =
+	      call %% Line 18
+		   'erlang':%% Line 18
+			    'spawn'
+		  (%% Line 18
+		   'e', %% Line 18
+			'j', %% Line 18
+			     [])
+	  in  let <_1> =
+		  call %% Line 19
+		       'erlang':%% Line 19
+				'self'
+		      ()
+	      in  do  %% Line 19
+		      call 'erlang':'spawn'
+			  ('e', 'i', [Pid|[_1|[]]])
+		      do  %% Line 20
+			  call 'erlang':'process_flag'
+			      ('trap_exit', 'true')
+			  do  %% Line 22
+			      call 'timer':'sleep'
+				  (1000)
+			      do  %% Line 23
+				  call 'erlang':'exit'
+				      (Pid, 'alma')
+				  do  ( letrec
+					    'recv$^0'/0 =
+						fun () ->
+						    let <_5,_3> =
+							primop 'recv_peek_message'
+							    ()
+						    in  case _5 of
+							  <'true'> when 'true' ->
+							      do  primop 'remove_message'
+								      ()
+								  %% Line 25
+								  call 'io':'format'
+								      ([77|[97|[105|[110|[32|[114|[101|[99|[101|[105|[118|[101|[100|[32|[58|[32|[126|[119|[126|[110]]]]]]]]]]]]]]]]]]]], [_3|[]])
+							  ( <'false'> when 'true' ->
+								let <_4> =
+								    primop 'recv_wait_timeout'
+									('infinity')
+								in  case _4 of
+								      <'true'> when 'true' ->
+									  'ok'
+								      ( <'false'> when 'true' ->
+									    ( apply 'recv$^0'/0
+										  ()
+									      -| ['dialyzer_ignore'] )
+									-| ['dialyzer_ignore'] )
+								    end
+							    -| ['dialyzer_ignore'] )
+							end
+					in  ( apply 'recv$^0'/0
+						  ()
+					      -| ['dialyzer_ignore'] )
+					-| ['letrec_goto','no_inline'] )
+				      %% Line 27
+				      'ok'
+      -| [{'function',{'h',0}}] )
+'j'/0 =
+    %% Line 30
+    ( fun () ->
+	  let <_0> =
+	      call %% Line 31
+		   'erlang':%% Line 31
+			    'self'
+		  ()
+	  in  do  %% Line 31
+		  call 'io':'format'
+		      ([106|[32|[58|[32|[126|[119|[126|[110]]]]]]]], [_0|[]])
+		  %% Line 32
+		  call 'timer':'sleep'
+		      (10000)
+      -| [{'function',{'j',0}}] )
+'i'/2 =
+    %% Line 34
+    ( fun (_0,_1) ->
+	  do  %% Line 35
+	      call 'io':'format'
+		  ([105|[32|[58|[32|[126|[119|[126|[110]]]]]]]], [_0|[]])
+	      do  %% Line 36
+		  call 'erlang':'process_flag'
+		      ('trap_exit', 'true')
+		  do  ( letrec
+			    'recv$^0'/0 =
+				fun () ->
+				    let <_7,_5> =
+					primop 'recv_peek_message'
+					    ()
+				    in  case _7 of
+					  <'true'> when 'true' ->
+					      do  primop 'remove_message'
+						      ()
+						  %% Line 39
+						  call 'io':'format'
+						      ([82|[101|[99|[101|[105|[118|[101|[100|[32|[58|[32|[126|[119|[126|[110]]]]]]]]]]]]]]], [_5|[]])
+					  ( <'false'> when 'true' ->
+						let <_6> =
+						    primop 'recv_wait_timeout'
+							('infinity')
+						in  case _6 of
+						      <'true'> when 'true' ->
+							  'ok'
+						      ( <'false'> when 'true' ->
+							    ( apply 'recv$^0'/0
+								  ()
+							      -| ['dialyzer_ignore'] )
+							-| ['dialyzer_ignore'] )
+						    end
+					    -| ['dialyzer_ignore'] )
+					end
+			in  ( apply 'recv$^0'/0
+				  ()
+			      -| ['dialyzer_ignore'] )
+			-| ['letrec_goto','no_inline'] )
+		      let <_2> =
+			  call %% Line 41
+			       'erlang':%% Line 41
+					'self'
+			      ()
+		      in  %% Line 41
+			  call 'io':'format'
+			      ([80|[114|[111|[99|[101|[115|[115|[32|[106|[58|[32|[126|[119|[32|[119|[97|[115|[32|[110|[111|[116|[32|[107|[105|[108|[108|[101|[100|[33]]]]]]]]]]]]]]]]]]]]]]]]]]]]], [_2|[]])
+      -| [{'function',{'i',2}}] )
+'fv0'/0 =
+    %% Line 43
+    ( fun () ->
+	  let <Pid> =
+	      call %% Line 44
+		   'erlang':%% Line 44
+			    'spawn'
+		  (%% Line 44
+		   'example', %% Line 44
+			      'fv', %% Line 44
+				    [])
+	  in  do  %% Line 45
+		  call 'timer':'sleep'
+		      (10)
+		  %% Line 46
+		  call 'erlang':'exit'
+		      (Pid, 'kill')
+      -| [{'function',{'fv0',0}}] )
+'fv'/0 =
+    %% Line 49
+    ( fun () ->
+	  do  %% Line 50
+	      call 'timer':'sleep'
+		  (3000)
+	      let <_0> =
+		  call %% Line 51
+		       'erlang':%% Line 51
+				'self'
+		      ()
+	      in  %% Line 51
+		  call 'io':'format'
+		      ([80|[114|[111|[99|[101|[115|[115|[32|[106|[58|[32|[126|[119|[32|[119|[97|[115|[32|[110|[111|[116|[32|[107|[105|[108|[108|[101|[100|[33]]]]]]]]]]]]]]]]]]]]]]]]]]]]], [_0|[]])
+      -| [{'function',{'fv',0}}] )
+'main'/0 =
+    %% Line 58
+    ( fun () ->
+	  let <Pid1> =
+	      call %% Line 59
+		   'erlang':%% Line 59
+			    'spawn'
+		  (%% Line 59
+		   'e', %% Line 59
+			'sub1', %% Line 59
+				[])
+	  in  %% Line 60
+	      call 'erlang':'spawn'
+		  ('e', 'sub2', [Pid1|[]])
+      -| [{'function',{'main',0}}] )
+'sub1'/0 =
+    %% Line 62
+    ( fun () ->
+	  do  %% Line 63
+	      call 'erlang':'process_flag'
+		  ('trap_exit', 'true')
+	      let <_0,Pid> =
+		  ( letrec
+			'recv$^0'/0 =
+			    fun () ->
+				let <_6,_4> =
+				    primop 'recv_peek_message'
+					()
+				in  case _6 of
+				      <'true'> when 'true' ->
+					  do  primop 'remove_message'
+						  ()
+					      %% Line 65
+					      <_4,_4>
+				      ( <'false'> when 'true' ->
+					    let <_5> =
+						primop 'recv_wait_timeout'
+						    ('infinity')
+					    in  case _5 of
+						  <'true'> when 'true' ->
+						      <'true','true'>
+						  ( <'false'> when 'true' ->
+							( apply 'recv$^0'/0
+							      ()
+							  -| ['dialyzer_ignore'] )
+						    -| ['dialyzer_ignore'] )
+						end
+					-| ['dialyzer_ignore'] )
+				    end
+		    in  ( apply 'recv$^0'/0
+			      ()
+			  -| ['dialyzer_ignore'] )
+		    -| ['letrec_goto'] )
+	      in  %% Line 64
+		  case _0 of
+		    <_3>
+			when call 'erlang':'=:='
+			      (_0,
+			       Pid) ->
+			do  %% Line 67
+			    call 'erlang':'link'
+				(Pid)
+			    do  ( letrec
+				      'recv$^1'/0 =
+					  fun () ->
+					      let <_9,_7> =
+						  primop 'recv_peek_message'
+						      ()
+					      in  case _9 of
+						    <'true'> when 'true' ->
+							do  primop 'remove_message'
+								()
+							    %% Line 69
+							    call 'io':'format'
+								([115|[117|[98|[49|[32|[114|[101|[99|[101|[105|[118|[101|[100|[32|[58|[32|[126|[119|[126|[110]]]]]]]]]]]]]]]]]]]], [_7|[]])
+						    ( <'false'> when 'true' ->
+							  let <_8> =
+							      primop 'recv_wait_timeout'
+								  ('infinity')
+							  in  case _8 of
+								<'true'> when 'true' ->
+								    'ok'
+								( <'false'> when 'true' ->
+								      ( apply 'recv$^1'/0
+									    ()
+									-| ['dialyzer_ignore'] )
+								  -| ['dialyzer_ignore'] )
+							      end
+						      -| ['dialyzer_ignore'] )
+						  end
+				  in  ( apply 'recv$^1'/0
+					    ()
+					-| ['dialyzer_ignore'] )
+				  -| ['letrec_goto','no_inline'] )
+				let <_2> =
+				    call %% Line 71
+					 'erlang':%% Line 71
+						  'self'
+					()
+				in  %% Line 71
+				    call 'io':'format'
+					([80|[114|[111|[99|[101|[115|[115|[32|[115|[117|[98|[49|[58|[32|[126|[119|[32|[119|[97|[115|[32|[110|[111|[116|[32|[107|[105|[108|[108|[101|[100|[33|[126|[110]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]], [_2|[]])
+		    ( <_1> when 'true' ->
+			  primop 'match_fail'
+			      ({'badmatch',_1})
+		      -| ['compiler_generated'] )
+		  end
+      -| [{'function',{'sub1',0}}] )
+'sub2'/1 =
+    %% Line 73
+    ( fun (_0) ->
+	  let <_1> =
+	      call %% Line 74
+		   'erlang':%% Line 74
+			    'self'
+		  ()
+	  in  do  %% Line 74
+		  call 'erlang':'!'
+		      (( _0
+			 -| [{'function',{'sub2',1}}] ), _1)
+		  do  %% Line 75
+		      call 'timer':'sleep'
+			  (1000)
+		      do  %% Line 76
+			  call 'erlang':'process_flag'
+			      ('trap_exit', 'true')
+			  do  %% Line 77
+			      call 'erlang':'link'
+				  (( _0
+				     -| [{'function',{'sub2',1}}] ))
+			      do  %% Line 78
+				  call 'erlang':'exit'
+				      (( _0
+					 -| [{'function',{'sub2',1}}] ), 'kill')
+				  do  ( letrec
+					    'recv$^0'/0 =
+						fun () ->
+						    let <_6,_4> =
+							primop 'recv_peek_message'
+							    ()
+						    in  case _6 of
+							  <'true'> when 'true' ->
+							      do  primop 'remove_message'
+								      ()
+								  %% Line 80
+								  call 'io':'format'
+								      ([115|[117|[98|[50|[32|[114|[101|[99|[101|[105|[118|[101|[100|[32|[58|[32|[126|[119|[126|[110]]]]]]]]]]]]]]]]]]]], [_4|[]])
+							  ( <'false'> when 'true' ->
+								let <_5> =
+								    primop 'recv_wait_timeout'
+									('infinity')
+								in  case _5 of
+								      <'true'> when 'true' ->
+									  'ok'
+								      ( <'false'> when 'true' ->
+									    ( apply 'recv$^0'/0
+										  ()
+									      -| ['dialyzer_ignore'] )
+									-| ['dialyzer_ignore'] )
+								    end
+							    -| ['dialyzer_ignore'] )
+							end
+					in  ( apply 'recv$^0'/0
+						  ()
+					      -| ['dialyzer_ignore'] )
+					-| ['letrec_goto','no_inline'] )
+				      let <_2> =
+					  call %% Line 82
+					       'erlang':%% Line 82
+							'self'
+					      ()
+				      in  %% Line 82
+					  call 'io':'format'
+					      ([80|[114|[111|[99|[101|[115|[115|[32|[115|[117|[98|[50|[58|[32|[126|[119|[32|[119|[97|[115|[32|[110|[111|[116|[32|[107|[105|[108|[108|[101|[100|[33|[126|[110]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]], [_2|[]])
+      -| [{'function',{'sub2',1}}] )
+'h2'/0 =
+    %% Line 88
+    ( fun () ->
+	  let <Pid> =
+	      call %% Line 89
+		   'erlang':%% Line 89
+			    'spawn'
+		  (%% Line 89
+		   'e', %% Line 89
+			'j2', %% Line 89
+			      [])
+	  in  let <_1> =
+		  call %% Line 90
+		       'erlang':%% Line 90
+				'self'
+		      ()
+	      in  do  %% Line 90
+		      call 'erlang':'spawn'
+			  ('e', 'i2', [Pid|[_1|[]]])
+		      do  %% Line 91
+			  call 'timer':'sleep'
+			      (1000)
+			  do  ( letrec
+				    'recv$^0'/0 =
+					fun () ->
+					    let <_5,_3> =
+						primop 'recv_peek_message'
+						    ()
+					    in  case _5 of
+						  <'true'> when 'true' ->
+						      do  primop 'remove_message'
+							      ()
+							  %% Line 93
+							  call 'io':'format'
+							      ([77|[97|[105|[110|[32|[114|[101|[99|[101|[105|[118|[101|[100|[32|[58|[32|[126|[119|[126|[110]]]]]]]]]]]]]]]]]]]], [_3|[]])
+						  ( <'false'> when 'true' ->
+							let <_4> =
+							    primop 'recv_wait_timeout'
+								('infinity')
+							in  case _4 of
+							      <'true'> when 'true' ->
+								  'ok'
+							      ( <'false'> when 'true' ->
+								    ( apply 'recv$^0'/0
+									  ()
+								      -| ['dialyzer_ignore'] )
+								-| ['dialyzer_ignore'] )
+							    end
+						    -| ['dialyzer_ignore'] )
+						end
+				in  ( apply 'recv$^0'/0
+					  ()
+				      -| ['dialyzer_ignore'] )
+				-| ['letrec_goto','no_inline'] )
+			      %% Line 95
+			      'ok'
+      -| [{'function',{'h2',0}}] )
+'j2'/0 =
+    %% Line 98
+    ( fun () ->
+	  do  %% Line 100
+	      call 'timer':'sleep'
+		  (2000)
+	      let <_0> =
+		  call %% Line 101
+		       'erlang':%% Line 101
+				'self'
+		      ()
+	      in  %% Line 101
+		  call 'io':'format'
+		      ([80|[114|[111|[99|[101|[115|[115|[32|[106|[50|[58|[32|[126|[119|[32|[119|[97|[115|[32|[110|[111|[116|[32|[107|[105|[108|[108|[101|[100|[33]]]]]]]]]]]]]]]]]]]]]]]]]]]]]], [_0|[]])
+      -| [{'function',{'j2',0}}] )
+'i2'/2 =
+    %% Line 103
+    ( fun (_0,_1) ->
+	  do  %% Line 105
+	      call 'erlang':'unlink'
+		  (_0)
+	      do  %% Line 106
+		  call 'erlang':'process_flag'
+		      ('trap_exit', 'true')
+		  do  %% Line 107
+		      call 'erlang':'exit'
+			  (_0, 'alma')
+		      do  ( letrec
+				'recv$^0'/0 =
+				    fun () ->
+					let <_7,_5> =
+					    primop 'recv_peek_message'
+						()
+					in  case _7 of
+					      <'true'> when 'true' ->
+						  do  primop 'remove_message'
+							  ()
+						      %% Line 109
+						      call 'io':'format'
+							  ([82|[101|[99|[101|[105|[118|[101|[100|[32|[58|[32|[126|[119|[126|[110]]]]]]]]]]]]]]], [_5|[]])
+					      ( <'false'> when 'true' ->
+						    let <_6> =
+							primop 'recv_wait_timeout'
+							    ('infinity')
+						    in  case _6 of
+							  <'true'> when 'true' ->
+							      'ok'
+							  ( <'false'> when 'true' ->
+								( apply 'recv$^0'/0
+								      ()
+								  -| ['dialyzer_ignore'] )
+							    -| ['dialyzer_ignore'] )
+							end
+						-| ['dialyzer_ignore'] )
+					    end
+			    in  ( apply 'recv$^0'/0
+				      ()
+				  -| ['dialyzer_ignore'] )
+			    -| ['letrec_goto','no_inline'] )
+			  let <_2> =
+			      call %% Line 111
+				   'erlang':%% Line 111
+					    'self'
+				  ()
+			  in  %% Line 111
+			      call 'io':'format'
+				  ([80|[114|[111|[99|[101|[115|[115|[32|[105|[50|[58|[32|[126|[119|[32|[119|[97|[115|[32|[110|[111|[116|[32|[107|[105|[108|[108|[101|[100|[33]]]]]]]]]]]]]]]]]]]]]]]]]]]]]], [_2|[]])
+      -| [{'function',{'i2',2}}] )
+'main2'/0 =
+    %% Line 117
+    ( fun () ->
+	  let <Pid1> =
+	      call %% Line 118
+		   'erlang':%% Line 118
+			    'spawn'
+		  (%% Line 118
+		   'e', %% Line 118
+			'sub3', %% Line 118
+				[])
+	  in  %% Line 119
+	      call 'erlang':'spawn'
+		  ('e', 'sub4', [Pid1|[]])
+      -| [{'function',{'main2',0}}] )
+'sub3'/0 =
+    %% Line 121
+    ( fun () ->
+	  let <_0,Pid> =
+	      ( letrec
+		    'recv$^0'/0 =
+			fun () ->
+			    let <_6,_4> =
+				primop 'recv_peek_message'
+				    ()
+			    in  case _6 of
+				  <'true'> when 'true' ->
+				      do  primop 'remove_message'
+					      ()
+					  %% Line 124
+					  <_4,_4>
+				  ( <'false'> when 'true' ->
+					let <_5> =
+					    primop 'recv_wait_timeout'
+						('infinity')
+					in  case _5 of
+					      <'true'> when 'true' ->
+						  <'true','true'>
+					      ( <'false'> when 'true' ->
+						    ( apply 'recv$^0'/0
+							  ()
+						      -| ['dialyzer_ignore'] )
+						-| ['dialyzer_ignore'] )
+					    end
+				    -| ['dialyzer_ignore'] )
+				end
+		in  ( apply 'recv$^0'/0
+			  ()
+		      -| ['dialyzer_ignore'] )
+		-| ['letrec_goto'] )
+	  in  %% Line 123
+	      case _0 of
+		<_3>
+		    when call 'erlang':'=:='
+			  (_0,
+			   Pid) ->
+		    do  %% Line 126
+			call 'erlang':'unlink'
+			    (Pid)
+			do  %% Line 130
+			    call 'timer':'sleep'
+				(2000)
+			    let <_2> =
+				call %% Line 131
+				     'erlang':%% Line 131
+					      'self'
+				    ()
+			    in  %% Line 131
+				call 'io':'format'
+				    ([80|[114|[111|[99|[101|[115|[115|[32|[115|[117|[98|[49|[58|[32|[126|[119|[32|[119|[97|[115|[32|[110|[111|[116|[32|[107|[105|[108|[108|[101|[100|[33|[126|[110]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]], [_2|[]])
+		( <_1> when 'true' ->
+		      primop 'match_fail'
+			  ({'badmatch',_1})
+		  -| ['compiler_generated'] )
+	      end
+      -| [{'function',{'sub3',0}}] )
+'sub4'/1 =
+    %% Line 133
+    ( fun (_0) ->
+	  let <_1> =
+	      call %% Line 134
+		   'erlang':%% Line 134
+			    'self'
+		  ()
+	  in  do  %% Line 134
+		  call 'erlang':'!'
+		      (( _0
+			 -| [{'function',{'sub4',1}}] ), _1)
+		  do  %% Line 135
+		      call 'timer':'sleep'
+			  (1000)
+		      do  %% Line 137
+			  call 'erlang':'unlink'
+			      (( _0
+				 -| [{'function',{'sub4',1}}] ))
+			  do  %% Line 138
+			      call 'erlang':'exit'
+				  (( _0
+				     -| [{'function',{'sub4',1}}] ), 'alma')
+			      do  ( letrec
+					'recv$^0'/0 =
+					    fun () ->
+						let <_6,_4> =
+						    primop 'recv_peek_message'
+							()
+						in  case _6 of
+						      <'true'> when 'true' ->
+							  do  primop 'remove_message'
+								  ()
+							      %% Line 140
+							      call 'io':'format'
+								  ([115|[117|[98|[50|[32|[114|[101|[99|[101|[105|[118|[101|[100|[32|[58|[32|[126|[119|[126|[110]]]]]]]]]]]]]]]]]]]], [_4|[]])
+						      ( <'false'> when 'true' ->
+							    let <_5> =
+								primop 'recv_wait_timeout'
+								    ('infinity')
+							    in  case _5 of
+								  <'true'> when 'true' ->
+								      'ok'
+								  ( <'false'> when 'true' ->
+									( apply 'recv$^0'/0
+									      ()
+									  -| ['dialyzer_ignore'] )
+								    -| ['dialyzer_ignore'] )
+								end
+							-| ['dialyzer_ignore'] )
+						    end
+				    in  ( apply 'recv$^0'/0
+					      ()
+					  -| ['dialyzer_ignore'] )
+				    -| ['letrec_goto','no_inline'] )
+				  let <_2> =
+				      call %% Line 142
+					   'erlang':%% Line 142
+						    'self'
+					  ()
+				  in  %% Line 142
+				      call 'io':'format'
+					  ([80|[114|[111|[99|[101|[115|[115|[32|[115|[117|[98|[50|[58|[32|[126|[119|[32|[119|[97|[115|[32|[110|[111|[116|[32|[107|[105|[108|[108|[101|[100|[33|[126|[110]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]], [_2|[]])
+      -| [{'function',{'sub4',1}}] )
+'fv3'/0 =
+    %% Line 148
+    ( fun () ->
+	  do  %% Line 149
+	      call 'erlang':'process_flag'
+		  ('trap_exit', 'true')
+	      let <_0> =
+		  call %% Line 150
+		       'erlang':%% Line 150
+				'self'
+		      ()
+	      in  do  %% Line 150
+		      call 'erlang':'exit'
+			  (_0, 'normal')
+		      do  ( letrec
+				'recv$^0'/0 =
+				    fun () ->
+					let <_3,_1> =
+					    primop 'recv_peek_message'
+						()
+					in  case _3 of
+					      <'true'> when 'true' ->
+						  do  primop 'remove_message'
+							  ()
+						      %% Line 152
+						      call 'io':'format'
+							  ([126|[119|[32|[114|[101|[99|[101|[105|[118|[101|[100]]]]]]]]]]], [_1|[]])
+					      ( <'false'> when 'true' ->
+						    let <_2> =
+							primop 'recv_wait_timeout'
+							    ('infinity')
+						    in  case _2 of
+							  <'true'> when 'true' ->
+							      'ok'
+							  ( <'false'> when 'true' ->
+								( apply 'recv$^0'/0
+								      ()
+								  -| ['dialyzer_ignore'] )
+							    -| ['dialyzer_ignore'] )
+							end
+						-| ['dialyzer_ignore'] )
+					    end
+			    in  ( apply 'recv$^0'/0
+				      ()
+				  -| ['dialyzer_ignore'] )
+			    -| ['letrec_goto','no_inline'] )
+			  %% Line 154
+			  'ok'
+      -| [{'function',{'fv3',0}}] )
+'module_info'/0 =
+    ( fun () ->
+	  call 'erlang':'get_module_info'
+	      ('e')
+      -| [{'function',{'module_info',0}}] )
+'module_info'/1 =
+    ( fun (_0) ->
+	  call 'erlang':'get_module_info'
+	      ('e', ( _0
+		      -| [{'function',{'module_info',1}}] ))
+      -| [{'function',{'module_info',1}}] )
+end

@@ -1,9 +1,14 @@
--R src Core_Erlang
+-R src/ Core_Erlang
 src/Basics.v
 src/ExpSyntax.v
 src/ExpManipulation.v
 src/Scoping.v
 src/SubstSemantics.v
+src/ConcurrentFunSemantics.v
+src/Examples.v
+src/ConcurrentProperties.v
+src/Bisimulations.v
+src/LaneseBisimulations.v
 src/LogRel.v
 src/Compatibility.v
 src/CIU.v

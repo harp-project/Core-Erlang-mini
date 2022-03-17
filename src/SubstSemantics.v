@@ -5,148 +5,6 @@ Export PeanoNat.
 
 Import ListNotations.
 
-Inductive ResultType {T : Set} : Set :=
-| Timeout
-| Fail
-| Res (v : T)
-.
-
-Fixpoint eval_list (f : Exp -> @ResultType Exp) (l : list Exp) : @ResultType (list Exp) :=
-match l with
-| [] => Res []
-| x::xs => match f x with
-           | Res v => match eval_list f xs with
-                       | Res vs => Res (v::vs)
-                       | r => r
-                       end
-           | Fail => Fail
-           | Timeout => Timeout
-           end
-end.
-
-Fixpoint eval (clock : nat) (e : Exp) : @ResultType Exp :=
-match clock with
-| 0 => Timeout
-| S n => match e with
-         | ELit l => Res (ELit l)
-         | EVar n => Fail
-         | EFunId n => Fail
-         | EFun vl e => Res (EFun vl e)
-         | ENil => Res (ENil)
-         | ECons e1 e2 => match eval n e2 with
-                          | Res v2 => match eval n e1 with
-                                     | Res v1 => Res (VCons v1 v2)
-                                     | Fail => Fail
-                                     | Timeout => Timeout
-                                     end
-                          | Fail => Fail
-                          | Timeout => Timeout
-                          end
-         | VCons e1 e2 => Fail
-         | EApp exp l => match eval n exp with
-                         (** In Core Erlang this check only happens later *)
-                         | Res (EFun vl e) =>
-                            let vres := eval_list (eval n) l in
-                               match vres with
-                               | Res vals => 
-                                 if length vals =? length vl
-                                 then eval n e.[list_subst (EFun vl e::vals) idsubst]
-                                 else Fail
-                               | Fail => Fail
-                               | Timeout => Timeout
-                               end
-                         | Res _ => Fail
-                         | r => r
-                         end
-         | ELet v e1 e2 => match eval n e1 with
-                           | Res val => eval n e2.[val/]
-                           | r      => r
-                           end
-         | ELetRec f vl b e => eval n e.[EFun vl b/]
-         | EPlus e1 e2 => 
-            match eval n e1, eval n e2 with
-            | Res (ELit n), Res (ELit m) => Res (ELit (n + m))
-            | Res _, Res _ => Fail
-            | Res _, r => r
-            | r, _     => r
-            end
-         | ECase e1 p e2 e3 =>
-            match eval n e1 with
-            | Res v => match match_pattern p v with
-                       | Some l => eval n e2.[list_subst l idsubst]
-                       | None   => eval n e3
-                       end
-            | r     => r
-            end
-        end
-end.
-
-Goal eval 10 (inc 2) = Res (ELit 3). Proof. auto. Qed.
-Goal eval 10 (simplefun 10) = Res (ELit 10). Proof. simpl. auto. Qed.
-Goal eval 10 (sum 2) = Res (ELit 3). Proof. simpl. auto. Qed.
-Goal eval 100 (sum 10) = Res (ELit 55). Proof. simpl. auto. Qed.
-Goal eval 100 (simplefun2 10 10) = Res (ELit 20). Proof. simpl. auto. Qed.
-Goal eval 100 (ECons (ELit 1) (ECons (EPlus (ELit 1) (ELit 1)) ENil)) = Res (VCons (ELit 1) (VCons (ELit 2) ENil)). Proof. cbn. reflexivity. Qed.
-Goal eval 100 (ECase (ECons (ELit 1) ENil) PNil (ELit 0) (ELit 1)) =
-        Res (ELit 1). Proof. reflexivity. Qed.
-Goal eval 100 (ECase (ECons (ELit 0) ENil) (PCons PVar PVar) (EVar 0) (ELit 1)) =
-        Res (ELit 0). Proof. reflexivity. Qed.
-
-Theorem list_eval_eq_length (el : list Exp) : forall clock vl,
-  eval_list (eval clock) el = Res vl -> length el = length vl.
-Proof.
-  induction el; intros; inversion H.
-  * auto.
-  * repeat break_match_hyp; try congruence. inversion H1. specialize (IHel _ _ Heqr0). simpl. lia.
-Qed.
-
-Theorem all_eval_single (el : list Exp) : forall clock v2,
-  eval_list (eval clock) el = Res v2
-->
-  (forall i, i < length el -> eval clock (nth i el (ELit 0)) = Res (nth i v2 (ELit 0))).
-Proof.
-  induction el.
-  * intros. inversion H0.
-  * intros. simpl in H. repeat break_match_hyp; try congruence. inversion H. subst. destruct i.
-    - exact Heqr.
-    - simpl. apply IHel. exact Heqr0. simpl in H0. lia.
-Qed.
-
-Theorem list_result_VALCLOSED l : forall clock vals,
-  (forall e v : Exp, eval clock e = Res v -> VALCLOSED v)
-->
-  eval_list (eval clock) l = Res vals
-  ->
-  forall i, i < length vals -> VALCLOSED (nth i vals (ELit 0)).
-Proof.
-  induction l; intros.
-  * simpl in H0. inversion H0. subst. inversion H1.
-  * simpl in H0. break_match_hyp; try congruence. apply H in Heqr.
-    break_match_hyp; try congruence. inversion H0. subst.
-    pose (IHl _ _ H Heqr0). destruct i.
-    - simpl. auto.
-    - apply v1. simpl in H1. lia.
-Qed.
-
-Lemma foo x :
-  eval (10 + x) (sum 2) = Res (ELit 3).
-Proof.
-  simpl. auto.
-Qed.
-
-Axiom bigger_clock :
-  forall e clock v clock', clock' >= clock ->
-   eval clock  e = Res v ->
-   eval clock' e = Res v.
-
-Axiom bigger_clock_list :
-  forall l clock v clock', clock' >= clock ->
-    eval_list (eval clock) l = Res v ->
-    eval_list (eval clock') l = Res v.
-
-Definition terminating (e : Exp) : Prop :=
-  exists v clock, eval clock e = Res v.
-
 (** Based on https://github.com/cobbal/ppl-ctx-equiv-coq 
     Frame stack semantics:
 *)
@@ -168,6 +26,13 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
   VALCLOSED v -> length vl = S (length vs) ->
   ⟨ (FApp2 (EFun vl e) [] vs) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (EFun vl e :: (vs ++ [v])) idsubst] ⟩
 
+| concbif_start fs e params v : VALCLOSED v ->
+  ⟨FConcBIF1 (e::params) :: fs, v⟩ --> ⟨ FConcBIF2 v params [] ::fs , e⟩
+| concbif_step fs e v v' params vals :
+  Forall (fun v => VALCLOSED v) vals -> VALCLOSED v -> VALCLOSED v' ->
+  ⟨FConcBIF2 v (e :: params) vals :: fs, v'⟩ -->
+  ⟨FConcBIF2 v params (vals ++ [v']) :: fs, e⟩
+
 | red_let val e2 xs v (H : VALCLOSED val) : ⟨ (FLet v e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
 
 | red_case_true e2 e3 v p xs l : 
@@ -181,8 +46,8 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 
 | red_plus_left e2 xs v (H : VALCLOSED v): ⟨ (FPlus1 e2)::xs, v ⟩ --> ⟨ (FPlus2 v (* H *))::xs, e2 ⟩
 
-| red_plus_right xs n m :
-   ⟨ (FPlus2 (ELit n) (* P *))::xs, (ELit m) ⟩ --> ⟨ xs, ELit (n + m) ⟩ 
+| red_plus_right xs (n m : Z) :
+   ⟨ (FPlus2 (ELit n%Z) (* P *))::xs, (ELit m%Z) ⟩ --> ⟨ xs, ELit (n + m)%Z ⟩ 
 
 | red_letrec xs f vl b e:
   ⟨ xs, ELetRec f vl b e ⟩ --> ⟨ xs, e.[EFun vl b/] ⟩
@@ -196,6 +61,8 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 (** Steps *)
 | step_let xs v e1 e2 : ⟨ xs, ELet v e1 e2 ⟩ --> ⟨ (FLet v e2)::xs, e1 ⟩
 | step_app xs e el: ⟨ xs, EApp e el ⟩ --> ⟨ (FApp1 el)::xs, e ⟩
+| step_concbif fs name params:
+  ⟨fs, EConcBIF name params⟩ --> ⟨FConcBIF1 params :: fs, name⟩
 | step_plus xs e1 e2 : ⟨ xs, EPlus e1 e2⟩ --> ⟨ (FPlus1 e2)::xs, e1⟩
 | step_case xs e1 p e2 e3 : ⟨ xs, ECase e1 p e2 e3⟩ --> ⟨ (FCase p e2 e3)::xs, e1⟩
 
@@ -217,6 +84,7 @@ Definition step_any (fs : FrameStack) (e : Exp) (v : Exp) : Prop :=
 
 Notation "⟨ fs , e ⟩ -->* v" := (step_any fs e v) (at level 50).
 
+Open Scope Z_scope.
 Goal ⟨ [], inc 1 ⟩ -->* ELit 2.
 Proof.
   repeat econstructor.
@@ -236,7 +104,7 @@ Proof.
   all : try constructor.
 Qed.
 
-Local Goal ⟨ [], sum 1 ⟩ -->* ELit 1.
+Local Goal ⟨ [], sum 1 ⟩ -->* ELit 1%Z.
 Proof.
   assert (VALCLOSED (EFun [XVar]
              (ECase (EVar 1) (PLit 0) (EVar 1)
@@ -273,7 +141,7 @@ Qed.
 
 Local Goal ⟨[], ECons (EPlus (ELit 1) (ELit 1)) (ECons (ELit 1) (ECons (ELit 0) ENil))⟩ -->* VCons (ELit 2) (VCons (ELit 1) (VCons (ELit 0) ENil)).
 Proof.
-  split. repeat constructor. exists 12.
+  split. repeat constructor. exists 12%nat.
   econstructor. constructor.
   econstructor. apply step_cons.
   econstructor. apply step_cons. econstructor. constructor. constructor.
@@ -303,19 +171,22 @@ Proof.
   * inversion H; subst. auto.
   * inversion H0; subst; try inversion H'; try (proof_irr_many; auto).
   * inversion H1; subst; try inversion H; auto.
+  * inversion H0; subst; try inversion H'; try (proof_irr_many; auto); try inversion_is_value.
+  * inversion H2; subst; try inversion_is_value; auto.
   * inversion H0; subst; auto; try inversion H.
   * inversion H1; subst; auto; try inversion_is_value.
     rewrite H0 in H10. inversion H10. auto. congruence.
   * inversion H2; subst; auto; try inversion_is_value. congruence.
   * inversion H0; subst; try inversion H; try (proof_irr; auto).
   * inversion H; subst. auto.
-  * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
+  * inversion H; subst; try inversion_is_value; try inversion H'; try inversion H1; try (proof_irr_many; auto).
   * inversion H0; subst; try inversion_is_value. auto.
   * inversion H1; subst; try inversion_is_value; auto.
-  * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
-  * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
-  * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
-  * inversion H; subst; try inversion H0; try inversion H'; try inversion H1; try (proof_irr_many; auto).
+  * inversion H; subst; try inversion_is_value; try inversion H'; try inversion H1; try (proof_irr_many; auto).
+  * inversion H; subst; try congruence; try inversion_is_value; auto.
+  * inversion H; subst; try congruence; try inversion_is_value; auto.
+  * inversion H; subst; try congruence; try inversion_is_value; auto.
+  * inversion H; subst; try congruence; try inversion_is_value; auto.
   * inversion H; subst; try congruence; try inversion_is_value; auto.
 Qed.
 
@@ -323,6 +194,7 @@ Theorem value_nostep v (H : VALCLOSED v) :
   forall fs' v', ⟨ [], v ⟩ --> ⟨fs' , v'⟩ -> False.
 Proof.
   dependent induction H; intros.
+  * inversion H.
   * inversion H.
   * inversion H1.
   * inversion H.
@@ -359,6 +231,12 @@ Proof.
     rewrite Nat.add_0_r. replace (S (length vl)) with (length (EFun vl e :: vs ++ [v])).
     apply scoped_list_idsubst. constructor. auto. apply Forall_app. split; auto.
     simpl. rewrite H0, app_length. simpl. lia.
+  * inversion H0. subst. inversion H4. inversion H3. subst. split; auto.
+    constructor; auto. constructor; auto.
+  * inversion H2. inversion H6. inversion H12.
+    subst. split; auto.
+    constructor; auto. constructor; auto.
+    apply Forall_app. split; auto.
   * inversion H0. inversion H4. 
     subst. split; auto. apply -> subst_preserves_scope_exp; eauto.
   * inversion H1. inversion H5. subst. split; auto.
@@ -375,6 +253,8 @@ Proof.
   * inversion H1. inversion H5. subst. split; auto. repeat constructor; auto.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
     now constructor.
+  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
+    constructor. rewrite indexed_to_forall. exact H4.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
     constructor. rewrite indexed_to_forall. exact H4.
   * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto. now constructor.
@@ -406,7 +286,7 @@ Definition terminates_sem (fs : FrameStack) (e : Exp) : Prop :=
 Definition terminates_in_k_sem (fs : FrameStack) (e : Exp) (k : nat) : Prop :=
   exists v, ⟨fs, e⟩ -[k]-> ⟨[], v⟩ /\ VALCLOSED v.
 
-
+Open Scope nat_scope.
 
 Reserved Notation "| fs , e | k ↓" (at level 80).
 Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
@@ -421,14 +301,18 @@ Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
  -> 
   | (FCase p e1 e2)::fs , v | S k ↓
 | term_plus_left e2 v fs (H : VALCLOSED v) k : | (FPlus2 v)::fs , e2 | k ↓ -> | (FPlus1 e2)::fs, v | S k ↓
-| term_plus_right n m fs k : | fs , ELit (n + m) | k ↓ -> | (FPlus2 (ELit n))::fs, ELit m | S k ↓
+| term_plus_right (n m : Z) fs k : | fs , ELit (n + m)%Z | k ↓ -> | (FPlus2 (ELit n))::fs, ELit m | S k ↓
 | term_let_subst v e2 fs k x : VALCLOSED v -> | fs, e2.[v/] | k ↓ -> | (FLet x e2)::fs, v | S k ↓
 | term_letrec_subst vl b e fs f k : | fs, e.[EFun vl b/] | k ↓ -> | fs, ELetRec f vl b e | S k ↓
 | term_app_start v hd tl (H : VALCLOSED v) fs k : 
   | (FApp2 v tl [])::fs, hd| k ↓ -> | (FApp1 (hd::tl))::fs, v | S k ↓
+| term_concbif_start v hd tl (H : VALCLOSED v) fs k : 
+  | (FConcBIF2 v tl [])::fs, hd| k ↓ -> | (FConcBIF1 (hd::tl))::fs, v | S k ↓
 | term_app1 e fs k : | fs, e.[EFun [] e/] | k ↓ -> | (FApp1 [])::fs, EFun [] e | S k ↓
 | term_app_step v v' (H : VALCLOSED v) hd tl vs (H2 : Forall (fun v => VALCLOSED v) vs) (H' : VALCLOSED v') fs k :
   | (FApp2 v tl (vs ++ [v']))::fs, hd | k ↓ -> | (FApp2 v (hd::tl) vs)::fs , v' | S k ↓
+| term_concbif_step v v' (H : VALCLOSED v) hd tl vs (H2 : Forall (fun v => VALCLOSED v) vs) (H' : VALCLOSED v') fs k :
+  | (FConcBIF2 v tl (vs ++ [v']))::fs, hd | k ↓ -> | (FConcBIF2 v (hd::tl) vs)::fs , v' | S k ↓
 
 | term_app2 v vl e vs fs (H2 : Forall (fun v => VALCLOSED v) vs) k :
   length vl = S (length vs) -> VALCLOSED v -> | fs, e.[list_subst (EFun vl e  :: (vs ++ [v])) idsubst] | k ↓ 
@@ -441,6 +325,7 @@ Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
 | term_case e e1 e2 fs k p : | (FCase p e1 e2)::fs, e | k ↓ -> | fs, ECase e p e1 e2 | S k ↓
 | term_plus e1 e2 fs k : | (FPlus1 e2)::fs, e1 | k ↓ -> | fs, EPlus e1 e2 | S k ↓
 | term_app e vs fs k : | (FApp1 vs)::fs, e | k ↓ -> | fs, EApp e vs | S k ↓
+| term_concbif e vs fs k : | (FConcBIF1 vs)::fs, e | k ↓ -> | fs, EConcBIF e vs | S k ↓
 | term_let v e1 e2 fs k : | (FLet v e2)::fs, e1 | k ↓ -> | fs, ELet v e1 e2 | S k ↓
 | term_cons fs e1 e2 k :
   | FCons1 e1 :: fs, e2 | k ↓ -> | fs, ECons e1 e2 | S k ↓
@@ -461,9 +346,9 @@ Proof.
       inversion H. clear H. inversion H0; inversion H; subst.
       assert (terminates_in_k_sem fs' e' k). { econstructor. eauto. } apply IHk in H2.
       clear H0. inversion H3; subst.
-      1-5, 8-17: try econstructor; eauto.
-      eapply term_case_true; eauto.
-      apply term_case_false; auto.
+      1-7, 10-20: try econstructor; eauto.
+      * eapply term_case_true; eauto.
+      * apply term_case_false; auto.
     }
     {
       inversion H; subst; clear H.
@@ -482,6 +367,12 @@ Proof.
       * apply IHk in H3. destruct H3, H.
         econstructor; split. econstructor. constructor. all: eauto.
       * apply IHk in H6. destruct H6, H.
+        econstructor; split. econstructor. constructor. all: eauto.
+      * apply IHk in H4. destruct H4, H.
+        econstructor; split. econstructor. constructor. all: eauto.
+      * apply IHk in H5. destruct H5, H.
+        econstructor; split. econstructor. constructor. all: eauto.
+      * apply IHk in H3. destruct H3, H.
         econstructor; split. econstructor. constructor. all: eauto.
       * apply IHk in H3. destruct H3, H.
         econstructor; split. econstructor. constructor. all: eauto.
@@ -716,7 +607,7 @@ Proof.
   induction k; intros.
   * inversion H. subst. constructor.
   * inversion H. subst. inversion H1; subst.
-    1-6, 8-17: simpl; econstructor; try constructor; auto.
+    1-8, 10-20: simpl; econstructor; try constructor; auto.
     all: try (eapply IHk in H4; simpl in H4; exact H4); auto.
     econstructor. apply red_case_false; auto. apply IHk; auto.
 Qed.
@@ -793,6 +684,55 @@ Proof.
     - now inversion PP.
 Qed.
 
+Theorem ConcBIF_nonterminating_helper :
+forall tl v vs k fs hd,
+  Forall (fun e => EXPCLOSED e) tl ->
+  Forall (fun v => VALCLOSED v) vs ->
+  VALCLOSED v -> VALCLOSED hd ->
+  (forall m : nat,
+    m < S k ->
+    forall (Fs : FrameStack) (e : Exp),
+    EXPCLOSED e ->
+    | Fs, e | m ↓ ->
+    exists (v : Exp) (k : nat), VALCLOSED v /\ ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩) ->
+  ~ | FConcBIF2 v tl vs :: fs, hd | k ↓.
+Proof.
+  induction tl; intros; intro.
+  * inversion H4; subst; try inversion_is_value.
+  * inversion H4; subst; try inversion_is_value.
+    inversion H. subst.
+    apply H3 in H14 as W. destruct W as [v1 [k1 [Cl D]]].
+    eapply terminates_step_any_2 in H14 as W. 2: exact D.
+    2-3: auto.
+    apply IHtl in W; auto.
+    apply Forall_app; auto.
+    intros. eapply H3. 3: exact H9. lia. auto.
+Qed.
+
+Corollary ConcBIF_nonterminating_ind :
+  forall e es x fs,
+  EXPCLOSED e -> Forall (fun e => EXPCLOSED e) es ->
+  (forall m : nat,
+    m < x ->
+    forall (Fs : FrameStack) (e : Exp),
+    EXPCLOSED e ->
+    | Fs, e | m ↓ ->
+    exists (v : Exp) (k : nat), VALCLOSED v /\ ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩) ->
+  ~ |fs, EConcBIF e es| x ↓.
+Proof.
+  intros e es x fs CL1 CL2 H F. inversion F; subst; try inversion_is_value.
+  apply H in H4 as HH; auto.
+  destruct HH as [v [k2 [Vcl W]]].
+  eapply terminates_step_any_2 in W. 2: exact H4.
+  inversion W; subst; try inversion_is_value.
+  apply H in H6 as HH; auto.
+  destruct HH as [v2 [k3 [Vcl2 W2]]].
+  eapply terminates_step_any_2 in W2. 2: exact H6.
+  inversion CL2. subst.
+  eapply ConcBIF_nonterminating_helper in W2; auto.
+  intros. eapply H. 3: exact H8. all: auto. lia. lia. now inversion CL2.
+Qed.
+
 Theorem term_eval : forall x Fs e (P : EXPCLOSED e), | Fs, e | x ↓ ->
   exists v k, VALCLOSED v /\ ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ (* /\ k <= x *).
 Proof.
@@ -809,8 +749,10 @@ Proof.
      apply -> subst_preserves_scope_exp; eauto.
     apply cons_scope; auto. now constructor.
   * exists e, 0. split; [ auto | now constructor ].
+  * exists e, 0. split; [ auto | now constructor ].
   * exists (EFun [] e0), 0. inversion P. split; [ auto | do 2 constructor].
   * exists e, 0. split; [ auto | now constructor].
+  * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor ].
@@ -838,7 +780,7 @@ Proof.
     apply H in H9 as HH. destruct HH, H3, H3. 2: lia.
     eapply (terminates_step_any_2 _ _ _ _ H9) in H5 as H5'.
     inversion H5'; subst; try inversion_is_value.
-    exists (ELit (n + m)), (S (x1 + (S (x3 + 1)))).
+    exists (ELit (n + m)%Z), (S (x1 + (S (x3 + 1)))).
     split. constructor.
     econstructor. constructor. eapply transitive_eval; eauto. 
     econstructor. constructor; auto. eapply transitive_eval; eauto.
@@ -916,6 +858,10 @@ Proof.
         ** intros. eapply H. 3: exact H10. lia. auto.
       + inversion P. subst. apply (H7 0). simpl. lia. inversion_is_value.
     - now inversion P.
+  * inversion P; subst. eapply ConcBIF_nonterminating_ind in H0; auto.
+    - contradiction.
+    - apply indexed_to_forall in H5; auto.
+    - inversion_is_value.
   * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
     eapply (terminates_step_any_2 _ _ _ _ H4) in H2 as H2'.
     inversion H2'; subst; try inversion_is_value.
@@ -945,6 +891,15 @@ Proof.
     - inversion P. subst. rewrite <- indexed_to_forall in H12. inversion H12.
       subst. now rewrite Forall_app in H14. inversion_is_value.
     - intros. eapply H. 3: exact H11. lia. auto.
+Qed.
+
+Corollary ConcBIF_nonterminating :
+  forall e es x fs,
+  EXPCLOSED e -> Forall (fun e => EXPCLOSED e) es ->
+  ~ |fs, EConcBIF e es| x ↓.
+Proof.
+  intros. apply ConcBIF_nonterminating_ind; auto.
+  intros. eapply term_eval; eauto.
 Qed.
 
 Corollary app_term_fun_final : forall tl k hds e e' Fs,
@@ -1008,6 +963,7 @@ Proof.
     - now inversion PP.
 Qed.
 
+(* NOTE: This is not a duplicate! Do not remove! *)
 Theorem term_eval_empty : forall x Fs e (P : EXPCLOSED e), | Fs, e | x ↓ ->
   exists v k, VALCLOSED v /\ ⟨ [], e ⟩ -[k]-> ⟨ [], v ⟩ (* /\ k <= x *).
 Proof.
@@ -1023,8 +979,10 @@ Proof.
     inversion P. 2: inversion_is_value. apply -> subst_preserves_scope_exp; eauto.
     apply cons_scope; auto. constructor; auto.
   * exists e, 0. split; [ auto | now constructor ].
+  * exists e, 0. split; [ auto | now constructor ].
   * exists (EFun [] e0), 0. inversion P. split; [ auto | do 2 constructor].
   * exists e, 0. split; [ auto | now constructor].
+  * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor ].
@@ -1054,7 +1012,7 @@ Proof.
     eapply frame_indep_nil in H5 as H5_1.
     eapply (terminates_step_any_2 _ _ _ _ H9) in H5_1 as H5'.
     inversion H5'; subst; try inversion_is_value.
-    exists (ELit (n + m)), (S (x1 + (S (x3 + 1)))).
+    exists (ELit (n + m)%Z), (S (x1 + (S (x3 + 1)))).
     split. constructor.
     econstructor. constructor. eapply transitive_eval; eauto.
     eapply frame_indep_nil in H2. exact H2.
@@ -1154,6 +1112,10 @@ Proof.
         ** intros. eapply H. 3: exact H10. lia. auto.
       + inversion P. 2: inversion_is_value. apply (H7 0); simpl; lia.
     - now inversion P.
+  * inversion P; subst. eapply ConcBIF_nonterminating in H0; auto.
+    - contradiction.
+    - apply indexed_to_forall in H5; auto.
+    - inversion_is_value.
   * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
     eapply frame_indep_nil in H2 as H2_1.
     eapply (terminates_step_any_2 _ _ _ _ H4) in H2_1 as H2'.
@@ -1223,92 +1185,6 @@ Proof.
     congruence.
 Qed.
 
-Theorem scoped_dec : 
-  forall e Γ, (EXP Γ ⊢ e \/ ~ EXP Γ ⊢ e) /\ (VAL Γ ⊢ e \/ ~ VAL Γ ⊢ e).
-Proof.
-  induction e using Exp_ind2 with
-    (Q := fun l => Forall (fun e => forall Γ, (EXP Γ ⊢ e \/ ~ EXP Γ ⊢ e) /\ (VAL Γ ⊢ e \/ ~ VAL Γ ⊢ e)) l); intros.
-  * split; left; constructor; constructor.
-  * destruct (Compare_dec.lt_dec n Γ).
-    - split; left; constructor; auto. constructor. auto.
-    - split; right; intro; inversion H; inversion H0; congruence.
-  * destruct (Compare_dec.lt_dec n Γ).
-    - split; left; constructor; auto. constructor. auto.
-    - split; right; intro; inversion H; inversion H0; congruence.
-  * destruct (IHe (S (length vl) + Γ)) as [[H0_1 | H0_2] H1].
-    - split; left. now do 2 constructor. now constructor.
-    - split; right; intro; inversion H; inversion H0; subst; congruence.
-  * destruct (IHe Γ) as [[P1 | P2] ?].
-    - induction el; cbn.
-      + split. left. constructor; auto. intros. inversion H0.
-        right; intro; inversion H0.
-      + inversion IHe0. subst. clear IHe0. destruct (H2 Γ).
-        apply IHel in H3 as [P1' P2']. inversion P1'.
-        ** inversion H3. 2: inversion_is_value. subst. split.
-           -- inversion H0.
-              ++ left. constructor; auto. intros. destruct i; auto.
-                 cbn. apply H7. simpl in H5. lia.
-              ++ right. intro. inversion H5. 2: inversion_is_value.
-                 specialize (H11 0 ltac:(simpl;lia)).
-                 subst. simpl in H11. congruence.
-           -- right. intro. inversion_is_value.
-        ** split.
-           -- right. intro.
-              assert (EXP Γ ⊢ EApp e el).
-              { constructor; auto. inversion H4. 2: inversion_is_value.
-                intros. apply (H8 (S i)). simpl. lia. }
-              congruence.
-           -- right. intro. inversion_is_value.
-    - split; right; intro; inversion H0. congruence. inversion_is_value.
-  * destruct (IHe1 Γ) as [[P1 | P2] ?].
-    - destruct (IHe2 (S Γ)) as [[P1' | P2'] ?].
-      + split. left. constructor; auto. right. intro. inversion_is_value.
-      + split; right; intro; inversion H1. congruence. inversion_is_value.
-    - split; right; intro; inversion H0. congruence. inversion_is_value.
-  * destruct (IHe1 (S (length vl) + Γ)) as [[P1 | P2] ?].
-    - destruct (IHe2 (S Γ)) as [[P1' | P2'] ?].
-      + split. left. constructor; auto. right. intro. inversion_is_value.
-      + split; right; intro; inversion H1. congruence. inversion_is_value.
-    - split; right; intro; inversion H0. congruence. inversion_is_value.
-  * destruct (IHe1 Γ) as [[P1 | P2] ?].
-    - destruct (IHe2 Γ) as [[P1' | P2'] ?].
-      + split. left. constructor; auto. right. intro. inversion_is_value.
-      + split; right; intro; inversion H1. congruence. inversion_is_value.
-    - split; right; intro; inversion H0. congruence. inversion_is_value.
-  * destruct (IHe1 Γ) as [[P1 | P2] ?].
-    - destruct (IHe2 (pat_vars p + Γ)) as [[P1' | P2'] ?].
-      + destruct (IHe3 Γ) as [[P1'' | P2''] ?].
-        ** split. left. constructor; auto. right. intro. inversion_is_value.
-        ** split; right; intro; inversion H2. congruence. inversion_is_value.
-      + split; right; intro; inversion H1. congruence. inversion_is_value.
-    - split; right; intro; inversion H0. congruence. inversion_is_value.
-  * destruct (IHe1 Γ) as [[P1 | P2] ?].
-    - destruct (IHe2 Γ) as [[P1' | P2'] ?].
-      + split. left. constructor; auto. right. intro. inversion_is_value.
-      + split; right; intro; inversion H1. congruence. inversion_is_value.
-    - split; right; intro; inversion H0. congruence. inversion_is_value.
-  * split; left; constructor; constructor.
-  * destruct (IHe1 Γ) as [? [P1 | P2]].
-    - destruct (IHe2 Γ) as [? [P1' | P2']].
-      + split. left. do 2 constructor; auto. left; now constructor.
-      + split; right; intro; inversion H1; inversion H2; congruence.
-    - split; right; intro; inversion H0; inversion H1; congruence.
-  * constructor; auto.
-  * constructor.
-Qed.
-
-Corollary valscoped_dec Γ : 
-  forall e, VAL Γ ⊢ e \/ ~ VAL Γ ⊢ e.
-Proof.
-  intros. apply scoped_dec.
-Qed.
-
-Corollary expscoped_dec Γ : 
-  forall e, EXP Γ ⊢ e \/ ~ EXP Γ ⊢ e.
-Proof.
-  intros. apply scoped_dec.
-Qed.
-
 Theorem put_back : forall F e Fs (P : EXPCLOSED e) (P2 : FCLOSED F),
   | F :: Fs, e | ↓ -> | Fs, plug_f F e | ↓.
 Proof.
@@ -1338,6 +1214,15 @@ Proof.
   * inversion H. exists (S x). constructor. auto.
   * inversion H. exists (S x). constructor. auto.
   * inversion H. exists (S (S x)). inversion P2. do 2 constructor; auto.
+  * destruct H. assert (| Fs , EConcBIF e l | S x ↓). { constructor; auto. }
+    inversion P2. apply ConcBIF_nonterminating in H0; auto. contradiction.
+  * destruct H. 
+    apply term_eval in H as HH; auto.
+    destruct HH as [? [? [? ?]]].
+    eapply terminates_step_any_2 in H1. 2: exact H. inversion P2; subst.
+    eapply ConcBIF_nonterminating_helper in H1; auto.
+    - contradiction.
+    - intros. eapply term_eval; eauto.
 Unshelve.
   now inversion P2.
   auto.
@@ -1372,6 +1257,13 @@ Proof.
   * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value.
     inversion H. subst. inversion H5; subst; try inversion_is_value.
     eexists. eauto.
+  * simpl in H0. inversion H. subst. 
+    destruct H0. eapply ConcBIF_nonterminating in H0; auto. contradiction.
+  * simpl in H0. inversion H. subst. 
+    destruct H0. eapply ConcBIF_nonterminating in H0; auto. contradiction.
+    - now constructor.
+    - apply Forall_app; split; auto.
+      eapply Forall_impl. 2: exact H6. simpl. intros. now constructor.
 Qed.
 
 Theorem term_app_in_k : forall Fs vl vals e k (P : VALCLOSED (EFun vl e)),

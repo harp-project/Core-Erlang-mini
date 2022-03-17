@@ -249,3 +249,32 @@ Proof.
   inversion H0; subst. auto.
   eapply IHl; eauto.
 Qed.
+
+Lemma biforall_refl {T} (l : list T) (P : T -> T -> Prop) :
+  (forall x, P x x)
+->
+  list_biforall P l l.
+Proof.
+  induction l; intros; constructor; auto.
+Qed.
+
+Fixpoint removeFirst {A : Type} (eq_dec : forall x y : A, {x = y} + {x <> y})
+                     (x : A) (l : list A) {struct l} : list A :=
+  match l with
+  | [] => []
+  | y :: tl => if eq_dec x y then tl else y :: removeFirst eq_dec x tl
+  end.
+
+Theorem removeFirst_In :
+  forall A eq_dec x (l : list A), In x l -> forall y, y <> x -> In x (removeFirst eq_dec y l).
+Proof.
+  induction l; intros.
+  * inversion H.
+  * inversion H; subst; simpl.
+    - break_match_goal; subst. congruence. now constructor.
+    - break_match_goal; subst; auto. eapply IHl in H1; eauto.
+      now constructor 2.
+Qed.
+
+Notation "x '.1'" := (fst x) (at level 65, left associativity).
+Notation "x '.2'" := (snd x) (at level 65, left associativity).

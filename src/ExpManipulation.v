@@ -25,9 +25,11 @@ Fixpoint iterate {A : Type} (f : A -> A) n a :=
 
 Notation uprenn := (iterate upren).
 
+
 Fixpoint rename (ρ : Renaming) (e : Exp) : Exp :=
 match e with
  | ELit l => e
+ | EPid p => e
  | EVar n => EVar (ρ n)
  | EFunId n => EFunId (ρ n)
  | EFun vl e => EFun vl (rename (uprenn (S (length vl)) ρ) e)
@@ -40,6 +42,8 @@ match e with
  | ECons e1 e2 => ECons (rename ρ e1) (rename ρ e2)
  | ENil => e
  | VCons e1 e2 => VCons (rename ρ e1) (rename ρ e2)
+ | EConcBIF e l => EConcBIF (rename ρ e) (map (rename ρ) l)
+ | EReceive l => EReceive (map (fun '(p, v) => (p, rename (uprenn (pat_vars p) ρ) v)) l)
 end.
 
 Definition Substitution := nat -> Exp + nat. (** We need to have the names for the
@@ -66,6 +70,7 @@ Notation upn := (iterate up_subst).
 Fixpoint subst (ξ : Substitution) (base : Exp) : Exp :=
 match base with
  | ELit l => base
+ | EPid p => base
  | EVar n => match ξ n with
              | inl exp => exp
              | inr num => EVar num
@@ -84,6 +89,8 @@ match base with
  | ECons e1 e2 => ECons (subst ξ e1) (subst ξ e2)
  | ENil => base
  | VCons e1 e2 => VCons (subst ξ e1) (subst ξ e2)
+ | EConcBIF e l => EConcBIF (subst ξ e) (map (subst ξ) l)
+ | EReceive l => EReceive (map (fun '(p, v) => (p, subst (upn (pat_vars p) ξ) v)) l)
 end.
 
 Definition scons {X : Type} (s : X) (σ : nat -> X) (x : nat) : X :=
@@ -107,6 +114,7 @@ Notation "s .[ t1 , t2 , .. , tn /]" :=
 Definition list_subst (l : list Exp) (ξ : Substitution) : Substitution :=
   fold_right (fun v acc => v .: acc) ξ l.
 
+Open Scope Z_scope.
 (** Tests: *)
 Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
 Goal (inc 1).[ELit 0/] = inc 1. Proof. reflexivity. Qed.
@@ -154,7 +162,10 @@ Qed.
 Theorem renaming_is_subst : forall e ρ,
   rename ρ e = e.[ren ρ].
 Proof.
-  induction e using Exp_ind2 with (Q := fun l => forall ρ, Forall (fun e => rename ρ e = e.[ren ρ]) l); intros; try reflexivity; cbn.
+  induction e using Exp_ind2 with 
+    (Q := fun l => forall ρ, Forall (fun e => rename ρ e = e.[ren ρ]) l)
+    (W := fun l => forall ρ, Forall (fun '(p,e) => rename ρ e = e.[ren ρ]) l)
+    ; intros; try reflexivity; cbn.
   * rewrite IHe, ren_up, renn_up. auto.
   * rewrite IHe. erewrite map_ext_Forall. reflexivity. auto.
   * rewrite IHe1. rewrite <- ren_up, IHe2. auto.
@@ -163,8 +174,16 @@ Proof.
   * rewrite IHe1, IHe3, <- renn_up, IHe2. auto.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
+  * rewrite IHe. erewrite map_ext_Forall. reflexivity. auto.
+  * erewrite map_ext_Forall. reflexivity.
+    induction l; constructor.
+    - destruct a. specialize (IHe (uprenn (pat_vars p) ρ)). inversion IHe. subst.
+      rewrite H1, <- renn_up. reflexivity.
+    - apply IHl. intros. specialize (IHe ρ0). inversion IHe. auto.
+  * constructor.
   * constructor; auto.
   * constructor.
+  * constructor; auto.
 Qed.
 
 Theorem idrenaming_up : upren id = id.
@@ -180,9 +199,13 @@ Qed.
 
 Theorem idrenaming_is_id : forall e, rename id e = e.
 Proof.
-  induction e using Exp_ind2 with (Q := fun l => Forall (fun e => rename id e = e) l); intros; cbn; try rewrite idrenaming_upn; try rewrite idrenaming_up; try rewrite IHe; try rewrite IHe1; try rewrite IHe2; try rewrite IHe3; try reflexivity.
-  2-3: constructor; auto.
-  rewrite map_ext_Forall with (g := id); auto. rewrite map_id. auto.
+  induction e using Exp_ind2 with
+   (Q := fun l => Forall (fun e => rename id e = e) l)
+   (W := fun l => Forall (fun '(_,e) => rename id e = e) l); intros; cbn; try rewrite idrenaming_upn; try rewrite idrenaming_up; try rewrite IHe; try rewrite IHe1; try rewrite IHe2; try rewrite IHe3; try reflexivity.
+  4-7: constructor; auto.
+  all: rewrite map_ext_Forall with (g := id); auto; try rewrite map_id; try reflexivity.
+  induction l; auto; inversion IHe; constructor; subst; auto.
+  destruct a. rewrite idrenaming_upn, H1. reflexivity.
 Qed.
 
 Theorem idsubst_up : up_subst idsubst = idsubst.
@@ -198,9 +221,12 @@ Qed.
 
 Theorem idsubst_is_id : forall e, e.[idsubst] = e.
 Proof.
-  induction e using Exp_ind2 with (Q := fun l => Forall (fun e => e.[idsubst] = e) l); intros; cbn; try rewrite idsubst_upn; try rewrite idsubst_up; try rewrite IHe; try rewrite IHe1; try rewrite IHe2; try rewrite IHe3; try reflexivity.
-  2-3: constructor; auto.
-  rewrite map_ext_Forall with (g := id); auto. rewrite map_id. auto.
+  induction e using Exp_ind2 with (Q := fun l => Forall (fun e => e.[idsubst] = e) l)
+                                  (W := fun l => Forall (fun '(_,e) => e.[idsubst] = e) l); intros; cbn; try rewrite idsubst_upn; try rewrite idsubst_up; try rewrite IHe; try rewrite IHe1; try rewrite IHe2; try rewrite IHe3; try reflexivity.
+  4-7: constructor; auto.
+  all: rewrite map_ext_Forall with (g := id); auto; try rewrite map_id; try reflexivity.
+  induction l; auto; inversion IHe; constructor; subst; auto.
+  destruct a. rewrite idsubst_upn, H1. reflexivity.
 Qed.
 
 Lemma up_get_inl ξ x y:
@@ -214,6 +240,8 @@ Lemma up_get_inr ξ x y:
 Proof.
   intros. unfold up_subst. unfold shift. rewrite H. auto.
 Qed.
+
+Open Scope nat_scope.
 
 Lemma renaming_fold m :
   (fun n => m + n) = iterate (fun x => S x) m.
@@ -238,7 +266,9 @@ Qed.
 Lemma subst_ren (σ : Renaming) (ξ : Substitution) e :
   e.[ren σ].[ξ] = e.[σ >>> ξ].
 Proof.
-  revert ξ σ. induction e using Exp_ind2 with (Q := fun l => forall ξ σ, Forall (fun e => e.[ren σ].[ξ] = e.[σ >>> ξ]) l); simpl; intros; auto.
+  revert ξ σ. induction e using Exp_ind2 with 
+    (Q := fun l => forall ξ σ, Forall (fun e => e.[ren σ].[ξ] = e.[σ >>> ξ]) l)
+    (W := fun l => forall ξ σ, Forall (fun '(_,e) => e.[ren σ].[ξ] = e.[σ >>> ξ]) l); simpl; intros; auto.
   * rewrite <- renn_up, <- ren_up. rewrite IHe, upren_subst_up, uprenn_subst_upn. auto.
   * rewrite IHe. erewrite map_map, map_ext_Forall. reflexivity. auto.
   * rewrite <- ren_up, IHe1, IHe2, upren_subst_up. auto.
@@ -248,6 +278,12 @@ Proof.
   * now rewrite IHe1, IHe3, <- renn_up, IHe2, uprenn_subst_upn.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
+  * rewrite IHe. erewrite map_map, map_ext_Forall. reflexivity. auto.
+  * erewrite map_map, map_ext_Forall. reflexivity. auto.
+    induction l; auto; constructor.
+    - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
+      rewrite <- renn_up, H2, uprenn_subst_upn. reflexivity.
+    - apply IHl. intros. specialize (IHe ξ0 σ0). inversion IHe. auto.
 Qed.
 
 Notation "σ >> ξ" := (substcomp σ ξ) (at level 56, left associativity).
@@ -268,7 +304,8 @@ Theorem rename_up : forall e n σ ρ,
   rename (uprenn n σ) (rename (uprenn n ρ) e) = rename (uprenn n (ρ >>> σ)) e.
 Proof.
   induction e using Exp_ind2 with
-    (Q := fun l => forall n σ ρ, Forall (fun e => rename (uprenn n σ) (rename (uprenn n ρ) e) = rename (uprenn n (ρ >>> σ)) e) l);
+    (Q := fun l => forall n σ ρ, Forall (fun e => rename (uprenn n σ) (rename (uprenn n ρ) e) = rename (uprenn n (ρ >>> σ)) e) l)
+    (W := fun l => forall n σ ρ, Forall (fun '(_,e) => rename (uprenn n σ) (rename (uprenn n ρ) e) = rename (uprenn n (ρ >>> σ)) e) l);
   intros; simpl; auto.
   * rewrite <- uprenn_comp. reflexivity.
   * rewrite <- uprenn_comp. reflexivity.
@@ -280,12 +317,20 @@ Proof.
   * now rewrite IHe1, IHe2, IHe3, <- uprenn_comp.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
+  * erewrite IHe, map_map, map_ext_Forall. reflexivity. auto.
+  * erewrite map_map, map_ext_Forall. reflexivity. auto.
+    induction l; auto; constructor.
+    - clear IHl. destruct a. epose proof (IHe _ _ _). inversion H. subst.
+      rewrite <- uprenn_comp, H2. reflexivity.
+    - apply IHl. intros. epose proof (IHe _ _ _). inversion H. eauto.
 Qed.
 
 Theorem rename_comp :
   forall e σ ρ, rename σ (rename ρ e) = rename (ρ >>> σ) e.
 Proof.
-  induction e using Exp_ind2 with (Q := fun l => forall σ ρ, Forall (fun e => rename σ (rename ρ e) = rename (ρ >>> σ) e) l); intros; auto; cbn.
+  induction e using Exp_ind2 with 
+    (Q := fun l => forall σ ρ, Forall (fun e => rename σ (rename ρ e) = rename (ρ >>> σ) e) l)
+    (W := fun l => forall σ ρ, Forall (fun '(_,e) => rename σ (rename ρ e) = rename (ρ >>> σ) e) l); intros; auto; cbn.
   * do 3 fold_upn. now rewrite rename_up.
   * now erewrite IHe, map_map, map_ext_Forall.
   * now rewrite IHe1, IHe2, upren_comp.
@@ -294,6 +339,12 @@ Proof.
   * now rewrite IHe1, IHe3, rename_up.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
+  * now erewrite IHe, map_map, map_ext_Forall.
+  * erewrite map_map, map_ext_Forall. reflexivity. auto.
+    induction l; auto; constructor.
+    - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
+      rewrite <- uprenn_comp, H2. reflexivity.
+    - apply IHl. intros. epose proof (IHe _ _). inversion H. eauto.
 Qed.
 
 Lemma subst_up_upren : forall σ ξ,
@@ -320,7 +371,8 @@ Lemma ren_subst (ξ : Substitution) (σ : Renaming) e :
   e.[ξ].[ren σ] = e.[ξ >> ren σ].
 Proof.
   revert ξ σ. induction e using Exp_ind2
-    with (Q := fun l => forall ξ σ, Forall (fun e => e.[ξ].[ren σ] = e.[ξ >> ren σ]) l);
+    with (Q := fun l => forall ξ σ, Forall (fun e => e.[ξ].[ren σ] = e.[ξ >> ren σ]) l)
+         (W := fun l => forall ξ σ, Forall (fun '(_,e) => e.[ξ].[ren σ] = e.[ξ >> ren σ]) l);
   simpl; intros; auto.
   * unfold ">>", ren. destruct (ξ n) eqn:P; auto.
   * unfold ">>", ren. destruct (ξ n) eqn:P; auto.
@@ -334,6 +386,12 @@ Proof.
   * now rewrite IHe1, <- renn_up, <- subst_upn_uprenn, IHe2, IHe3.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
+  * now erewrite IHe, map_map, map_ext_Forall.
+  * erewrite map_map, map_ext_Forall. reflexivity. auto.
+    induction l; auto; constructor.
+    - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
+      rewrite <- renn_up, <- subst_upn_uprenn, H2. reflexivity.
+    - apply IHl. intros. epose proof (IHe _ _). inversion H. eauto.
 Qed.
 
 Lemma up_comp ξ η :
@@ -357,8 +415,9 @@ Qed.
 Lemma subst_comp ξ η e :
   e.[ξ].[η] = e.[ξ >> η].
 Proof.
-  revert ξ η. induction e using Exp_ind2 with (Q := fun l => forall ξ η,
-     Forall (fun e => e.[ξ].[η] = e.[ξ >> η]) l); simpl; intros; auto.
+  revert ξ η. induction e using Exp_ind2 with 
+    (Q := fun l => forall ξ η, Forall (fun e => e.[ξ].[η] = e.[ξ >> η]) l)
+    (W := fun l => forall ξ η, Forall (fun '(_,e) => e.[ξ].[η] = e.[ξ >> η]) l); simpl; intros; auto.
   * unfold ">>". break_match_goal; auto.
   * unfold ">>". break_match_goal; auto.
   * do 3 fold_upn. now rewrite IHe, upn_comp.
@@ -369,6 +428,12 @@ Proof.
   * now rewrite IHe1, IHe2, upn_comp, IHe3.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
+  * now erewrite IHe, map_map, map_ext_Forall.
+  * erewrite map_map, map_ext_Forall. reflexivity. auto.
+    induction l; auto; constructor.
+    - clear IHl. destruct a. epose proof (IHe _ _). inversion H. subst.
+      rewrite H2, upn_comp. reflexivity.
+    - apply IHl. intros. epose proof (IHe _ _). inversion H. eauto.
 Qed.
 
 Theorem rename_subst_core : forall e v,
@@ -454,7 +519,7 @@ Proof.
 Qed.
 
 Theorem list_subst_lt : forall n vals ξ, n < length vals ->
-  list_subst vals ξ n = inl (nth n vals (ELit 0)).
+  list_subst vals ξ n = inl (nth n vals (ELit (Int 0))).
 Proof.
   induction n; intros; destruct vals.
   * inversion H.
@@ -474,7 +539,7 @@ Proof.
 Qed.
 
 Corollary list_subst_get_possibilities : forall n vals ξ,
-  list_subst vals ξ n = inl (nth n vals (ELit 0)) /\ n < length vals
+  list_subst vals ξ n = inl (nth n vals (ELit (Int 0))) /\ n < length vals
 \/
   list_subst vals ξ n = ξ (n - length vals) /\ n >= length vals.
 Proof.

@@ -104,7 +104,6 @@ Theorem let_delay : forall Γ e x e',
 Proof.
   intros. split; eapply CIU_iff_CTX; intro; intros; simpl; split;
     [idtac|split|idtac|split]. 2, 4: constructor.
-  Search up_subst ">>".
   3, 5: rewrite renaming_is_subst.
   1, 3-4, 7: apply -> subst_preserves_scope_exp; eauto.
   1-4: apply -> subst_preserves_scope_exp; eauto.
@@ -164,14 +163,15 @@ Proof.
   2, 4 : now apply up_scope, upn_scope.
   1-2: intro; intros; cbn; lia.
   1-2: intros; rewrite Forall_nth in H1; apply scoped_val.
-  1-2: now replace (ELit 0) with ((ELit 0).[ξ]) by auto; rewrite map_nth;
+  1-2: now replace (ELit 0%Z) with ((ELit 0%Z).[ξ]) by auto; rewrite map_nth;
     rewrite map_length in H3;
     apply vclosed_sub_closed, H1.
   * intros. destruct H4 as [k H4].
     eexists. apply term_app_in_k.
     - shelve.
     - now rewrite map_length.
-    - eapply Forall_map; auto.
+    - eapply Forall_map; auto. eapply Forall_impl. 2: exact H1. intros.
+      now apply vclosed_sub_closed.
     - repeat rewrite renaming_is_subst, subst_comp, subst_comp in *.
       fold_upn. fold_list_subst.
       replace (fun n => S (length vl + n)) with (fun n => S (length vl) + n) by auto.
@@ -193,7 +193,7 @@ Proof.
     simpl. rewrite map_length. lia.
   Unshelve.
     3: rewrite map_length; lia.
-    3: exact (ELit 0).
+    3: exact (ELit 0%Z).
     all: simpl; constructor; rewrite renaming_is_subst, subst_comp, Nat.add_0_r.
     all: apply -> subst_preserves_scope_exp; [ exact H0 | ]; apply substcomp_scoped with (Δ := Γ + S (length vl)).
     + intro. intros. simpl. lia.
@@ -214,7 +214,7 @@ Theorem naive_equivalent_implies_ciu :
 Proof.
   unfold naive_equivalent, CIU; intros.
   split; [|split].
-  1-2: apply H. 1,3: exact (ELit 0). 1-2: exact [].
+  1-2: apply H. 1,3: exact (ELit 0%Z). 1-2: exact [].
   intros. apply terminates_eq_terminates_sem in H1 as [v H1].
   apply H in H1. now apply ex_intro, terminates_eq_terminates_sem in H1.
 Qed.
@@ -250,91 +250,3 @@ Proof.
     simpl in H0. break_match_hyp. inversion H0.
     eapply IHxs. 2: exact Heqo. rewrite map_length. auto.
 Qed.
-
-Compute unfold_app ["X"%string; "Y"%string] [ELit 0; EVar 0] (EApp (EVar 0) [EVar 1]).
-
-Theorem let_many : forall xs vals b Γ e,
-  length xs = length vals -> unfold_app xs vals b = Some e -> 
-  EXP Γ ⊢ b -> Forall (fun v => VAL Γ ⊢ v) vals
-->
-  b.[list_subst vals idsubst] ≈[Γ]≈ e.
-Proof.
-  induction xs; intros; cbn.
-  * apply eq_sym, length_zero_iff_nil in H. subst. cbn. rewrite idsubst_is_id.
-    inversion H0. subst. now apply Equiv_refl.
-  * apply element_exist in H as H'. destruct H', H3. subst.
-    simpl in H0. break_match_hyp. 2: congruence. inversion H0. inversion H. inversion H2. subst.
-    eapply IHxs in Heqo. 3: exact H1. 2: now rewrite map_length. inversion H0.
-    subst. simpl.
-    epose proof (let_abs_core).
-    eapply Equiv_trans. 2: apply H2.
-
-
-Theorem app_fix_eval_order : forall xs Γ x e vals b vl,
-  (* NoDup (x::xs) -> *) length xs = length vals -> length vl = length vals ->
-  VAL Γ ⊢ (EFun vl b) -> Forall (fun e => VAL Γ ⊢ e) vals ->
-  unfold_app (x::xs) ((EFun vl b)::vals) (EApp (EVar (length xs)) (n_vars (length xs))) = Some e
-->
-  EApp (EFun vl b) vals ≈[Γ]≈ e.
-Proof.
-  intros. simpl in H3. break_match_hyp. 2: congruence.
-  inversion H3. subst. clear H3.
-  
-  epose proof (ETA := eta_abs H1 H2 H0). apply Equiv_sym in ETA.
-  eapply Equiv_trans. exact ETA. clear ETA.
-  epose proof (LET := let_abs_core _ _ _ _ _ _). apply Equiv_sym in LET.
-  apply Equiv_sym. eapply Equiv_trans. exact LET. clear LET. simpl.
-  
-  
-  
-  
-  
-  
-  
-  
-  induction xs; intros.
-  * apply eq_sym, length_zero_iff_nil in H. subst.
-    apply length_zero_iff_nil in H0. subst. cbn.
-    epose proof (let_abs_core Γ (EApp (EVar 0) []) (EFun [] b) x _ H1).
-    simpl in H3. inversion H3. subst. exact H.
-  * simpl in H3. break_match_hyp. break_match_hyp; subst. all: try congruence.
-    inversion H3. break_match_hyp. 2: congruence. inversion Heqo. subst.
-    
-    epose proof (ETA := eta_abs H1 H2 H0).
-    apply element_exist in H as H'. destruct H', H4. subst. inversion H.
-    apply eq_sym, element_exist in H0 as H'. destruct H', H4. subst. inversion H0. 
-    eapply Equiv_trans. apply Equiv_sym in ETA. exact ETA.
-    
-    epose proof (let_abs_core _ _ _ _ _ _). apply Equiv_sym in H4.
-    apply Equiv_sym. eapply Equiv_trans. exact H4. simpl.
-  
-    epose proof (IHxs Γ a).
-  
-  
-  
-  
-  generalize dependent exps. generalize dependent vl.
-  generalize dependent b. generalize dependent e. generalize dependent xs.
-  induction xs; intros; cbn.
-  { apply eq_sym, length_zero_iff_nil in H. subst.
-    apply length_zero_iff_nil in H0. subst. cbn.
-    epose proof (let_abs_core Γ (EApp (EVar 0) []) (EFun [] b) x _ H1).
-    simpl in Heqo. inversion Heqo. subst. exact H.
-  }
-  {
-    apply element_exist in H as H'. destruct H', H3. subst. inversion H.
-    apply eq_sym, element_exist in H0 as H'. destruct H', H3. subst. inversion H0.
-    simpl in Heqo. break_match_hyp. break_match_hyp. 2-3: congruence.
-    inversion Heqo. inversion Heqo0. subst. inversion H2. subst.
-    epose proof (IHxs _ _ _ _ _ H4 (eq_sym H5) H8 _).
-    Unshelve.
-    all: auto.
-  }
-  
-  (* intros. split; eapply CIU_iff_CTX; intro; intros; simpl; split;
-    [idtac|split|idtac|split].
-   *)
-
-Qed.
-
-

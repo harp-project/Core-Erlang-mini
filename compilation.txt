@@ -1,0 +1,13 @@
+coqc src\Basics.v -R src Core_Erlang
+coqc src\ExpSyntax.v -R src Core_Erlang
+coqc src\ExpManipulation.v -R src Core_Erlang
+coqc src\Scoping.v -R src Core_Erlang
+coqc src\SubstSemantics.v -R src Core_Erlang
+coqc src\ConcurrentSemantics.v -R src Core_Erlang
+coqc src\Bisimulations.v -R src Core_Erlang
+coqc src\LaneseBisimulations.v -R src Core_Erlang
+coqc src\LogRel.v -R src Core_Erlang
+coqc src\Compatibility.v -R src Core_Erlang
+coqc src\CIU.v -R src Core_Erlang
+coqc src\CTX.v -R src Core_Erlang
+coqc src\Equivs.v -R src Core_Erlang
