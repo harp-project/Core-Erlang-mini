@@ -4,6 +4,7 @@ coqc src\ExpManipulation.v -R src Core_Erlang
 coqc src\Scoping.v -R src Core_Erlang
 coqc src\SubstSemantics.v -R src Core_Erlang
 coqc src\ConcurrentFunSemantics.v -R src Core_Erlang
+coqc src\Examples.v -R src Core_Erlang
 coqc src\ConcurrentProperties.v -R src Core_Erlang
 coqc src\Bisimulations.v -R src Core_Erlang
 coqc src\LaneseBisimulations.v -R src Core_Erlang
