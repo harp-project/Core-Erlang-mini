@@ -62,7 +62,7 @@ match l with
 | _ => None
 end.
 
-Reserved Notation "p -⌈ a ⌉-> p'" (at level 50).
+(* Reserved Notation "p -⌈ a ⌉-> p'" (at level 50).
 Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 | p_local fs e fs' e' mb :
   ⟨fs, e⟩ --> ⟨fs', e'⟩
@@ -645,4 +645,4 @@ Goal Node_equivalence (
                       ).
 Proof.
   
-Qed. *)
+Qed. *) *)
