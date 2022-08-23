@@ -292,7 +292,7 @@ Proof.
   split;
   split;
   intros; cbn; unfold renscoped in *).
-  1-8: constructor. 1-4: constructor.
+  1-8: constructor. 1-4: constructor. 
   1, 5, 7: repeat constructor; try apply H0; try inversion H; try inversion H1; auto.
   all: (** this solves around half the goals *)
     try (specialize (H Γ id (renscope_id _)); rewrite idrenaming_is_id in H; apply H).
@@ -336,7 +336,8 @@ Proof.
     - intros. rewrite indexed_to_forall in IHe0.
       replace (ELit 0%Z) with (rename ξ (ELit 0%Z)) by auto.
       rewrite map_nth. rewrite map_length in H1. eapply IHe0; eauto.
-  * subst. constructor. intros. rewrite map_length in H1. generalize dependent i. induction l; intros.
+  * subst. constructor. intros. rewrite map_length in H1. generalize dependent i.
+    induction l; intros.
     - inversion H1.
     - destruct i; simpl.
       + destruct a; cbn. inversion IHe. subst.

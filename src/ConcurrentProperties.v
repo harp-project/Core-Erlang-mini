@@ -216,7 +216,7 @@ Lemma step_chain :
 Proof.
   intros n n' ι a IH. inversion IH; intros; subst.
   * inversion H4; subst.
-    - exists (etherAdd ι'0 (ι'1, t0) (etherAdd ι (ι', t) ether), ι'0 : p'0 |||| ι : p' |||| prs ).
+    - exists (etherAdd ι'0 ι'1 t0 (etherAdd ι ι' t ether), ι'0 : p'0 |||| ι : p' |||| prs ).
       replace (ι : p' |||| prs) with (ι'0 : p0 |||| ι : p' |||| prs) at 1.
       2: { extensionality ι1. unfold update in *. apply equal_f with ι1 in H2.
            break_match_goal; subst.
@@ -224,7 +224,7 @@ Proof.
            auto.
          }
       now constructor.
-    - exists (etherAdd ι (ι', t) ether'
+    - exists (etherAdd ι ι' t ether'
               , ι'0 : p'0 |||| ι : p' |||| prs ).
       replace (ι : p' |||| prs) with (ι'0 : p0 |||| ι : p' |||| prs) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H1.
@@ -234,7 +234,7 @@ Proof.
          }
       constructor. 2: auto.
       now apply etherPop_greater.
-    - exists (etherAdd ι (ι', t) ether, ι'0 : p'0 |||| ι : p' |||| prs).
+    - exists (etherAdd ι ι' t ether, ι'0 : p'0 |||| ι : p' |||| prs).
       replace (ι : p' |||| prs) with (ι'0 : p0 |||| ι : p' |||| prs) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H1.
            break_match_goal; subst.
@@ -242,7 +242,7 @@ Proof.
            auto.
          }
       now constructor.
-    - exists (etherAdd ι (ι', t) ether, 
+    - exists (etherAdd ι ι' t ether, 
               ι'1 : inl ([], EApp v1 l, [], [], false) |||| ι'0 : p'0 |||| ι : p' |||| prs).
       replace (ι : p' |||| prs) with (ι'0 : p0 |||| ι : p' |||| prs) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H1.
@@ -256,7 +256,7 @@ Proof.
       break_match_goal; subst.
       + congruence.
       + now rewrite H1 in H3.
-    - exists (etherAdd ι (ι', t) ether,
+    - exists (etherAdd ι ι' t ether,
                ι : p' |||| prs -- ι'0).
       replace (ι : p' |||| prs) with (ι'0 : inr [] |||| ι : p' |||| prs) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H2.
@@ -267,7 +267,7 @@ Proof.
       rewrite update_swap with (ι := ι); auto.
       constructor; auto.
   * inversion H5; subst.
-    - exists (etherAdd ι' (ι'0, t0) ether', ι' : p'0 |||| ι : p' |||| prs).
+    - exists (etherAdd ι' ι'0 t0 ether', ι' : p'0 |||| ι : p' |||| prs).
       replace (ι : p' |||| prs) with (ι' : p0 |||| ι : p' |||| prs) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H3.
            break_match_goal; subst.
@@ -275,13 +275,13 @@ Proof.
            auto.
          }
       now constructor.
-    - assert (exists ether'', etherPop ι2 ether'  = Some (ι', t0, ether''))
+    - assert (exists ether'', etherPop ι2 ι' ether'  = Some (t0, ether''))
                                  as [ether'' Eq].
       {
          unfold etherPop in H, H3. do 2 break_match_hyp. 1-3: congruence.
          inversion H. inversion H3. subst.
          unfold etherPop, update. destruct (ι1 =? ι2) eqn:Eq; eqb_to_eq; subst.
-         * rewrite Heql in Heql0. inversion Heql0. congruence.
+         * apply Nat.eqb_neq in H6. rewrite H6, Heql. eexists. reflexivity.
          * rewrite Heql. eexists. reflexivity.
       }
       exists (ether''
@@ -326,7 +326,7 @@ Proof.
       rewrite update_swap with (ι := ι); auto.
       constructor; auto.
   * inversion H5; subst.
-    - exists (etherAdd ι' (ι'0, t) ether, ι' : p'0 |||| ι : p' |||| Π).
+    - exists (etherAdd ι' ι'0 t ether, ι' : p'0 |||| ι : p' |||| Π).
       replace (ι : p' |||| Π) with (ι' : p0 |||| ι : p' |||| Π) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H3.
            break_match_goal; subst.
@@ -376,7 +376,7 @@ Proof.
       rewrite update_swap with (ι := ι); auto.
       constructor; auto.
   * inversion H6; subst.
-    - exists (etherAdd ι'0 (ι'1, t) ether, ι'0 : p'0 |||| 
+    - exists (etherAdd ι'0 ι'1 t ether, ι'0 : p'0 |||| 
                                         ι' : inl ([], EApp v1 l, [], [], false) |||| 
                                         ι : p' |||| Π).
       replace (ι' : inl ([], EApp v1 l, [], [], false) |||| ι : p' |||| Π) with 
@@ -433,7 +433,7 @@ Proof.
       break_match_hyp; eqb_to_eq; subst; try congruence; auto.
       unfold update in H0. break_match_hyp; congruence.
   * inversion H3; subst.
-    - exists (etherAdd ι' (ι'0, t) ether, ι' : p' |||| (Π -- ι)).
+    - exists (etherAdd ι' ι'0 t ether, ι' : p' |||| (Π -- ι)).
       replace (Π -- ι) with (ι' : p |||| (Π -- ι)) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H1.
            break_match_goal; subst.

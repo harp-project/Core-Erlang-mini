@@ -1,5 +1,5 @@
 -module(e).
--compile(export_all).
+-export([f/0]).
 
 f() ->
   Pid = spawn(e, g, []),
