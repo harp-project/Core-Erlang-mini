@@ -52,9 +52,9 @@ Ltac ether_cleanup :=
 (** Signal ordering tests: *)
 Example signal_ordering :
   exists acts k,
-    (fun _ _ => [], 0 : inl ([], ELet "X" (EConcBIF (ELit "send") [EPid 1; ELit "fst"])
-                                        (EConcBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
-                  1 : inl ([], EReceive [(PVar, EConcBIF (ELit "send")
+    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
+                                        (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
+                  1 : inl ([], EReceive [(PVar, EBIF (ELit "send")
                                                        [EPid 2; EVar 0])], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[ k | acts ]ₙ->*
@@ -65,7 +65,7 @@ Proof.
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
-    constructor. apply step_concbif. auto.
+    constructor. apply step_bif. auto.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -134,9 +134,9 @@ Qed.
 
 Example signal_ordering_2 :
   exists acts k,
-    (fun _ _ => [], 0 : inl ([], ELet "X" (EConcBIF (ELit "send") [EPid 1; ELit "fst"])
-                                        (EConcBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
-                  1 : inl ([], EReceive [(PVar, EConcBIF (ELit "send")
+    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
+                                        (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
+                  1 : inl ([], EReceive [(PVar, EBIF (ELit "send")
                                                        [EPid 2; EVar 0])], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[ k | acts ]ₙ->*
@@ -147,7 +147,7 @@ Proof.
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
-    constructor. apply step_concbif. auto.
+    constructor. apply step_bif. auto.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -214,8 +214,8 @@ Qed.
 
 Example signal_ordering_3 :
   exists acts k,
-    (fun _ _ => [], 0 : inl ([], ELet "X" (EConcBIF (ELit "send") [EPid 1; ELit "fst"])
-                                        (EConcBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
+    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
+                                        (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
                   1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[ k | acts ]ₙ->*
@@ -228,7 +228,7 @@ Proof.
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
-    constructor. apply step_concbif. auto.
+    constructor. apply step_bif. auto.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -268,8 +268,8 @@ Qed.
 
 Example signal_ordering_4 :
   exists acts k,
-    (fun _ _ => [], 0 : inl ([], ELet "X" (EConcBIF (ELit "send") [EPid 1; ELit "fst"])
-                                        (EConcBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
+    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
+                                        (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
                   1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[ k | acts ]ₙ->*
@@ -282,7 +282,7 @@ Proof.
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
-    constructor. apply step_concbif. auto.
+    constructor. apply step_bif. auto.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -324,17 +324,17 @@ Qed.
 (** Further tests: *)
 
 Goal exists acts k,
-  (fun _ _ => [], 0 : inl ([], EConcBIF (ELit "send") [EPid 1;EPlus (ELit 1%Z) (ELit 1%Z)], [], [], false) ||||
-       1 : inl ([], EReceive [(PVar, EConcBIF (ELit "send") [EPid 3;EVar 0])], [], [], false) ||||
-       2 : inl ([], EConcBIF (ELit "send") [EPid 3;ELit 3%Z], [], [], false) ||||
-       3 : inl ([], EReceive [(PVar, EReceive [(PVar, EPlus (EVar 0) (EVar 1))])], [], [], false) |||| nullpool)
+  (fun _ _ => [], 0 : inl ([], EBIF (ELit "send") [EPid 1; EBIF (ELit "+"%string) [ELit 1%Z; ELit 1%Z]], [], [], false) ||||
+       1 : inl ([], EReceive [(PVar, EBIF (ELit "send") [EPid 3;EVar 0])], [], [], false) ||||
+       2 : inl ([], EBIF (ELit "send") [EPid 3;ELit 3%Z], [], [], false) ||||
+       3 : inl ([], EReceive [(PVar, EReceive [(PVar, EBIF (ELit "+"%string) [EVar 0;EVar 1])])], [], [], false) |||| nullpool)
   -[ k | acts ]ₙ->*
   (fun _ _ => [], 0 : inl ([], ELit 2%Z, [], [], false) ||||
        1 : inl ([], ELit 2%Z, [], [], false) ||||
        2 : inl ([], ELit 3%Z, [], [], false) ||||
        3 : inl ([], ELit 5%Z, [], [], false) |||| nullpool).
 Proof.
-  eexists. exists 24.
+  eexists. exists 26.
   (* Some steps with 0 *)
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
@@ -344,6 +344,8 @@ Proof.
     do 4 constructor. auto.
   simpl. eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 0).
+    do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -422,6 +424,8 @@ Proof.
   eapply n_trans. eapply n_other with (ι := 3).
     constructor. constructor. constructor. auto.
   eapply n_trans. eapply n_other with (ι := 3).
+    do 3 constructor. auto.
+  eapply n_trans. eapply n_other with (ι := 3).
     constructor. constructor. auto.
 
   rewrite par_swap with (ι' := 0). rewrite par_swap with (ι' := 0).
@@ -445,9 +449,9 @@ let X = spawn(fun() -> receive X -> X ! self() end end, [])
 
 *)
 Goal exists acts k,
-  (fun _ _ => [], 0 : inl ([], ELet "X" (EConcBIF (ELit "spawn") [EFun [] (EReceive [(PVar, EConcBIF (ELit "send") [EVar 0; EConcBIF (ELit "self") []])]);
+  (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "spawn") [EFun [] (EReceive [(PVar, EBIF (ELit "send") [EVar 0; EBIF (ELit "self") []])]);
                                              ENil])
-             (ELet "Y"%string (EConcBIF (ELit "send") [EVar 0; EConcBIF (ELit "self") []])
+             (ELet "Y"%string (EBIF (ELit "send") [EVar 0; EBIF (ELit "self") []])
                  (EReceive [(PVar, EVar 0)]))
                   , [], [], false)
   |||| nullpool)
@@ -459,7 +463,7 @@ Proof.
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
-    apply p_local. apply step_concbif. auto.
+    apply p_local. apply step_bif. auto.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -584,8 +588,8 @@ Qed.
 
 (* trapping kill which comes from link *)
 Goal exists k acts,
-  (fun _ _ => [], 0 : inl ([], ELet "X" (EConcBIF link [EPid 1])
-                             (EConcBIF exit [kill]), [], [], false) ||||
+  (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF link [EPid 1])
+                             (EBIF exit [kill]), [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EVar 0)], [], [], true) |||| nullpool)
   -[k | acts]ₙ->*
   (fun _ _ => [], 1 : inl ([], VCons (EXIT) (VCons (EPid 0) (VCons kill ENil)), [], [0], true)
@@ -633,8 +637,8 @@ Qed.
 
 (* kill through link, without traps -> no conversion to killed *)
 Goal exists k acts,
-  (fun _ _ => [], 0 : inl ([], ELet "X" (EConcBIF link [EPid 1])
-                             (EConcBIF exit [kill]), [], [], false) ||||
+  (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF link [EPid 1])
+                             (EBIF exit [kill]), [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[k | acts]ₙ->*
   (fun _ _ => [], 1 : inr [(0, kill)]
@@ -680,8 +684,8 @@ Qed.
 
 (* kill sent explicitly, converted to killed *)
 Goal exists k acts,
-  (fun _ _ => [], 0 : inl ([], ELet "X" (EConcBIF link [EPid 1])
-                             (ELet "X" (EConcBIF exit [EPid 1; kill])
+  (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF link [EPid 1])
+                             (ELet "X" (EBIF exit [EPid 1; kill])
                                        (EReceive [(PVar, ENil)])), [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[k | acts]ₙ->*
@@ -740,9 +744,9 @@ Qed.
 
 (* trapping exits *)
 Goal exists k acts,
-  (fun _ _ => [], 0 : inl ([], EReceive [(PVar, EConcBIF exit [EPid 1; ELit "foo"])], [], [], false) ||||
-       1 : inl ([], ELet "X" (ELet "X" (EConcBIF process_flag [trap_exit; tt]) 
-                                       (EConcBIF send [EPid 0; ENil])) 
+  (fun _ _ => [], 0 : inl ([], EReceive [(PVar, EBIF exit [EPid 1; ELit "foo"])], [], [], false) ||||
+       1 : inl ([], ELet "X" (ELet "X" (EBIF process_flag [trap_exit; tt]) 
+                                       (EBIF send [EPid 0; ENil])) 
                              (EReceive [(PVar, EVar 0)]), [], [], false) |||| nullpool)
   -[k | acts]ₙ->*
   (fun _ _ => [], 1 : inl ([], VCons EXIT (VCons (EPid 0) (VCons (ELit "foo") ENil)), [], [], true)
@@ -808,8 +812,8 @@ Qed.
 
 (* explicit exit signal drop *)
 Goal exists k acts,
-  (fun _ _ => [], 0 : inl ([], ELet "X" (EConcBIF exit [EPid 1; ELit "normal"]) 
-                             (EConcBIF send [EPid 1; ENil]), [], [], false) ||||
+  (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF exit [EPid 1; ELit "normal"]) 
+                             (EBIF send [EPid 1; ENil]), [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[k | acts]ₙ->*
   (fun _ _ => [], 0 : inl ([], ENil, [], [], false) ||||

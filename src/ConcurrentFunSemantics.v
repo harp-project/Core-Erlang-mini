@@ -166,21 +166,21 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 (********** SIGNAL SENDING **********)
 (* message send *)
 | p_send ι v mb fs flag links source : VALCLOSED v ->
-  inl (FConcBIF2 send [] [EPid ι] :: fs, v, mb, links, flag)
+  inl (FBIF2 send [] [EPid ι] :: fs, v, mb, links, flag)
   -⌈ ASend source ι (Message v) ⌉-> inl (fs, v, mb, links, flag)
 (* exit, 2 parameters *)
 | p_exit fs v mb flag ι selfι links :
   VALCLOSED v ->
-  inl (FConcBIF2 exit [] [EPid ι] :: fs, v, mb, links, flag) -⌈ ASend selfι ι (Exit v false) ⌉->
+  inl (FBIF2 exit [] [EPid ι] :: fs, v, mb, links, flag) -⌈ ASend selfι ι (Exit v false) ⌉->
   inl (fs, tt, mb, links, flag)
 (* link *)
 | p_link fs ι mb flag links selfι :
-  inl (FConcBIF2 link [] [] :: fs, EPid ι, mb, links, flag) 
+  inl (FBIF2 link [] [] :: fs, EPid ι, mb, links, flag) 
   -⌈ASend selfι ι Link⌉->
   inl (fs, ok, mb, ι :: links, flag)
 (* unlink *)
 | p_unlink fs ι mb flag links selfι :
-  inl (FConcBIF2 unlink [] [] :: fs, EPid ι, mb, links, flag) 
+  inl (FBIF2 unlink [] [] :: fs, EPid ι, mb, links, flag) 
   -⌈ASend selfι ι Unlink⌉->
   inl (fs, ok, mb, remove Nat.eq_dec ι links, flag)
 (* DEAD PROCESSES *)
@@ -191,13 +191,13 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 (********** SELF **********)
 (* self *)
 | p_self ι fs mb flag links :
-  inl (FConcBIF1 [] :: fs, self, mb, links, flag) -⌈ ASelf ι ⌉-> inl (fs, EPid ι, mb, links, flag)
+  inl (FBIF1 [] :: fs, self, mb, links, flag) -⌈ ASelf ι ⌉-> inl (fs, EPid ι, mb, links, flag)
 
 (********** SPAWN **********)
 (* spawn *)
 | p_spawn ι fs mb vl e l flag links :
   Some (length vl) = len l -> VALCLOSED l ->
-  inl (FConcBIF2 spawn [] [(EFun vl e)] :: fs, l, mb, links, flag) 
+  inl (FBIF2 spawn [] [(EFun vl e)] :: fs, l, mb, links, flag) 
     -⌈ASpawn ι (EFun vl e) l⌉-> inl (fs, EPid ι, mb, links, flag)
 
 (********** RECEVIE **********)
@@ -211,7 +211,7 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 (* Replace process flags *)
 | p_set_flag fs mb flag y v links :
   Some y = bool_from_lit v ->
-  inl (FConcBIF2 process_flag [] [trap_exit] :: fs, v, mb, links, flag) 
+  inl (FBIF2 process_flag [] [trap_exit] :: fs, v, mb, links, flag) 
    -⌈ ASetFlag ⌉-> inl (fs, lit_from_bool flag, mb, links, y)
 
 (********** TERMINATION **********)
@@ -223,7 +223,7 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 (* exit with one parameter *)
 | p_exit_self fs v mb links flag :
   VALCLOSED v ->
-  inl (FConcBIF2 exit [] [] :: fs, v, mb, links, flag) -⌈ ATerminate ⌉->
+  inl (FBIF2 exit [] [] :: fs, v, mb, links, flag) -⌈ ATerminate ⌉->
   inr (map (fun e => (e, v)) links)
 
 where "p -⌈ a ⌉-> p'" := (processLocalSemantics p a p').

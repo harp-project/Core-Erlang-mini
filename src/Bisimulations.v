@@ -156,12 +156,12 @@ Qed.
 
 Goal forall ether, Node_equivalence (ether, 
                          0 : inl ([], ELet "X"%string (ELit 0%Z) (EVar 0), [], [], false) ||||
-                         1 : inl ([], EConcBIF (ELit "send"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
+                         1 : inl ([], EBIF (ELit "send"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
                          nullpool
                       )
                       (ether,
                         0 : inl ([], ELit 0%Z, [], [], false) ||||
-                        1 : inl ([], EConcBIF (ELit "send"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
+                        1 : inl ([], EBIF (ELit "send"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
                         nullpool
                       ).
 Proof.
