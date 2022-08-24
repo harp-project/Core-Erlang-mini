@@ -37,12 +37,11 @@ match e with
  | ELet v e1 e2 => ELet v (rename ρ e1) (rename (upren ρ) e2)
  | ELetRec f vl b e => ELetRec f vl (rename (uprenn (1 + length vl) ρ) b) 
                                     (rename (upren ρ) e)
- | EPlus e1 e2 => EPlus (rename ρ e1) (rename ρ e2)
  | ECase e1 p e2 e3 => ECase (rename ρ e1) p (rename (uprenn (pat_vars p) ρ) e2) (rename ρ e3)
  | ECons e1 e2 => ECons (rename ρ e1) (rename ρ e2)
  | ENil => e
  | VCons e1 e2 => VCons (rename ρ e1) (rename ρ e2)
- | EConcBIF e l => EConcBIF (rename ρ e) (map (rename ρ) l)
+ | EBIF e l => EBIF (rename ρ e) (map (rename ρ) l)
  | EReceive l => EReceive (map (fun '(p, v) => (p, rename (uprenn (pat_vars p) ρ) v)) l)
 end.
 
@@ -84,12 +83,11 @@ match base with
  | ELet v e1 e2 => ELet v (subst ξ e1) (subst (up_subst ξ) e2)
  | ELetRec f vl b e => ELetRec f vl (subst (upn (1 + length vl) ξ) b)
                                     (subst (up_subst ξ) e)
- | EPlus e1 e2 => EPlus (subst ξ e1) (subst ξ e2)
  | ECase e1 p e2 e3 => ECase (subst ξ e1) p (subst (upn (pat_vars p) ξ) e2) (subst ξ e3)
  | ECons e1 e2 => ECons (subst ξ e1) (subst ξ e2)
  | ENil => base
  | VCons e1 e2 => VCons (subst ξ e1) (subst ξ e2)
- | EConcBIF e l => EConcBIF (subst ξ e) (map (subst ξ) l)
+ | EBIF e l => EBIF (subst ξ e) (map (subst ξ) l)
  | EReceive l => EReceive (map (fun '(p, v) => (p, subst (upn (pat_vars p) ξ) v)) l)
 end.
 
@@ -170,7 +168,6 @@ Proof.
   * rewrite IHe. erewrite map_ext_Forall. reflexivity. auto.
   * rewrite IHe1. rewrite <- ren_up, IHe2. auto.
   * rewrite <- ren_up, <- renn_up, IHe1, IHe2, <- ren_up. auto.
-  * rewrite IHe1, IHe2. auto.
   * rewrite IHe1, IHe3, <- renn_up, IHe2. auto.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
@@ -274,7 +271,6 @@ Proof.
   * rewrite <- ren_up, IHe1, IHe2, upren_subst_up. auto.
   * rewrite <- renn_up, <- ren_up. rewrite IHe1, upren_subst_up, uprenn_subst_upn.
     rewrite <- ren_up, IHe2, upren_subst_up. auto.
-  * rewrite IHe1, IHe2. auto.
   * now rewrite IHe1, IHe3, <- renn_up, IHe2, uprenn_subst_upn.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
@@ -313,7 +309,6 @@ Proof.
   * erewrite IHe, map_map, map_ext_Forall. reflexivity. auto.
   * rewrite IHe1. do 2 fold_upn. rewrite IHe2. auto.
   * repeat fold_upn. rewrite IHe1, IHe2, uprenn_comp. auto.
-  * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2, IHe3, <- uprenn_comp.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
@@ -335,7 +330,6 @@ Proof.
   * now erewrite IHe, map_map, map_ext_Forall.
   * now rewrite IHe1, IHe2, upren_comp.
   * do 2 fold_upn. now rewrite IHe1, IHe2, uprenn_comp, upren_comp.
-  * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe3, rename_up.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
@@ -382,7 +376,6 @@ Proof.
   * do 2 fold_upn. rewrite <- renn_up, <- subst_upn_uprenn, IHe1.
     replace (up_subst (ξ >> ren σ)) with (up_subst ξ >> ren (upren σ)) by apply subst_up_upren. (* rewrite does not work here for some reason *)
     now rewrite <- IHe2, <- ren_up, <-subst_up_upren.
-  * now rewrite IHe1, IHe2.
   * now rewrite IHe1, <- renn_up, <- subst_upn_uprenn, IHe2, IHe3.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.
@@ -424,7 +417,6 @@ Proof.
   * now erewrite IHe, map_map, map_ext_Forall.
   * now rewrite IHe1, IHe2, up_comp.
   * do 3 fold_upn. now rewrite IHe1, IHe2, upn_comp, up_comp.
-  * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2, upn_comp, IHe3.
   * now rewrite IHe1, IHe2.
   * now rewrite IHe1, IHe2.

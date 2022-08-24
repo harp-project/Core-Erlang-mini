@@ -38,7 +38,6 @@ Inductive Exp : Set :=
 | ELet    (v : Var) (e1 e2 : Exp)
 | ELetRec (f : FunctionIdentifier) (vl : list Var) (b e : Exp)
 (** Techical helper constructions: 1) simple bif: plus, 2) simple case: if *)
-| EPlus   (e1 e2 : Exp)
 (** Eliminator *)
 | ECase (e : Exp) (p : Pat) (e1 e2 : Exp)
 (** Lists *)
@@ -48,7 +47,7 @@ Inductive Exp : Set :=
 | VCons (e1 e2 : Exp)
 (** Concurrency *)
 | EReceive (l : list (Pat * Exp))
-| EConcBIF (e : Exp) (l : list Exp).
+| EBIF (e : Exp) (l : list Exp).
 
 Section correct_exp_ind.
 
@@ -67,13 +66,11 @@ Section correct_exp_ind.
        -> P (ELet v e1 e2))
    (H7 : forall (f : FunctionIdentifier) (vl : list Var) (b : Exp), P b -> forall e : Exp, P e 
        -> P (ELetRec f vl b e))
-   (H8 : forall (e1 : Exp), P e1 -> forall e2 : Exp, P e2 
-       -> P (EPlus e1 e2))
    (H9 : forall (e1 : Exp), P e1 ->  forall e2, P e2 -> forall e3, P e3 -> forall p, P (ECase e1 p e2 e3))
    (H10 : forall e1, P e1 -> forall e2, P e2 -> P (ECons e1 e2))
    (H11 : P ENil)
    (H12 : forall e1, P e1 -> forall e2, P e2 -> P (VCons e1 e2))
-   (H13 : forall e1, P e1 -> forall l, Q l -> P (EConcBIF e1 l))
+   (H13 : forall e1, P e1 -> forall l, Q l -> P (EBIF e1 l))
    (H14 : forall l, W l -> P (EReceive l))
    (H1' : Q [])
    (H'  : forall e, P e -> forall l, Q l -> Q (e :: l))
@@ -94,12 +91,11 @@ Section correct_exp_ind.
                                          end) el)
   | ELet v e1 e2 => H6 v e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ELetRec f vl b e => H7 f vl b (Exp_ind2 b) e (Exp_ind2 e)
-  | EPlus e1 e2 => H8 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ECase e p e1 e2 => H9 e (Exp_ind2 e) e1 (Exp_ind2 e1) e2 (Exp_ind2 e2) p
   | ECons e1 e2 => H10 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ENil => H11
   | VCons e1 e2 => H12 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
-  | EConcBIF e l => H13 e (Exp_ind2 e) l ((fix l_ind (l':list Exp) : Q l' :=
+  | EBIF e l => H13 e (Exp_ind2 e) l ((fix l_ind (l':list Exp) : Q l' :=
                                          match l' as x return Q x with
                                          | [] => H1'
                                          | v::xs => H' v (Exp_ind2 v) xs (l_ind xs)
@@ -125,13 +121,13 @@ Definition ZVar : Var := "Z"%string.
 Definition F0 : FunctionIdentifier := ("f"%string, 0).
 Definition F1 : FunctionIdentifier := ("f"%string, 1).
 
-Definition inc (n : Z) := ELet XVar (ELit n) (EPlus (EVar 0) (ELit 1%Z)).
+Definition inc (n : Z) := ELet XVar (ELit n) (EBIF (ELit "+"%string) [EVar 0; ELit 1%Z]).
 Definition sum (n : Z) := ELetRec F1 [XVar] (ECase (EVar 1) (PLit 0%Z) (EVar 1) (
-                                            (EPlus (EVar 1)
-                                            (EApp (EFunId 0) [EPlus (EVar 1) (ELit ((-1)%Z))]))))
+                                            (EBIF (ELit "+"%string) [EVar 1;
+                                            EApp (EFunId 0) [EBIF (ELit "+"%string) [EVar 1; ELit ((-1)%Z)]]])))
                         (EApp (EFunId 0) [ELit n]).
 Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar 0) []).
-Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EPlus (EVar 1) (EVar 2))) [ELit n; ELit m].
+Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EBIF (ELit "+"%string) [EVar 1; EVar 2])) [ELit n; ELit m].
 
 
 (** Names, equalities *)

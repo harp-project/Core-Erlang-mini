@@ -22,10 +22,6 @@ Inductive ExpScoped (Γ : nat) : Exp -> Prop :=
   EXP (S (length vl) + Γ) ⊢ b -> EXP (S Γ) ⊢ e
 ->
   EXP Γ ⊢ ELetRec f vl b e
-| scoped_plus e1 e2 :
-  EXP Γ ⊢ e1 -> EXP Γ ⊢ e2
-->
-  EXP Γ ⊢ EPlus e1 e2
 | scoped_case e1 e2 e3 p :
   EXP Γ ⊢ e1 -> EXP pat_vars p + Γ ⊢ e2 -> EXP Γ ⊢ e3
 ->
@@ -38,7 +34,7 @@ Inductive ExpScoped (Γ : nat) : Exp -> Prop :=
   EXP Γ ⊢ exp ->
   (forall i, i < length exps -> EXP Γ ⊢ nth i exps (ELit 0%Z))
 ->
-  EXP Γ ⊢ EConcBIF exp exps
+  EXP Γ ⊢ EBIF exp exps
 | scoped_receive l :
   (forall i, i < length l -> EXP (nth i (map (fst >>> pat_vars) l) 0) + Γ ⊢ nth i (map snd l) (ELit 0%Z))
 ->
@@ -138,7 +134,6 @@ Proof.
   * simpl. rewrite H; auto. rewrite H0; auto.
   * simpl. rewrite H, H0; auto.
     apply subst_preserves_up, subst_preserves_upn. auto.
-  * simpl. rewrite H, H0; auto.
   * simpl. rewrite H, H0, H1; auto.
   * simpl. rewrite H, H0; auto.
   * simpl. rewrite H; auto. erewrite scoped_ignores_sub_helper; eauto.
@@ -313,9 +308,6 @@ Proof.
   * subst. constructor.
     - eapply IHe1; eauto. intros. eapply upren_scope; eauto.
     - eapply IHe2; eauto. intros. eapply upren_scope; eauto.
-  * subst. constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
   * subst. constructor.
     - eapply IHe1; eauto.
     - eapply IHe2; eauto. intros. eapply uprenn_scope; eauto.
@@ -517,9 +509,6 @@ Proof.
     - eapply IHe2; eauto. apply up_scope. auto.
   * constructor.
     - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
-  * constructor.
-    - eapply IHe1; eauto.
     - eapply IHe2; eauto. apply upn_scope. auto.
     - eapply IHe3; eauto.
   * constructor.
@@ -666,10 +655,6 @@ Module SUB_IMPLIES_SCOPE.
         rewrite upn_magic in H2. exact H2.
       - eapply IHe2; eauto.
         rewrite up_magic in H5. exact H5.
-    * inversion H.
-    * inversion H. 2: inversion H0. constructor.
-      - eapply IHe1; eauto.
-      - eapply IHe2; eauto.
     * inversion H.
     * inversion H. 2: inversion H0. constructor.
       - eapply IHe1; eauto.
@@ -822,8 +807,7 @@ Module SUB_IMPLIES_SCOPE.
       replace (S (Datatypes.length vl + Γ')) with (Datatypes.length vl + S Γ') by lia.
       rewrite H; auto. rewrite up_magic, up_magic_2, H1 in *; auto.
       rewrite upn_magic_2, up_magic_2 in H6. now rewrite <- Nat.add_succ_comm.
-    * specialize (IHe1 Γ'). specialize (IHe2 Γ'). destruct IHe1, IHe2.
-      split; intros; inversion H3; subst. 2: inversion H4. now rewrite H, H1.
+
     * rewrite upn_magic, upn_magic_2.
       specialize (IHe1 Γ'). specialize (IHe2 (pat_vars p + Γ')). specialize (IHe3 Γ').
       destruct IHe1, IHe2, IHe3.
@@ -956,38 +940,32 @@ Inductive Frame : Set :=
 | FApp1 (l : list Exp) (* apply □(e₁, e₂, ..., eₙ) *)
 | FApp2 (v : Exp) (l1 l2 : list Exp) (* apply v(v₁, v₂, ... vᵢ₋₁, □, eᵢ₊₁, ..., eₙ) *)
 | FLet (v : Var) (e2 : Exp) (* let v = □ in e2 *)
-| FPlus1 (e2 : Exp) (* □ + e2 *)
-| FPlus2 (v : Exp) (* (p : is_value v) *) (* v + □ *)
 | FCase (p : Pat) (e2 e3 : Exp) (* if □ then e2 else e3 *)
 | FCons1 (e1 : Exp) (* [e1 | □] *)
 | FCons2 (v2 : Exp) (* [□ | v2] *)
-| FConcBIF1 (l : list Exp) (* call □(e₁, e₂, ..., eₙ) *)
-| FConcBIF2 (v : Exp) (l1 l2 : list Exp) (* call v(v₁, v₂, ... vᵢ₋₁, □, eᵢ₊₁, ..., eₙ) *).
+| FBIF1 (l : list Exp) (* call □(e₁, e₂, ..., eₙ) *)
+| FBIF2 (v : Exp) (l1 l2 : list Exp) (* call v(v₁, v₂, ... vᵢ₋₁, □, eᵢ₊₁, ..., eₙ) *).
 
 Inductive frame_wf : Frame -> Prop :=
 | wf_app1 l : frame_wf (FApp1 l)
 | wf_app2 vl b l1 l2 :  Forall (fun v => VALCLOSED v) l2 -> frame_wf (FApp2 (EFun vl b) l1 l2)
 | wf_let v e : frame_wf (FLet v e)
-| wf_plus1 e : frame_wf (FPlus1 e)
-| wf_plus2 v : VALCLOSED v -> frame_wf (FPlus2 v)
 | wf_if p e2 e3 : frame_wf (FCase p e2 e3)
 | wf_cons1 e : frame_wf (FCons1 e)
 | wf_cons2 v : VALCLOSED v -> frame_wf (FCons2 v)
-| wf_bif1 l : frame_wf (FConcBIF1 l)
-| wf_bif2 vl b l1 l2 :  Forall (fun v => VALCLOSED v) l2 -> frame_wf (FConcBIF2 (EFun vl b) l1 l2).
+| wf_bif1 l : frame_wf (FBIF1 l)
+| wf_bif2 vl b l1 l2 :  Forall (fun v => VALCLOSED v) l2 -> frame_wf (FBIF2 (EFun vl b) l1 l2).
 
 Definition plug_f (F : Frame) (e : Exp) : Exp :=
 match F with
  | FApp1 l => EApp e l
  | FApp2 v l1 l2 => EApp v (l2 ++ [e] ++ l1)
  | FLet v e2 => ELet v e e2
- | FPlus1 e2 => EPlus e e2
- | FPlus2 v => EPlus v e
  | FCase p e2 e3 => ECase e p e2 e3
  | FCons1 e1 => ECons e1 e
  | FCons2 v2 => ECons e v2
- | FConcBIF1 l => EConcBIF e l
- | FConcBIF2 v l1 l2 => EConcBIF v (l2 ++ [e] ++ l1)
+ | FBIF1 l => EBIF e l
+ | FBIF2 v l1 l2 => EBIF v (l2 ++ [e] ++ l1)
 end.
 
 Definition FrameStack := list Frame.
@@ -1005,14 +983,6 @@ Inductive FCLOSED : Frame -> Prop :=
   EXP 1 ⊢ e2
 ->
   FCLOSED (FLet v e2)
-| fclosed_plus1 e2:
-  EXPCLOSED e2
-->
-  FCLOSED (FPlus1 e2)
-| fclosed_plus2 v1:
-  VALCLOSED v1
-->
-  FCLOSED (FPlus2 v1)
 | fclosed_if e2 e3 p:
   EXP pat_vars p ⊢ e2 -> EXPCLOSED e3
 ->
@@ -1028,11 +998,11 @@ Inductive FCLOSED : Frame -> Prop :=
 | fclosed_bif1 l:
   Forall (fun e => EXPCLOSED e) l
 ->
-  FCLOSED (FConcBIF1 l)
+  FCLOSED (FBIF1 l)
 | fclosed_bif2 v l1 l2:
   VALCLOSED v -> Forall (fun e => EXPCLOSED e) l1 -> Forall (fun e => VALCLOSED e) l2
 ->
-  FCLOSED (FConcBIF2 v l1 l2).
+  FCLOSED (FBIF2 v l1 l2).
 
 Definition FSCLOSED (fs : FrameStack) := Forall FCLOSED fs.
 
@@ -1091,13 +1061,12 @@ Ltac inversion_is_value :=
 match goal with
 | [ H: VAL _ ⊢ (ELet _ _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (ELetRec _ _ _ _) |- _ ] => inversion H
-| [ H: VAL _ ⊢ (EPlus _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (ECase _ _ _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EApp _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EVar _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EFunId _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (ECons _ _) |- _ ] => inversion H
-| [ H: VAL _ ⊢ (EConcBIF _ _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (EBIF _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EReceive _) |- _ ] => inversion H
 end.
 
@@ -1151,11 +1120,6 @@ Proof.
       + split; right; intro; inversion H1. congruence. inversion_is_value.
     - split; right; intro; inversion H0. congruence. inversion_is_value.
   * destruct (IHe1 Γ) as [[P1 | P2] ?].
-    - destruct (IHe2 Γ) as [[P1' | P2'] ?].
-      + split. left. constructor; auto. right. intro. inversion_is_value.
-      + split; right; intro; inversion H1. congruence. inversion_is_value.
-    - split; right; intro; inversion H0. congruence. inversion_is_value.
-  * destruct (IHe1 Γ) as [[P1 | P2] ?].
     - destruct (IHe2 (pat_vars p + Γ)) as [[P1' | P2'] ?].
       + destruct (IHe3 Γ) as [[P1'' | P2''] ?].
         ** split. left. constructor; auto. right. intro. inversion_is_value.
@@ -1189,7 +1153,7 @@ Proof.
            -- right. intro. inversion_is_value.
         ** split.
            -- right. intro.
-              assert (EXP Γ ⊢ EConcBIF e l).
+              assert (EXP Γ ⊢ EBIF e l).
               { constructor; auto. inversion H4. 2: inversion_is_value.
                 intros. apply (H8 (S i)). simpl. lia. }
               congruence.
