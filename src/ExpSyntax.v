@@ -129,6 +129,14 @@ Definition sum (n : Z) := ELetRec F1 [XVar] (ECase (EVar 1) (PLit 0%Z) (EVar 1) 
 Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar 0) []).
 Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EBIF (ELit "+"%string) [EVar 1; EVar 2])) [ELit n; ELit m].
 
+Definition obj_map f e : Exp :=
+  ELetRec F1 [XVar]
+    (ECase (EVar 1)
+      (PCons PVar PVar) (ECons (EApp f [EVar 0])
+                               (EApp (EFunId 2) [EVar 1]))
+                        ENil
+    )
+    (EApp (EFunId 0) [e]).
 
 (** Names, equalities *)
 

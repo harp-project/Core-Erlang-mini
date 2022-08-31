@@ -164,6 +164,95 @@ Proof.
   repeat econstructor.
 Qed.
 
+Local Goal
+   ⟨[], obj_map (EFun [YVar] (EBIF (ELit "+"%string) [EVar 1; ELit 1]))
+                (ECons (ELit 0) (ECons (ELit 1) (ECons (ELit 2) ENil)))⟩ -->*
+   VCons (ELit 1) (VCons (ELit 2) (VCons (ELit 3) ENil)).
+Proof.
+  split; auto. exists 60%nat.
+  econstructor. constructor. simpl.
+  econstructor. constructor. simpl.
+  econstructor. constructor. { constructor. cbn. repeat constructor.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in H; try lia.
+                               all: simpl; auto; constructor; lia. }
+  do 10 (econstructor; auto).
+  (** first element *)
+  constructor; auto. cbn.
+  econstructor. apply step_case; auto.
+  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. apply step_cons. auto. cbn.
+  econstructor. apply step_app.
+  econstructor. constructor. { constructor. cbn. repeat constructor.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in H; try lia.
+                               all: simpl; auto; constructor; lia. }
+  (** second element *)
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_case; auto.
+  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. apply step_cons. auto. cbn.
+  econstructor. apply step_app.
+  econstructor. constructor. { constructor. cbn. repeat constructor.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in H; try lia.
+                               all: simpl; auto; constructor; lia. }
+  (** third element *)
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_case; auto.
+  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. apply step_cons. auto. cbn.
+  econstructor. apply step_app.
+  econstructor. constructor. { constructor. cbn. repeat constructor.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in H; try lia.
+                               all: simpl; auto; constructor; lia. }
+  (** end *)
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_case; auto.
+  econstructor. apply red_case_false; auto.
+  (** apply function to list elements *)
+  econstructor. constructor; auto.
+  econstructor. apply step_app; auto.
+  econstructor. constructor; auto. { constructor. cbn. repeat constructor.
+                                     destruct i.
+                                     2: try destruct i. all: simpl in *;
+                                        try lia; constructor; lia. }
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_bif; auto.
+  econstructor. constructor; auto.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto.
+  (** apply function to list elements *)
+  econstructor. constructor; auto.
+  econstructor. apply step_app; auto.
+  econstructor. constructor; auto. { constructor. cbn. repeat constructor.
+                                     destruct i.
+                                     2: try destruct i. all: simpl in *;
+                                        try lia; constructor; lia. }
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_bif; auto.
+  econstructor. constructor; auto.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto.
+  (** apply function to list elements *)
+  econstructor. constructor; auto.
+  econstructor. apply step_app; auto.
+  econstructor. constructor; auto. { constructor. cbn. repeat constructor.
+                                     destruct i.
+                                     2: try destruct i. all: simpl in *;
+                                        try lia; constructor; lia. }
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_bif; auto.
+  econstructor. constructor; auto.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto.
+  constructor.
+Qed.
+
 Ltac proof_irr :=
 match goal with
 | [H1 : ?P, H2 : ?P |- _] => assert (H1 = H2) by apply proof_irrelevance; subst
