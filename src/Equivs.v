@@ -173,8 +173,7 @@ Proof.
     eexists. apply term_app_in_k.
     - shelve.
     - now rewrite map_length.
-    - eapply Forall_map; auto. eapply Forall_impl. 2: exact H1. intros.
-      now apply vclosed_sub_closed.
+    - eapply Forall_map; auto. (* eapply Forall_impl. 2: exact H1. intros.    now apply vclosed_sub_closed. *)
     - repeat rewrite renaming_is_subst, subst_comp, subst_comp in *.
       fold_upn. fold_list_subst.
       replace (fun n => S (length vl + n)) with (fun n => S (length vl) + n) by auto.

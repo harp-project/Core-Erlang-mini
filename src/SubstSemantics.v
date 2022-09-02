@@ -176,9 +176,19 @@ Proof.
                                all: destruct i.
                                all: try destruct i. all: simpl in H; try lia.
                                all: simpl; auto; constructor; lia. }
-  do 10 (econstructor; auto).
+  (** evaluate list *)
+  econstructor. apply step_cons; auto.
+  econstructor. apply step_cons; auto.
+  econstructor. apply step_cons; auto.
+  econstructor. apply red_cons1; auto.
+  econstructor. apply red_cons2; auto.
+  econstructor. apply red_cons1; auto.
+  econstructor. apply red_cons2; auto.
+  econstructor. apply red_cons1; auto.
+  econstructor. apply red_cons2; auto.
+
   (** first element *)
-  constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
   econstructor. constructor; auto. reflexivity. cbn.
   econstructor. apply step_cons. auto. cbn.
