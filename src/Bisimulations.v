@@ -10,30 +10,10 @@ Theorem eq_is_strong_bisim :
 Proof.
   split; intros.
   {
-    subst. induction H0.
-    * eexists. split. 2: reflexivity.
-      eapply n_send; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_arrive; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_other; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_spawn; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_terminate.
+    subst. eexists. split. exact H0. auto.
   }
   {
-    subst. induction H0.
-    * eexists. split. 2: reflexivity.
-      eapply n_send; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_arrive; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_other; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_spawn; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_terminate.
+    subst. eexists. split. exact H0. auto.
   }
 Qed.
 
