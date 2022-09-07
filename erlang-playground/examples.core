@@ -1,0 +1,51 @@
+module 'examples' ['signal_ordering'/0,
+        'signal_ordering_2'/0,
+        'signal_ordering_3'/0,
+        'signal_ordering_4'/0,
+        'test_1'/0,
+        'test_2'/0,
+        'test_3'/0,
+        'test_4'/0,
+        'test_5'/0,
+        'test_6'/0,
+        'test_7'/0,
+        'test_8'/0,
+        'test_9'/0,
+		    'module_info'/0,
+		    'module_info'/1]
+    attributes [%% Line 1
+		'file' =
+		    %% Line 1
+		    [{[101|[120|[97|[109|[112|[108|[101|[115|[46|[101|[114|[108]]]]]]]]]]]],1}],
+		%% Line 2
+  	'compile' =
+		    %% Line 2
+		    ['export_all']]
+'module_info'/0 =
+    fun () ->
+	call 'erlang':'get_module_info'
+	    ('examples')
+'module_info'/1 =
+    fun (_0) ->
+	call 'erlang':'get_module_info'
+	    ('examples', _0)
+
+'signal_ordering'/0 = fun () -> 0
+
+'signal_ordering_2'/0 = fun () -> 0
+
+'signal_ordering_3'/0 = fun () -> 0
+
+'signal_ordering_4'/0 = fun () -> 0
+
+'test_1'/0 = fun () -> 0
+'test_2'/0 = fun () -> 0
+'test_3'/0 = fun () -> 0
+'test_4'/0 = fun () -> 0
+'test_5'/0 = fun () -> 0
+'test_6'/0 = fun () -> 0
+'test_7'/0 = fun () -> 0
+'test_8'/0 = fun () -> 0
+'test_9'/0 = fun () -> 0
+
+end
