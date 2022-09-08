@@ -166,21 +166,21 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 (********** SIGNAL SENDING **********)
 (* message send *)
 | p_send ι v mb fs flag links source : VALCLOSED v ->
-  inl (FConcBIF2 send [] [EPid ι] :: fs, v, mb, links, flag)
+  inl (FBIF2 send [] [EPid ι] :: fs, v, mb, links, flag)
   -⌈ ASend source ι (Message v) ⌉-> inl (fs, v, mb, links, flag)
 (* exit, 2 parameters *)
 | p_exit fs v mb flag ι selfι links :
   VALCLOSED v ->
-  inl (FConcBIF2 exit [] [EPid ι] :: fs, v, mb, links, flag) -⌈ ASend selfι ι (Exit v false) ⌉->
+  inl (FBIF2 exit [] [EPid ι] :: fs, v, mb, links, flag) -⌈ ASend selfι ι (Exit v false) ⌉->
   inl (fs, tt, mb, links, flag)
 (* link *)
 | p_link fs ι mb flag links selfι :
-  inl (FConcBIF2 link [] [] :: fs, EPid ι, mb, links, flag) 
+  inl (FBIF2 link [] [] :: fs, EPid ι, mb, links, flag) 
   -⌈ASend selfι ι Link⌉->
   inl (fs, ok, mb, ι :: links, flag)
 (* unlink *)
 | p_unlink fs ι mb flag links selfι :
-  inl (FConcBIF2 unlink [] [] :: fs, EPid ι, mb, links, flag) 
+  inl (FBIF2 unlink [] [] :: fs, EPid ι, mb, links, flag) 
   -⌈ASend selfι ι Unlink⌉->
   inl (fs, ok, mb, remove Nat.eq_dec ι links, flag)
 (* DEAD PROCESSES *)
@@ -191,13 +191,13 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 (********** SELF **********)
 (* self *)
 | p_self ι fs mb flag links :
-  inl (FConcBIF1 [] :: fs, self, mb, links, flag) -⌈ ASelf ι ⌉-> inl (fs, EPid ι, mb, links, flag)
+  inl (FBIF1 [] :: fs, self, mb, links, flag) -⌈ ASelf ι ⌉-> inl (fs, EPid ι, mb, links, flag)
 
 (********** SPAWN **********)
 (* spawn *)
 | p_spawn ι fs mb vl e l flag links :
   Some (length vl) = len l -> VALCLOSED l ->
-  inl (FConcBIF2 spawn [] [(EFun vl e)] :: fs, l, mb, links, flag) 
+  inl (FBIF2 spawn [] [(EFun vl e)] :: fs, l, mb, links, flag) 
     -⌈ASpawn ι (EFun vl e) l⌉-> inl (fs, EPid ι, mb, links, flag)
 
 (********** RECEVIE **********)
@@ -211,7 +211,7 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 (* Replace process flags *)
 | p_set_flag fs mb flag y v links :
   Some y = bool_from_lit v ->
-  inl (FConcBIF2 process_flag [] [trap_exit] :: fs, v, mb, links, flag) 
+  inl (FBIF2 process_flag [] [trap_exit] :: fs, v, mb, links, flag) 
    -⌈ ASetFlag ⌉-> inl (fs, lit_from_bool flag, mb, links, y)
 
 (********** TERMINATION **********)
@@ -223,7 +223,7 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 (* exit with one parameter *)
 | p_exit_self fs v mb links flag :
   VALCLOSED v ->
-  inl (FConcBIF2 exit [] [] :: fs, v, mb, links, flag) -⌈ ATerminate ⌉->
+  inl (FBIF2 exit [] [] :: fs, v, mb, links, flag) -⌈ ATerminate ⌉->
   inr (map (fun e => (e, v)) links)
 
 where "p -⌈ a ⌉-> p'" := (processLocalSemantics p a p').
@@ -246,11 +246,12 @@ Definition update {T : Type} (pid : PID) (p : T) (n : PID -> T) : PID -> T :=
 
 (** This representation assures that messages sent from the same process,
     are delivered in the same order *)
-Definition Ether : Set := PID -> list (PID * Signal).
-Definition etherPop (source : PID) (n : Ether) : option ((PID * Signal) * Ether) :=
-match n source with
+Definition Ether : Set := PID -> PID -> list Signal.
+Definition etherPop (source dest : PID) (n : Ether) :
+  option (Signal * Ether) :=
+match n source dest with
 | [] => None
-| x::xs => Some (x, update source xs n)
+| x::xs => Some (x, update source (update dest xs (n source)) n)
 end.
 
 Definition ProcessPool : Set := (PID -> option Process).
@@ -278,8 +279,8 @@ Proof.
   subst. break_match_goal; auto.
   apply Nat.eqb_eq in Heqb0. apply Nat.eqb_eq in Heqb. congruence.
 Qed.
-Corollary par_swap :  forall T ι ι' (p p' : T) Π, ι <> ι' ->
-   ι : p |||| ι' : p' |||| Π = ι' : p' |||| ι : p |||| Π.
+Corollary par_swap :  forall ι ι' (p p' : (option Process)) Π, ι <> ι' ->
+   @update (option Process) ι p (update ι' p' Π) = update ι' p' (update ι p Π).
 Proof.
   intros. now apply update_swap.
 Qed.
@@ -289,8 +290,8 @@ Proof.
   unfold update. break_match_goal; auto.
 Qed.
 
-Definition etherAdd (source : PID) (m : PID * Signal) (n : Ether) : Ether :=
-  update source (n source ++ [m]) n.
+Definition etherAdd (source dest : PID) (m : Signal) (n : Ether) : Ether :=
+  update source (update dest (n source dest ++ [m]) (n source) ) n.
 
 Theorem update_noop :
   forall T x (xval : T) n, n x = xval -> update x xval n = n.
@@ -302,60 +303,88 @@ Proof.
 Qed.
 
 Lemma etherPop_greater :
-  forall ι ether t ι' ether', etherPop ι ether = Some (ι', t, ether') ->
-  forall ι'' t', etherPop ι (etherAdd ι'' t' ether) = Some (ι', t, etherAdd ι'' t' ether').
+  forall ι ether s ι' ether', etherPop ι ι' ether = Some (s, ether') ->
+  forall ι'' ι''' s', etherPop ι ι' (etherAdd ι'' ι''' s' ether) = Some (s, etherAdd ι'' ι''' s' ether').
 Proof.
   intros. unfold etherPop, etherAdd, update in *.
   destruct (Nat.eqb ι'' ι) eqn:Eq1; eqb_to_eq; subst.
-  * break_match_hyp; simpl. congruence.
-    inversion H. subst.
-    do 3 f_equal. extensionality ι0.
-    break_match_goal; eqb_to_eq; subst; auto. now rewrite Nat.eqb_refl.
-  * break_match_goal; inversion H; subst.
-    do 3 f_equal.
-    extensionality ι0. do 2 break_match_goal; eqb_to_eq; subst; auto.
-    now rewrite Nat.eqb_refl.
-    apply Nat.eqb_neq in Heqb. now rewrite Heqb.
+  * break_match_hyp; eqb_to_eq; subst; simpl. congruence.
+    inversion H.
+    break_match_goal.
+    - break_match_hyp.
+      destruct (ether ι ι'''); simpl in Heql0; inversion Heql0.
+      inversion Heql0.
+    - break_match_hyp; eqb_to_eq; subst.
+      + rewrite Heql in Heql0. simpl in Heql0. inversion Heql0.
+        do 3 f_equal.
+        extensionality ι0. break_match_goal; eqb_to_eq; subst; auto.
+        extensionality ι0'. break_match_goal; eqb_to_eq; subst; auto.
+        now do 2 rewrite Nat.eqb_refl.
+        rewrite Nat.eqb_refl. apply Nat.eqb_neq in Heqb. now rewrite Heqb.
+      + inversion Heql0.
+        do 3 f_equal.
+        extensionality ι0. break_match_goal; eqb_to_eq; subst; auto.
+        extensionality ι0'. break_match_goal; eqb_to_eq; subst; auto.
+        do 2 rewrite Nat.eqb_refl. apply Nat.eqb_neq in Heqb. now rewrite Heqb.
+        rewrite Nat.eqb_refl. apply not_eq_sym in Heqb.
+        apply Nat.eqb_neq in Heqb. rewrite Heqb.
+        apply Nat.eqb_neq in Heqb0. now rewrite Heqb0.
+  * break_match_hyp; eqb_to_eq; subst; simpl. congruence.
+    inversion H.
+    break_match_goal.
+    - do 3 f_equal.
+      extensionality ι0. break_match_goal; eqb_to_eq; subst; auto.
+      congruence. congruence.
+    - do 3 f_equal.
+      extensionality ι0. break_match_goal; eqb_to_eq; subst; auto.
+      extensionality ι0'. break_match_goal; eqb_to_eq; subst; auto.
+      apply not_eq_sym in Heqb.
+      apply Nat.eqb_neq in Heqb. rewrite Heqb. now rewrite Nat.eqb_refl.
+      apply not_eq_sym in Heqb.
+      apply Nat.eqb_neq in Heqb. rewrite Heqb.
+      apply Nat.eqb_neq in Heqb0. now rewrite Heqb0.
 Qed.
 
 Reserved Notation "n -[ a | ι ]ₙ-> n'" (at level 50).
 Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
-(* sending any signal *)
+(** sending any signal *)
 | n_send p p' ether prs (ι ι' : PID) t :
   p -⌈ASend ι ι' t⌉-> p'
 ->
-  (ether, ι : p |||| prs) -[ASend ι ι' t | ι]ₙ->  (etherAdd ι (ι', t) ether, ι : p' |||| prs)
+  (ether, ι : p |||| prs) -[ASend ι ι' t | ι]ₙ->  (etherAdd ι ι' t ether, ι : p' |||| prs)
 
 (** This leads to the loss of determinism: *)
-(* arrial of any signal *)
+(** arrial of any signal *)
 | n_arrive ι ι0 p p' ether ether' prs t:
-  etherPop ι0 ether = Some ((ι, t), ether') ->
+  etherPop ι0 ι ether = Some (t, ether') ->
   p -⌈AArrive ι0 ι t⌉-> p' ->
   (ether, ι : p |||| prs) -[AArrive ι0 ι t | ι]ₙ-> (ether',
                                             ι : p' |||| prs)
+
 (* TODO: link sent to non-existing process triggers exit, messages should be discarded when sent to non-existing process *)
 
 
-(* internal actions *)
+(** internal actions *)
 | n_other p p' a Π (ι : PID) ether:
   p -⌈a⌉-> p' ->
   (a = AInternal \/ a = ASelf ι \/ (exists t, a = AReceive t) \/ a = ATerminate \/ a = ASetFlag)
 ->
    (ether, ι : p |||| Π) -[a| ι]ₙ-> (ether, ι : p' |||| Π)
 
-(* spawning processes *)
+(** spawning processes *)
 | n_spawn Π p p' v1 v2 l ι ι' ether:
   mk_list v2 = Some l -> (ι : p |||| Π) ι' = None ->
   p -⌈ASpawn ι' v1 v2⌉-> p'
 ->
   (ether, ι : p |||| Π) -[ASpawn ι' v1 v2 | ι]ₙ-> (ether, ι' : inl ([], EApp v1 l, [], [], false) |||| ι : p' |||| Π)
 
-(* Process termination, no more notifyable links *)
+(** Process termination, no more notifyable links *)
 | n_terminate ether ι Π :
   (ether, ι : inr [] |||| Π) -[ATerminate | ι]ₙ-> (ether, Π -- ι)
 
 where "n -[ a | ι ]ₙ-> n'" := (nodeSemantics n a ι n').
 
+(** Refexive, transitive closure, with action logs: *)
 Reserved Notation "n -[ k | l ]ₙ->* n'" (at level 50).
 Inductive closureNodeSem : Node -> nat -> list (Action * PID) -> Node -> Prop :=
 | n_refl n (* n'  *): (* Permutation n n' -> *) n -[ 0 | [] ]ₙ->* n (* ' *)

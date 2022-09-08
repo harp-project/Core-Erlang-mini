@@ -126,7 +126,8 @@ Lemma internal_equal :
 ->
   (a = AInternal /\ p'' = p') \/
   (exists t ι ι', a = AArrive ι ι' t
-   /\ exists p''', p' -⌈AArrive ι ι' t⌉-> p'''
+   /\ exists p''', p' -⌈AArrive ι ι' t⌉-> p''' /\
+   (p'' -⌈ AInternal ⌉-> p''' \/ p'' = p''')
   (*  /\ 
    match p'', t with
    | inl p'', Message t => p'' = (p.1.1.1.1, p.1.1.1.2, p.1.1.2 ++ [t], p.1.2, p.2)
@@ -139,22 +140,24 @@ Proof.
   all: try (inversion H2; subst; inversion_is_value); auto; try inversion_is_value.
   * eapply step_determinism in H2. 2: exact H9. destruct H2. subst. auto.
   * right. exists (Message v),source, dest. auto.
-    split; auto. eexists. constructor; auto.
+    split; auto. eexists. split. constructor; auto.
+    left. inversion H; subst. now constructor.
   * right. exists (Exit reason b),source,dest.
-    split; auto. eexists. constructor; auto.
+    split; auto. eexists. split. constructor; auto.
+    left. inversion H; subst. now constructor.
   * right. do 3 eexists. split. reflexivity.
     intuition; subst; eexists.
-    - apply p_exit_terminate. auto.
-    - apply p_exit_terminate. right. left. auto.
-    - apply p_exit_terminate. right. right. auto.
+    - split. apply p_exit_terminate. auto. now right.
+    - split. apply p_exit_terminate. right. left. auto. now right.
+    - split. apply p_exit_terminate. right. right. auto. now right.
   * right. do 3 eexists. split. reflexivity.
     intuition; subst; eexists.
-    - apply p_exit_convert. auto.
-    - apply p_exit_convert. auto.
+    - split. apply p_exit_convert. auto. left. constructor; auto.
+    - split. apply p_exit_convert. auto. left. constructor; auto.
   * right. do 3 eexists. split. reflexivity.
-    intuition; subst; eexists. constructor.
+    intuition; subst; eexists. split. constructor. do 2 constructor; auto.
   * right. do 3 eexists. split. reflexivity.
-    intuition; subst; eexists. constructor.
+    intuition; subst; eexists. split. constructor. do 2 constructor; auto.
   * apply bool_from_lit_val in H9. inversion H2; subst; inversion_is_value.
 Qed.
 
@@ -168,8 +171,8 @@ Lemma internal_det :
   forall n n' n'' ι a, n -[AInternal | ι]ₙ-> n' -> n -[a | ι]ₙ-> n''
 ->
   (a = AInternal /\ n''= n') \/ (exists t ι', a = AArrive ι' ι t /\
-                                 exists n''', n' -[AArrive ι' ι t | ι]ₙ-> n'''
-  
+                                 exists n''', n' -[AArrive ι' ι t | ι]ₙ-> n''' /\
+                                 (n'' -[AInternal | ι]ₙ-> n''' \/ n'' = n''')
                                 (* /\
                                  n'' = modifyMailbox ι ι t n /\
                                  exists n''', n' -[AArrive t | ι]ₙ-> n''' /\
@@ -186,7 +189,16 @@ Proof.
     destruct H8' as [[? ?] | [? [? [? [? [? ?]]]]]]; try congruence.
     inversion H3. subst. right.
     do 2 eexists. split. reflexivity.
-    eexists. econstructor; eauto.
+    eexists. split. econstructor; eauto.
+    apply H4.
+    inversion H9. Search update.
+    replace (x2 : p'0 |||| prs) with (x2 : p'0 |||| Π). 2: {
+      extensionality y. unfold update. break_match_goal; auto.
+      apply equal_f with y in H6. unfold update in H6. now rewrite Heqb in H6.
+    }
+    destruct H4 as [_ [? | ?]].
+    - left. now apply n_other.
+    - subst. now right.
   * inversion H9; subst. apply par_eq in H5; subst.
     apply internal_is_alive in H1 as H1'. destruct H1'. subst.
     eapply internal_equal in H7. 2: exact H1. destruct H7 as [[? ?] | [? [? [? [? [? ?]]]]]]; try congruence.
@@ -216,7 +228,7 @@ Lemma step_chain :
 Proof.
   intros n n' ι a IH. inversion IH; intros; subst.
   * inversion H4; subst.
-    - exists (etherAdd ι'0 (ι'1, t0) (etherAdd ι (ι', t) ether), ι'0 : p'0 |||| ι : p' |||| prs ).
+    - exists (etherAdd ι'0 ι'1 t0 (etherAdd ι ι' t ether), ι'0 : p'0 |||| ι : p' |||| prs ).
       replace (ι : p' |||| prs) with (ι'0 : p0 |||| ι : p' |||| prs) at 1.
       2: { extensionality ι1. unfold update in *. apply equal_f with ι1 in H2.
            break_match_goal; subst.
@@ -224,7 +236,7 @@ Proof.
            auto.
          }
       now constructor.
-    - exists (etherAdd ι (ι', t) ether'
+    - exists (etherAdd ι ι' t ether'
               , ι'0 : p'0 |||| ι : p' |||| prs ).
       replace (ι : p' |||| prs) with (ι'0 : p0 |||| ι : p' |||| prs) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H1.
@@ -234,7 +246,7 @@ Proof.
          }
       constructor. 2: auto.
       now apply etherPop_greater.
-    - exists (etherAdd ι (ι', t) ether, ι'0 : p'0 |||| ι : p' |||| prs).
+    - exists (etherAdd ι ι' t ether, ι'0 : p'0 |||| ι : p' |||| prs).
       replace (ι : p' |||| prs) with (ι'0 : p0 |||| ι : p' |||| prs) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H1.
            break_match_goal; subst.
@@ -242,7 +254,7 @@ Proof.
            auto.
          }
       now constructor.
-    - exists (etherAdd ι (ι', t) ether, 
+    - exists (etherAdd ι ι' t ether, 
               ι'1 : inl ([], EApp v1 l, [], [], false) |||| ι'0 : p'0 |||| ι : p' |||| prs).
       replace (ι : p' |||| prs) with (ι'0 : p0 |||| ι : p' |||| prs) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H1.
@@ -256,7 +268,7 @@ Proof.
       break_match_goal; subst.
       + congruence.
       + now rewrite H1 in H3.
-    - exists (etherAdd ι (ι', t) ether,
+    - exists (etherAdd ι ι' t ether,
                ι : p' |||| prs -- ι'0).
       replace (ι : p' |||| prs) with (ι'0 : inr [] |||| ι : p' |||| prs) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H2.
@@ -267,7 +279,7 @@ Proof.
       rewrite update_swap with (ι := ι); auto.
       constructor; auto.
   * inversion H5; subst.
-    - exists (etherAdd ι' (ι'0, t0) ether', ι' : p'0 |||| ι : p' |||| prs).
+    - exists (etherAdd ι' ι'0 t0 ether', ι' : p'0 |||| ι : p' |||| prs).
       replace (ι : p' |||| prs) with (ι' : p0 |||| ι : p' |||| prs) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H3.
            break_match_goal; subst.
@@ -275,13 +287,13 @@ Proof.
            auto.
          }
       now constructor.
-    - assert (exists ether'', etherPop ι2 ether'  = Some (ι', t0, ether''))
+    - assert (exists ether'', etherPop ι2 ι' ether'  = Some (t0, ether''))
                                  as [ether'' Eq].
       {
          unfold etherPop in H, H3. do 2 break_match_hyp. 1-3: congruence.
          inversion H. inversion H3. subst.
          unfold etherPop, update. destruct (ι1 =? ι2) eqn:Eq; eqb_to_eq; subst.
-         * rewrite Heql in Heql0. inversion Heql0. congruence.
+         * apply Nat.eqb_neq in H6. rewrite H6, Heql. eexists. reflexivity.
          * rewrite Heql. eexists. reflexivity.
       }
       exists (ether''
@@ -326,7 +338,7 @@ Proof.
       rewrite update_swap with (ι := ι); auto.
       constructor; auto.
   * inversion H5; subst.
-    - exists (etherAdd ι' (ι'0, t) ether, ι' : p'0 |||| ι : p' |||| Π).
+    - exists (etherAdd ι' ι'0 t ether, ι' : p'0 |||| ι : p' |||| Π).
       replace (ι : p' |||| Π) with (ι' : p0 |||| ι : p' |||| Π) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H3.
            break_match_goal; subst.
@@ -376,7 +388,7 @@ Proof.
       rewrite update_swap with (ι := ι); auto.
       constructor; auto.
   * inversion H6; subst.
-    - exists (etherAdd ι'0 (ι'1, t) ether, ι'0 : p'0 |||| 
+    - exists (etherAdd ι'0 ι'1 t ether, ι'0 : p'0 |||| 
                                         ι' : inl ([], EApp v1 l, [], [], false) |||| 
                                         ι : p' |||| Π).
       replace (ι' : inl ([], EApp v1 l, [], [], false) |||| ι : p' |||| Π) with 
@@ -433,7 +445,7 @@ Proof.
       break_match_hyp; eqb_to_eq; subst; try congruence; auto.
       unfold update in H0. break_match_hyp; congruence.
   * inversion H3; subst.
-    - exists (etherAdd ι' (ι'0, t) ether, ι' : p' |||| (Π -- ι)).
+    - exists (etherAdd ι' ι'0 t ether, ι' : p' |||| (Π -- ι)).
       replace (Π -- ι) with (ι' : p |||| (Π -- ι)) at 1.
       2: { extensionality x. unfold update in *. apply equal_f with x in H1.
            break_match_goal; subst.
@@ -501,7 +513,7 @@ Proof.
         split. 2: split. constructor.
         auto.
         split; auto.
-      + destruct H0' as [source [eq [n''' D]]]. subst.
+      + destruct H0' as [source [eq [n''' [D _]]]]. subst.
         inversion H1; subst.
         2: { intuition; try congruence. destruct H4; congruence. }
         specialize (IHSteps H5 _ _ _ D).
@@ -706,8 +718,16 @@ Proof.
         ** left. constructor. inversion H2; subst. auto.
         ** left. constructor. inversion H2; subst. now constructor. auto.
         ** left. constructor. inversion H2; subst. auto. auto.
-        ** inversion H2; subst. congruence.
-        ** inversion H2; subst. congruence.
+        ** inversion H2.
+        ** inversion H2.
+        ** inversion H2; subst. left. now do 2 constructor.
+        ** inversion H2; subst. left. now do 2 constructor.
+        ** inversion H2; subst. left. congruence.
+        ** inversion H2; subst. left. congruence.
+        ** inversion H2; subst. left. now do 2 constructor.
+        ** inversion H2; subst. left. now do 2 constructor.
+        ** inversion H2; subst. left. congruence.
+        ** inversion H2; subst. left. congruence.
       (* terminate process *)
       + inversion H2; subst. inversion H16; subst; intuition; subst; try congruence.
         all: now right.
@@ -715,9 +735,12 @@ Proof.
       + intuition. subst.
         all: inversion H16; subst; intuition; subst; try congruence.
         all: left; constructor; inversion H2; subst; auto.
-        constructor; auto.
-        congruence.
-        constructor; auto.
+        ** constructor; auto.
+        ** constructor; auto.
+        ** congruence.
+        ** constructor; auto.
+        ** congruence.
+        ** constructor; auto.
       + left. apply n_other.
         inversion H16; subst.
         ** inversion H2; subst. now constructor.
@@ -726,7 +749,10 @@ Proof.
         inversion H16; subst.
         ** inversion H2; subst. now constructor.
         ** auto.
-    - intuition; subst; try congruence. now inversion H3. now inversion H9.
+    - intuition; subst; try congruence. now inversion H3.
+      now inversion H3.
+      now inversion H3.
+      now inversion H3.
 Qed.
 
 Corollary chain_to_front_iff :
@@ -743,7 +769,7 @@ Proof.
     destruct (Nat.eq_dec ι0 ι).
     - subst.
       eapply internal_det in H1 as H2'. 2: exact H.
-      destruct H2' as [[? ?] | [t [ι' [? [n4 D1]]]]]; subst.
+      destruct H2' as [[? ?] | [t [ι' [? [n4 [D1 _]]]]]]; subst.
       + eapply internals_trans.
         exists l, k. split; eauto.
         exists [(AInternal, ι)], 1. split. repeat constructor.
@@ -768,3 +794,4 @@ Proof.
   Unshelve.
   ** intro. destruct a0; auto.
 Qed.
+

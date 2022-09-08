@@ -10,30 +10,10 @@ Theorem eq_is_strong_bisim :
 Proof.
   split; intros.
   {
-    subst. induction H0.
-    * eexists. split. 2: reflexivity.
-      eapply n_send; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_arrive; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_other; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_spawn; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_terminate.
+    subst. eexists. split. exact H0. auto.
   }
   {
-    subst. induction H0.
-    * eexists. split. 2: reflexivity.
-      eapply n_send; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_arrive; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_other; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_spawn; try eassumption.
-    * eexists. split. 2: reflexivity.
-      eapply n_terminate.
+    subst. eexists. split. exact H0. auto.
   }
 Qed.
 
@@ -156,12 +136,12 @@ Qed.
 
 Goal forall ether, Node_equivalence (ether, 
                          0 : inl ([], ELet "X"%string (ELit 0%Z) (EVar 0), [], [], false) ||||
-                         1 : inl ([], EConcBIF (ELit "send"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
+                         1 : inl ([], EBIF (ELit "send"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
                          nullpool
                       )
                       (ether,
                         0 : inl ([], ELit 0%Z, [], [], false) ||||
-                        1 : inl ([], EConcBIF (ELit "send"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
+                        1 : inl ([], EBIF (ELit "send"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
                         nullpool
                       ).
 Proof.
@@ -172,5 +152,41 @@ Proof.
     - eapply n_trans. do 3 constructor.
       eapply n_trans. do 4 constructor.
       simpl. apply n_refl.
+Qed.
+
+Lemma update_get :
+  forall T x (a : T) f, update x a f x = a.
+Proof.
+  intros. unfold update. now rewrite Nat.eqb_refl.
+Qed.
+
+Lemma any_step_is_not_bisimilar: exists n l,
+  ~weak_bisimulation (fun Π Σ => Π -[ n | l ]ₙ->* Σ).
+Proof.
+  exists 2, [(AInternal, 0); (AInternal, 0)]. intro. destruct H. clear H0.
+  remember (etherAdd 1 0 (Exit (ELit "kill"%string) false) (fun (_ _ : PID) => @nil Signal), 0 : inl ([], ELet "X"%string (ELit 0%Z) (EVar 0), [], [], false) |||| nullpool) as Π.
+  remember (etherAdd 1 0 (Exit (ELit "kill"%string) false) (fun (_ _ : PID) => @nil Signal), 0 : inl ([], ELit 0%Z, [], [], false) |||| nullpool) as Σ.
+  remember (fun (_ _ : PID) => @nil Signal, 0 : inr [] |||| nullpool) as Π'.
+  assert (Π -[ 2 | [(AInternal, 0); (AInternal, 0)] ]ₙ->* Σ) as D1. {
+    subst. econstructor.
+    constructor; auto. do 2 constructor.
+    econstructor. constructor; auto. do 3 constructor.
+    constructor.
+  }
+  assert (Π -[ AArrive 1 0 (Exit (ELit "kill"%string) false) | 0 ]ₙ-> Π') as D2. {
+    subst. constructor. cbn. unfold etherAdd, update. cbn.
+    do 2 f_equal. extensionality x. destruct x; auto.
+    destruct x; auto.
+    extensionality x. destruct x; auto.
+    replace [] with (map (fun x:PID => (x, killed)) []) by auto.
+    apply p_exit_terminate; auto.
+  }
+  specialize (H Π Σ Π' (AArrive 1 0 (Exit (ELit "kill"%string) false)) 0 ltac:(congruence) D1 D2).
+  destruct H as [Σ' [H_1 H_2]].
+  subst. clear D2 D1.
+  inversion H_2; subst.
+  inversion H5; subst. clear H7.
+  apply equal_f with 0 in H0. inversion H0; subst.
+  inversion H1.
 Qed.
 

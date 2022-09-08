@@ -83,7 +83,7 @@ Proof.
   f_equal. f_equal.
 
   cbn. break_match_goal. 2: auto.
-  
+
   f_equal. f_equal.
   extensionality m.
   extensionality Hmn.
@@ -128,7 +128,7 @@ Section Tests.
 
   Local Definition e1 := ELit 0%Z.
   Local Definition e2 := EFun [] e1.
-  Local Definition e3 := EFun [] (EPlus e1 e1).
+  Local Definition e3 := EFun [] (EBIF (ELit "+"%string) [e1; e1]).
 
   Goal Erel 0 e1 e1.
   Proof.
@@ -136,14 +136,14 @@ Section Tests.
     1-2: repeat constructor. intros.
     destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. cbn. repeat constructor.
   Qed.
-  
+
   Goal Erel 3 e1 e1.
   Proof.
     split. 2: split.
     1-2: repeat constructor. intros.
     destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
   Qed.
-  
+
   Goal Erel 3 e2 e2.
   Proof.
     split. 2: split.
@@ -157,13 +157,21 @@ Section Tests.
   Proof.
     unfold e2, e3, e1.
     split. 2: split.
-    1-2: repeat constructor. intros.
+    1-2: repeat constructor.
+    inversion H. 2: inversion H1. 3: inversion H3.
+    1-2: simpl; auto.
+    intros.
     destruct H, H1. eapply H2; eauto. rewrite Vrel_Fix_eq. unfold e1, Vrel_rec. repeat constructor.
+    inversion H3. 2: inversion H5. 3: inversion H7.
+    1-2: simpl; auto.
+    cbn in *. destruct i; auto. destruct i; auto. lia.
+
     apply length_zero_iff_nil in H3. apply length_zero_iff_nil in H4. subst. intros. cbn. cbn in H4.
     destruct H3, H6. epose (H7 m1 _ (ELit 0%Z) (ELit 0%Z) _ H4).
-    destruct t. exists (S (S (S x))). constructor. econstructor. constructor.
+    destruct t. exists (S (S (S (S x)))). constructor. econstructor. constructor.
+    constructor; auto.
     constructor. assumption.
-    
+
     Unshelve.
     all: repeat constructor.
   Qed.

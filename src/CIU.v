@@ -120,12 +120,12 @@ Theorem CIU_eval : forall e1 v,
   ⟨ [], e1 ⟩ -->* v -> CIU e1 v /\ CIU v e1.
 Proof.
   intros. split. split. 2: split. auto.
-  apply step_any_closedness in H0; auto. 1-2: now constructor.
+  apply step_any_closedness in H0; auto. now constructor.
   intros. destruct H2, H0, H3. eapply frame_indep_nil in H3.
   eapply terminates_step_any. 2: exact H3. eexists. exact H2.
 
   split. 2: split. 2: auto.
-  apply step_any_closedness in H0; auto. 1-2: now constructor.
+  apply step_any_closedness in H0; auto. now constructor.
   intros. destruct H2, H0, H3. eapply frame_indep_nil in H3.
   exists (x + x0).
   eapply term_step_term. exact H3. 2: lia. replace (x + x0 - x0) with x by lia. exact H2.
@@ -161,8 +161,9 @@ Proof.
      - simpl in H23. inversion H23. subst. simpl in H24. eexists; eassumption.
      - apply inf_diverges in H24. contradiction.
   * intros. assert (FSCLOSED (FCase (PCons PVar PVar) (EVar 1) inf :: F)). {
-       constructor; auto. constructor; auto. 2: repeat constructor.
-       simpl. do 2 constructor. auto. inversion H8. inversion H8.
+       constructor; auto. constructor; auto.
+       do 2 constructor.
+       do 2 constructor. auto. intros. inversion H8. inversion H8.
      }
      specialize (H5 (FCase (PCons PVar PVar) (EVar 1) inf :: F) H8).
      destruct H7.

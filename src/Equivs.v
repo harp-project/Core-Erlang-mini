@@ -44,8 +44,8 @@ Qed.
 
 Ltac cpb_term :=
 match goal with
-| [ H : | _, EPlus _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
 | [ H : | _, EApp _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
+| [ H : | _, EBIF _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
 | [ H : | _, ELet _ _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
 | [ H : | _, ELetRec _ _ _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
 | [ H : | _, ECase _ _ _ _ | _ ↓ |- _ ] => inversion H; subst; try inversion_is_value; clear H
@@ -60,31 +60,34 @@ end.
 
 Theorem plus_comm : forall Γ e1 e2,
   EXP Γ ⊢ e1 -> EXP Γ ⊢ e2 ->
-  EPlus e1 e2 ≈[Γ]≈ EPlus e2 e1.
+  EBIF (ELit "+"%string) [e1; e2] ≈[Γ]≈ EBIF (ELit "+"%string) [e2; e1].
 Proof.
-  assert (forall e1 e2, EXPCLOSED e1 -> EXPCLOSED e2 -> CIU (EPlus e1 e2) (EPlus e2 e1)). {
+  assert (forall e1 e2, EXPCLOSED e1 -> EXPCLOSED e2 -> CIU (EBIF (ELit "+"%string) [e1; e2]) (EBIF (ELit "+"%string) [e2; e1])). {
     split. 2: split. 1-2: constructor; eauto.
-    intros. destruct H2. cpb_term.
-    apply term_eval_both in H7 as Eval1.
+    1-2: intros; destruct i; simpl in *; [auto | destruct i; [auto | lia ] ].
+    intros. destruct H2.
+    do 2 cpb_term.
+    apply term_eval_both in H9 as Eval1; auto.
     destruct Eval1 as [v1 [k1 [v_v1 [Eval1_1 Eval1_2]]]]. term_step.
     cpb_term.
-    apply term_eval_both in H8 as Eval1. destruct Eval1 as [v2 [k2 [v_v2 [Eval2_1 Eval2_2]]]].
+    apply term_eval_both in H13 as Eval1; auto.
+    destruct Eval1 as [v2 [k2 [v_v2 [Eval2_1 Eval2_2]]]].
     term_step.
     cpb_term.
-    exists (3 + (k2 + (k1 + k3))). constructor.
-    
+    exists (3 + k1 + k2 + S k3). simpl.
+    constructor. constructor. auto.
+
     eapply term_step_term.
     eapply frame_indep_nil in Eval2_1. exact Eval2_1.
-    replace (S (S (k2 + (k1 + k3))) - k2) with (S (S (k1 + k3))) by lia.
-    
+    replace (S (k1 + k2 + S k3) - k2) with (S (k1 + S k3)) by lia.
+
     constructor; auto. 2: lia.
     eapply term_step_term.
     eapply frame_indep_nil in Eval1_1. exact Eval1_1.
-    replace (S (k1 + k3) - k1) with (S k3) by lia.
-    
+    replace (k1 + S k3 - k1) with (S k3) by lia.
+
     constructor.
     now rewrite Z.add_comm. lia.
-    all: auto.
   }
   intros. split; eapply CIU_iff_CTX; intro; intros; simpl; apply H.
   all: apply -> subst_preserves_scope_exp; eauto.
@@ -170,7 +173,7 @@ Proof.
     eexists. apply term_app_in_k.
     - shelve.
     - now rewrite map_length.
-    - eapply Forall_map; auto. (* eapply Forall_impl. 2: exact H1. intros.    now apply vclosed_sub_closed. *)
+    - eapply Forall_map; auto. eapply Forall_impl. 2: exact H1. intros.    now apply vclosed_sub_closed.
     - repeat rewrite renaming_is_subst, subst_comp, subst_comp in *.
       fold_upn. fold_list_subst.
       replace (fun n => S (length vl + n)) with (fun n => S (length vl) + n) by auto.

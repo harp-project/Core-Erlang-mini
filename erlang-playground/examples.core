@@ -1,0 +1,140 @@
+module 'examples' ['signal_ordering'/0,
+        'signal_ordering_2'/0,
+        'signal_ordering_3'/0,
+        'signal_ordering_4'/0,
+        'test_1'/0,
+        'test_2'/0,
+        'test_3'/0,
+        'test_4'/0,
+        'test_5'/0,
+        'test_6'/0,
+        'test_7'/0,
+        'test_8'/0,
+        'test_9'/0,
+		    'module_info'/0,
+		    'module_info'/1]
+    attributes [%% Line 1
+		'file' =
+		    %% Line 1
+		    [{[101|[120|[97|[109|[112|[108|[101|[115|[46|[101|[114|[108]]]]]]]]]]]],1}],
+		%% Line 2
+  	'compile' =
+		    %% Line 2
+		    ['export_all']]
+'module_info'/0 =
+    fun () ->
+	call 'erlang':'get_module_info'
+	    ('examples')
+'module_info'/1 =
+    fun (_0) ->
+	call 'erlang':'get_module_info'
+	    ('examples', _0)
+
+'signal_ordering'/0 = fun () ->
+  let F0 = fun() ->
+         receive {PID1, PID2} when 'true' -> 
+             let X = call 'erlang':'!'(PID1, 'fst') in
+               call 'erlang':'!'(PID2, 'snd')
+         after 'infinity' -> 'error'
+      in
+  let F1 = fun() ->
+         receive PID2 when call 'erlang':'is_pid'(PID2) ->
+                receive X when 'true' -> call 'erlang':'!'(PID2, X)
+                after 'infinity' -> 'error' 
+         after 'infinity' -> 'error'
+      in
+  let F2 = fun() ->
+           receive X when 'true' ->
+                receive Y when 'true' ->
+                    do do call 'io':'fwrite'('first message: ') call 'io':'fwrite'(X)
+                       do call 'io':'fwrite'('second message: ') call 'io':'fwrite'(Y)
+                after 'infinity' -> 'error'
+           after 'infinity' -> 'error'
+      in
+  let PID0 = call 'erlang':'spawn'(F0) in
+  let PID1 = call 'erlang':'spawn'(F1) in
+  let PID2 = call 'erlang':'spawn'(F2) in
+  let A = call 'erlang':'!'(PID0, {PID1, PID2}) in
+    do call 'erlang':'!'(PID1, PID2) 'ok'
+
+'signal_ordering_2'/0 = fun () ->
+  let F0 = fun() ->
+         receive {PID1, PID2} when 'true' -> 
+             let X = call 'erlang':'!'(PID1, 'fst') in
+               do call 'timer':'sleep'(1)
+                  call 'erlang':'!'(PID2, 'snd')
+         after 'infinity' -> 'error'
+      in
+  let F1 = fun() ->
+         receive PID2 when call 'erlang':'is_pid'(PID2) ->
+                receive X when 'true' -> call 'erlang':'!'(PID2, X)
+                after 'infinity' -> 'error' 
+         after 'infinity' -> 'error'
+      in
+  let F2 = fun() ->
+           receive X when 'true' ->
+                receive Y when 'true' ->
+                    do do call 'io':'fwrite'('first message: ') call 'io':'fwrite'(X)
+                       do call 'io':'fwrite'('second message: ') call 'io':'fwrite'(Y)
+                after 'infinity' -> 'error'
+           after 'infinity' -> 'error'
+      in
+  let PID0 = call 'erlang':'spawn'(F0) in
+  let PID1 = call 'erlang':'spawn'(F1) in
+  let PID2 = call 'erlang':'spawn'(F2) in
+  let A = call 'erlang':'!'(PID0, {PID1, PID2}) in
+    do call 'erlang':'!'(PID1, PID2) 'ok'
+
+'signal_ordering_3'/0 = fun () ->
+  let F = fun() ->
+         receive X when 'true' -> 
+             call 'io':'fwrite'(X)
+         after 'infinity' -> 'error'
+      in
+  let PID0 = call 'erlang':'spawn'(F) in
+  let PID1 = call 'erlang':'spawn'(F) in
+    do call 'erlang':'!'(PID0, 'fst')
+    do call 'erlang':'!'(PID1, 'snd')
+       'ok'
+
+'signal_ordering_4'/0 = fun () ->
+  let F = fun() ->
+         do call 'timer':'sleep'(1)
+         receive X when 'true' -> 
+             call 'io':'fwrite'(X)
+         after 'infinity' -> 'error'
+      in
+  let F0 = fun() ->
+         receive X when 'true' -> 
+             call 'io':'fwrite'(X)
+         after 'infinity' -> 'error'
+      in
+  let PID0 = call 'erlang':'spawn'(F) in
+  let PID1 = call 'erlang':'spawn'(F0) in
+    do call 'erlang':'!'(PID0, 'fst')
+    do call 'erlang':'!'(PID1, 'snd')
+       'ok'
+
+'test_1'/0 = fun () -> 0
+'test_2'/0 = fun () -> 0
+'test_3'/0 = fun () -> 0
+
+%% trapping kill which comes from link
+'test_4'/0 = fun () -> 0
+
+%% kill through link, without traps -> no conversion to killed
+'test_5'/0 = fun () -> 0
+
+%% kill sent explicitly, converted to killed
+'test_6'/0 = fun () -> 0
+
+%% trapping exits
+'test_7'/0 = fun () -> 0
+
+%% explicit exit signal drop
+'test_8'/0 = fun () -> 0
+
+%% implicit exit signal drop 
+'test_9'/0 = fun () -> 0
+
+end

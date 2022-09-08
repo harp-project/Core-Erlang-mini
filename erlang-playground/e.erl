@@ -1,5 +1,11 @@
 -module(e).
--compile(export_all).
+-export([f/0, obj_map/2]).
+
+obj_map(F, E) ->
+  case E of
+    [] -> [];
+    [H | T] -> [F(H) | obj_map(F, T)]
+  end.
 
 f() ->
   Pid = spawn(e, g, []),
