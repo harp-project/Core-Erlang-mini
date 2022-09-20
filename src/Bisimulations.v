@@ -110,25 +110,25 @@ Proof.
   unfold strong_bisimulation, weak_bisimulation; intros. destruct H. split.
   * intros. eapply H in H3. 2: exact H2. destruct H3 as [q' [H3_1 H3_2]].
     exists q'. split; auto. exists q, q'. split. 2: split. 2: auto.
-    all: exists [], 0; split; [constructor | constructor ]; auto.
+    all: exists []; split; [constructor | constructor ]; auto.
   * intros. eapply H0 in H3. 2: exact H2. destruct H3 as [p' [H3_1 H3_2]].
     exists p'. split; auto. exists p, p'. split. 2: split. 2: auto.
-    all: exists [], 0; split; [constructor | constructor ]; auto.
+    all: exists []; split; [constructor | constructor ]; auto.
 Qed.
 
 Theorem internalSteps_weak_bisim : weak_bisimulation internals.
 Proof.
  split; intros.
   * unfold onlyOne.
-    destruct H0 as [l [k [All D]]].
+    destruct H0 as [l [All D]].
     eapply chain_to_end in H1 as H1'. 2: exact D. 2: auto. destruct H1'; subst.
-    - destruct H0 as [n3 [n4 [l1 [l2 [k1 [k2 [eq _]]]]]]].
+    - destruct H0 as [n3 [n4 [l1 [l2 [eq _]]]]].
       congruence.
     - destruct H0 as [n3 D2].
       exists n3. split.
       + exists q, n3. split. 2: split. 1,3: apply internals_refl. auto.
       + eapply chain_to_front_iff in H1. 3: exact D2. 2: auto. exact H1.
-        exists l, k. now split.
+        exists l. now split.
   * unfold onlyOne.
     exists q'. split. 2: apply internals_refl.
     exists q, q'. split. auto. split; auto. apply internals_refl.
@@ -147,7 +147,7 @@ Goal forall ether, Node_equivalence (ether,
 Proof.
   exists internals. split.
   * apply internalSteps_weak_bisim.
-  * exists [(AInternal, 0); (AInternal, 0)], 2. split.
+  * exists [(AInternal, 0); (AInternal, 0)]. split.
     - repeat constructor.
     - eapply n_trans. do 3 constructor.
       eapply n_trans. do 4 constructor.
@@ -160,14 +160,14 @@ Proof.
   intros. unfold update. now rewrite Nat.eqb_refl.
 Qed.
 
-Lemma any_step_is_not_bisimilar: exists n l,
-  ~weak_bisimulation (fun Π Σ => Π -[ n | l ]ₙ->* Σ).
+Lemma any_step_is_not_bisimilar: exists l,
+  ~weak_bisimulation (fun Π Σ => Π -[ l ]ₙ->* Σ).
 Proof.
-  exists 2, [(AInternal, 0); (AInternal, 0)]. intro. destruct H. clear H0.
+  exists [(AInternal, 0); (AInternal, 0)]. intro. destruct H. clear H0.
   remember (etherAdd 1 0 (Exit (ELit "kill"%string) false) (fun (_ _ : PID) => @nil Signal), 0 : inl ([], ELet "X"%string (ELit 0%Z) (EVar 0), [], [], false) |||| nullpool) as Π.
   remember (etherAdd 1 0 (Exit (ELit "kill"%string) false) (fun (_ _ : PID) => @nil Signal), 0 : inl ([], ELit 0%Z, [], [], false) |||| nullpool) as Σ.
   remember (fun (_ _ : PID) => @nil Signal, 0 : inr [] |||| nullpool) as Π'.
-  assert (Π -[ 2 | [(AInternal, 0); (AInternal, 0)] ]ₙ->* Σ) as D1. {
+  assert (Π -[ [(AInternal, 0); (AInternal, 0)] ]ₙ->* Σ) as D1. {
     subst. econstructor.
     constructor; auto. do 2 constructor.
     econstructor. constructor; auto. do 3 constructor.
@@ -185,7 +185,7 @@ Proof.
   destruct H as [Σ' [H_1 H_2]].
   subst. clear D2 D1.
   inversion H_2; subst.
-  inversion H5; subst. clear H7.
+  inversion H4; subst. clear H7.
   apply equal_f with 0 in H0. inversion H0; subst.
   inversion H1.
 Qed.
