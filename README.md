@@ -4,13 +4,15 @@ This project aims to investigate possible formalisations of program equivalence 
 
 # Requirements
 
-This project only depends on Coq, version 8.13.2 or later.
+This project only depends on Coq, version 8.15.0 or later.
 
 # Installation
 
 `make` compiles the library
 
 # Contents
+
+The formalisation of the sequential language:
 
 - `Basics.v` contains simple extensions about the standard library
 - `ExpSyntax.v` contains the formal syntax of language under investigation
@@ -22,6 +24,13 @@ This project only depends on Coq, version 8.13.2 or later.
 - `CIU.v` contains "CIU-equivalence" definition
 - `CTX.v` contains contextual equivalence definitions, proofs about equality of equivalences
 - `Equivs.v` contains simple expression equivalence proofs
+
+The formalisation of the concurrent language:
+
+- `ConcurrentFunSemantics.v` contains the process-local and inter-process (system) semantics of Core Erlang.
+- `Examples.v` contains a number of program evaluation proofs using the concurrent semantics.
+- `ConcurrentProperties.v` contains proofs about the properties of the concurrent semantics.
+- `Bisimulations.v` contains program equivalence definitions and proofs.
 
 # Related work
 

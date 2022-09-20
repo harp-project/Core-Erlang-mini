@@ -228,11 +228,11 @@ Inductive processLocalSemantics : Process -> Action -> Process -> Prop :=
 
 where "p -⌈ a ⌉-> p'" := (processLocalSemantics p a p').
 
-Inductive LabelStar {A B : Type} (r : A -> B -> A -> Prop) : A -> nat -> list B -> A -> Prop :=
-| lsrefl x : LabelStar r x 0 [] x
-| lsstep x l ls y z k : r x l y -> LabelStar r y k ls z -> LabelStar r x (S k) (l::ls) z.
+Inductive LabelStar {A B : Type} (r : A -> B -> A -> Prop) : A -> list B -> A -> Prop :=
+| lsrefl x : LabelStar r x [] x
+| lsstep x l ls y z : r x l y -> LabelStar r y ls z -> LabelStar r x (l::ls) z.
 
-Notation "x -⌈ k | xs ⌉-> y" := (LabelStar processLocalSemantics x k xs y) (at level 50).
+Notation "x -⌈ xs ⌉->* y" := (LabelStar processLocalSemantics x xs y) (at level 50).
 
 (******************************************************************************)
 (****************************   NODES  ****************************************)
@@ -385,21 +385,21 @@ Inductive nodeSemantics : Node -> Action -> PID -> Node -> Prop :=
 where "n -[ a | ι ]ₙ-> n'" := (nodeSemantics n a ι n').
 
 (** Refexive, transitive closure, with action logs: *)
-Reserved Notation "n -[ k | l ]ₙ->* n'" (at level 50).
-Inductive closureNodeSem : Node -> nat -> list (Action * PID) -> Node -> Prop :=
-| n_refl n (* n'  *): (* Permutation n n' -> *) n -[ 0 | [] ]ₙ->* n (* ' *)
-| n_trans n n' n'' k l a ι:
-  n -[a|ι]ₙ-> n' -> n' -[k|l]ₙ->* n''
+Reserved Notation "n -[ l ]ₙ->* n'" (at level 50).
+Inductive closureNodeSem : Node -> list (Action * PID) -> Node -> Prop :=
+| n_refl n (* n'  *): (* Permutation n n' -> *) n -[ [] ]ₙ->* n (* ' *)
+| n_trans n n' n'' l a ι:
+  n -[a|ι]ₙ-> n' -> n' -[l]ₙ->* n''
 ->
-  n -[S k | (a,ι)::l]ₙ->* n''
-where "n -[ k | l ]ₙ->* n'" := (closureNodeSem n k l n').
+  n -[(a,ι)::l]ₙ->* n''
+where "n -[ l ]ₙ->* n'" := (closureNodeSem n l n').
 
 Theorem closureNodeSem_trans :
-  forall n n' k l, n -[k | l]ₙ->* n' -> forall n'' k' l', n' -[k'|l']ₙ->* n''
+  forall n n' l, n -[l]ₙ->* n' -> forall n'' l', n' -[l']ₙ->* n''
 ->
-  n -[k + k' | l ++ l']ₙ->* n''.
+  n -[l ++ l']ₙ->* n''.
 Proof.
-  intros n n' k l D1. induction D1; intros; simpl.
+  intros n n' l D1. induction D1; intros; simpl.
   * exact H.
   * eapply n_trans. exact H.
     eapply IHD1 in H0. exact H0.

@@ -27,7 +27,7 @@ Ltac ether_order_base X :=
   end.
 Ltac ether_order :=
   match goal with
-  | |- (?X, _) -[ _ | _ ]ₙ->* (_, _) => ether_order_base X
+  | |- (?X, _) -[ _ ]ₙ->* (_, _) => ether_order_base X
   end.
 
 Corollary update_noop_ether_1 :
@@ -49,44 +49,17 @@ Ltac ether_cleanup :=
   repeat rewrite update_noop_ether_1;
   repeat rewrite update_noop_ether_2.
 
-(** Signal ordering tests: *)
-Lemma signal_ordering :
-  forall k Π (ι ι' : PID) s1 s2 Π' Π'' Π''' l (NEQ : s1 <> s2),
-            Π -[ASend ι ι' s1 | ι]ₙ-> Π' ->
-            Π' -[ASend ι ι' s2 | ι]ₙ-> Π'' ->
-            ~In (AArrive ι ι' s1, ι') l ->
-            ~In s1 (fst Π ι ι') ->
-            ~In s2 (fst Π ι ι') ->
-            Π'' -[k | l]ₙ->* Π''' ->
-            ~exists Σ, Π''' -[AArrive ι ι' s2 | ι']ₙ-> Σ.
-Proof.
-  induction k; intros.
-  * inversion H4. subst. clear H4. intro. destruct H4.
-    inversion H; subst; clear H. 2: intuition; try congruence; destruct H; congruence.
-    inversion H0; subst; clear H0. 2: intuition; try congruence; destruct H; congruence.
-    clear H7 H5.
-    inversion H4; subst; clear H4. 2: intuition; try congruence; destruct H; congruence.
-    clear H0 H7 H6 H13 H11.
-    unfold etherPop, etherAdd, update in H12. cbn in H12.
-    do 2 rewrite Nat.eqb_refl in H12.
-    cbn in *.
-    destruct (ether ι ι') eqn:DD.
-    - cbn in H12. inversion H12. congruence.
-    - simpl in H12. inversion H12; subst. apply H3. constructor; auto.
-  * admit.
-Abort.
-
 Example signal_ordering :
-  exists acts k,
+  exists acts,
     (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
                                         (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
                   1 : inl ([], EReceive [(PVar, EBIF (ELit "send")
                                                        [EPid 2; EVar 0])], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
-  -[ k | acts ]ₙ->*
+  -[ acts ]ₙ->*
     (fun _ _ => [], 2 : inl ([], ELit "snd", [ELit "fst"], [], false) |||| nullpool).
 Proof.
-  eexists. exists 23.
+  eexists.
   (* Progress with 0 *)
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
@@ -159,16 +132,16 @@ Proof.
 Qed.
 
 Example signal_ordering_2 :
-  exists acts k,
+  exists acts,
     (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
                                         (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
                   1 : inl ([], EReceive [(PVar, EBIF (ELit "send")
                                                        [EPid 2; EVar 0])], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
-  -[ k | acts ]ₙ->*
+  -[ acts ]ₙ->*
     (fun _ _ => [], 2 : inl ([], ELit "snd", [ELit "fst"], [], false) |||| nullpool).
 Proof.
-  eexists. exists 23.
+  eexists.
   (* Progress with 0 *)
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
@@ -239,17 +212,17 @@ Proof.
 Qed.
 
 Example signal_ordering_3 :
-  exists acts k,
+  exists acts,
     (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
                                         (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
                   1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
-  -[ k | acts ]ₙ->*
+  -[ acts ]ₙ->*
     (etherAdd 0 2 (Message (ELit "snd")) (fun _ _ => []),
                   1 : inl ([], ELit "fst", [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool).
 Proof.
-  eexists. exists 14.
+  eexists.
   (* Progress with 0 *)
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
@@ -293,17 +266,17 @@ Proof.
 Qed.
 
 Example signal_ordering_4 :
-  exists acts k,
+  exists acts,
     (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
                                         (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
                   1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
-  -[ k | acts ]ₙ->*
+  -[ acts ]ₙ->*
     (etherAdd 0 1 (Message (ELit "fst")) (fun _ _ => []),
                   1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) ||||
                   2 : inl ([], ELit "snd", [], [], false) |||| nullpool).
 Proof.
-  eexists. exists 14.
+  eexists.
   (* Progress with 0 *)
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
@@ -349,18 +322,18 @@ Qed.
 
 (** Further tests: *)
 
-Goal exists acts k,
+Goal exists acts,
   (fun _ _ => [], 0 : inl ([], EBIF (ELit "send") [EPid 1; EBIF (ELit "+"%string) [ELit 1%Z; ELit 1%Z]], [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EBIF (ELit "send") [EPid 3;EVar 0])], [], [], false) ||||
        2 : inl ([], EBIF (ELit "send") [EPid 3;ELit 3%Z], [], [], false) ||||
        3 : inl ([], EReceive [(PVar, EReceive [(PVar, EBIF (ELit "+"%string) [EVar 0;EVar 1])])], [], [], false) |||| nullpool)
-  -[ k | acts ]ₙ->*
+  -[ acts ]ₙ->*
   (fun _ _ => [], 0 : inl ([], ELit 2%Z, [], [], false) ||||
        1 : inl ([], ELit 2%Z, [], [], false) ||||
        2 : inl ([], ELit 3%Z, [], [], false) ||||
        3 : inl ([], ELit 5%Z, [], [], false) |||| nullpool).
 Proof.
-  eexists. exists 26.
+  eexists.
   (* Some steps with 0 *)
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
@@ -474,18 +447,18 @@ let X = spawn(fun() -> receive X -> X ! self() end end, [])
     in receive X -> X end
 
 *)
-Goal exists acts k,
+Goal exists acts,
   (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "spawn") [EFun [] (EReceive [(PVar, EBIF (ELit "send") [EVar 0; EBIF (ELit "self") []])]);
                                              ENil])
              (ELet "Y"%string (EBIF (ELit "send") [EVar 0; EBIF (ELit "self") []])
                  (EReceive [(PVar, EVar 0)]))
                   , [], [], false)
   |||| nullpool)
-  -[ k | acts ]ₙ->*
+  -[ acts ]ₙ->*
   (fun _ _ => [], 0 : inl ([], EPid 1, [], [], false) ||||
        1 : inl ([], EPid 1, [], [], false) |||| nullpool).
 Proof.
-  eexists. exists 26.
+  eexists.
   eapply n_trans. eapply n_other with (ι := 0).
     do 2 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -573,15 +546,15 @@ Proof.
   apply n_refl.
 Qed.
 
-Goal exists k acts,
+Goal exists acts,
   (fun _ _ => [], 0 : inl ([], ELit 2%Z, [], [], false) ||||
        1 : inl ([], ELit 2%Z, [], [], false) ||||
        2 : inl ([], ELit 3%Z, [], [], false) ||||
        3 : inl ([], ELit 5%Z, [], [], false) |||| nullpool)
-  -[k | acts]ₙ->*
+  -[acts]ₙ->*
   (fun _ _ => [], nullpool).
 Proof.
-  exists 8. eexists.
+  eexists.
   eapply n_trans. eapply n_other with (ι := 0).
     apply p_terminate; auto. auto.
   eapply n_trans. apply n_terminate.
@@ -613,15 +586,15 @@ Proof.
 Qed.
 
 (* trapping kill which comes from link *)
-Goal exists k acts,
+Goal exists acts,
   (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF link [EPid 1])
                              (EBIF exit [kill]), [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EVar 0)], [], [], true) |||| nullpool)
-  -[k | acts]ₙ->*
+  -[acts]ₙ->*
   (fun _ _ => [], 1 : inl ([], VCons (EXIT) (VCons (EPid 0) (VCons kill ENil)), [], [0], true)
            |||| nullpool).
 Proof.
-  do 2 eexists.
+  eexists.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -662,15 +635,15 @@ Proof.
 Qed.
 
 (* trapping kill which comes from link, but with 2 parameter exit *)
-Goal exists k acts,
+Goal exists acts,
   (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF link [EPid 1])
                              (EBIF exit [EPid 0; kill]), [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EVar 0)], [], [], true) |||| nullpool)
-  -[k | acts]ₙ->*
+  -[acts]ₙ->*
   (fun _ _ => [], 1 : inl ([], VCons (EXIT) (VCons (EPid 0) (VCons killed ENil)), [], [0], true)
            |||| nullpool).
 Proof.
-  do 2 eexists.
+  eexists.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -715,15 +688,15 @@ Proof.
 Qed.
 
 (* kill through link, without traps -> no conversion to killed *)
-Goal exists k acts,
+Goal exists acts,
   (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF link [EPid 1])
                              (EBIF exit [kill]), [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
-  -[k | acts]ₙ->*
+  -[acts]ₙ->*
   (fun _ _ => [], 1 : inr [(0, kill)]
            |||| nullpool).
 Proof.
-  do 2 eexists.
+  eexists.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -762,16 +735,16 @@ Proof.
 Qed.
 
 (* kill sent explicitly, converted to killed *)
-Goal exists k acts,
+Goal exists acts,
   (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF link [EPid 1])
                              (ELet "X" (EBIF exit [EPid 1; kill])
                                        (EReceive [(PVar, ENil)])), [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
-  -[k | acts]ₙ->*
+  -[acts]ₙ->*
   (fun _ _ => [], 0 : inr [(1, killed)]
            |||| nullpool).
 Proof.
-  do 2 eexists.
+  eexists.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -822,16 +795,16 @@ Proof.
 Qed.
 
 (* trapping exits *)
-Goal exists k acts,
+Goal exists acts,
   (fun _ _ => [], 0 : inl ([], EReceive [(PVar, EBIF exit [EPid 1; ELit "foo"])], [], [], false) ||||
        1 : inl ([], ELet "X" (ELet "X" (EBIF process_flag [trap_exit; tt]) 
                                        (EBIF send [EPid 0; ENil])) 
                              (EReceive [(PVar, EVar 0)]), [], [], false) |||| nullpool)
-  -[k | acts]ₙ->*
+  -[acts]ₙ->*
   (fun _ _ => [], 1 : inl ([], VCons EXIT (VCons (EPid 0) (VCons (ELit "foo") ENil)), [], [], true)
            |||| nullpool).
 Proof.
-  do 2 eexists.
+  eexists.
   rewrite par_swap. 2: lia.
   eapply n_trans. eapply n_other with (ι := 1).
     do 3 constructor. auto.
@@ -890,15 +863,15 @@ Proof.
 Qed.
 
 (* explicit exit signal drop *)
-Goal exists k acts,
+Goal exists acts,
   (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF exit [EPid 1; ELit "normal"]) 
                              (EBIF send [EPid 1; ENil]), [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
-  -[k | acts]ₙ->*
+  -[acts]ₙ->*
   (fun _ _ => [], 0 : inl ([], ENil, [], [], false) ||||
        1 : inl ([], ENil, [], [], false) |||| nullpool).
 Proof.
-  do 2 eexists.
+  eexists.
   eapply n_trans. eapply n_other with (ι := 0).
     do 3 constructor. auto.
   eapply n_trans. eapply n_other with (ι := 0).
@@ -937,13 +910,13 @@ Proof.
 Qed.
 
 (* implicit exit signal drop *)
-Goal exists k acts,
+Goal exists acts,
   (fun _ _ => [], 0 : inl ([], ELet "X" (ELit 1%Z) (EVar 0), [], [], false) ||||
        1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
-  -[k | acts]ₙ->*
+  -[acts]ₙ->*
   (fun _ _ => [], 1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool).
 Proof.
-  do 2 eexists.
+  eexists.
   eapply n_trans. eapply n_other.
     do 3 constructor. auto.
   eapply n_trans. eapply n_other.
