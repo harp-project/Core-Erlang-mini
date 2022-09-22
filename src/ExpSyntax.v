@@ -138,6 +138,14 @@ Definition obj_map f e : Exp :=
     )
     (EApp (EFunId 0) [e]).
 
+Definition obj_foldr f e d : Exp :=
+  ELetRec F1 [XVar]
+    (ECase (EVar 1)
+      (PCons PVar PVar) (EApp f [EVar 0; EApp (EFunId 2) [EVar 1]])
+                        d
+    )
+    (EApp (EFunId 0) [e]).
+
 (** Names, equalities *)
 
 (* The equality of function signatures *)

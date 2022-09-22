@@ -263,6 +263,141 @@ Proof.
   constructor.
 Qed.
 
+Local Goal
+   ⟨[], obj_foldr
+                (EFun [XVar;YVar] (ECons (EBIF (ELit "+"%string) [EVar 1; ELit 1]) (EVar 2)))
+                (ECons (ELit 0) (ECons (ELit 1) (ECons (ELit 2) ENil))) ENil⟩ -->*
+   VCons (ELit 1) (VCons (ELit 2) (VCons (ELit 3) ENil)).
+Proof.
+  split; auto. exists 63%nat.
+  econstructor. constructor. simpl.
+  econstructor. constructor. simpl.
+  econstructor. constructor. { constructor. cbn. do 2 constructor; auto.
+                               repeat constructor; intros.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in *; try lia.
+                               all: intros.
+                               1-3: simpl; auto; repeat constructor.
+                               repeat constructor. destruct i; simpl in *; try lia. repeat constructor. }
+  (** evaluate list *)
+  econstructor. apply step_cons; auto.
+  econstructor. apply step_cons; auto.
+  econstructor. apply step_cons; auto.
+  econstructor. apply red_cons1; auto.
+  econstructor. apply red_cons2; auto.
+  econstructor. apply red_cons1; auto.
+  econstructor. apply red_cons2; auto.
+  econstructor. apply red_cons1; auto.
+  econstructor. apply red_cons2; auto.
+
+  (** first element *)
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_case; auto.
+  econstructor. constructor; auto. reflexivity. cbn.
+  (* econstructor. apply step_cons. auto. cbn. *)
+  econstructor. apply step_app.
+  econstructor. constructor. { constructor. cbn. repeat constructor.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in H; try lia.
+                               all: simpl; auto; constructor; lia. }
+  (** second element *)
+  econstructor. constructor; auto. cbn. { constructor. cbn. repeat constructor.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in H; try lia.
+                               all: simpl; auto; constructor; lia. }
+  (* econstructor. apply step_case; auto.
+  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. apply step_cons. auto. cbn. *)
+  econstructor. apply step_app.
+  econstructor. constructor. { constructor. cbn. do 2 constructor; auto.
+                               repeat constructor; intros.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in *; try lia.
+                               all: intros.
+                               1-3: simpl; auto; repeat constructor.
+                               repeat constructor. destruct i; simpl in *; try lia. repeat constructor. } simpl.
+  (** third element *)
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_case; auto.
+  econstructor. constructor; auto. reflexivity. cbn.
+  (* econstructor. apply step_cons. auto. cbn. *)
+  econstructor. apply step_app.
+  econstructor. constructor. { constructor. cbn. repeat constructor.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in H; try lia.
+                               all: simpl; auto; constructor; lia. }
+  (** end *)
+  econstructor. constructor; auto. cbn.
+  (* econstructor. apply step_case; auto.
+  econstructor. apply red_case_false; auto. *)
+  econstructor. constructor; auto. { constructor. cbn. do 2 constructor; auto.
+                               all: destruct i; intros.
+                               all: try destruct i. all: simpl in *; try lia.
+                               all: auto. } simpl.
+
+  econstructor. apply step_app; auto.
+  econstructor. constructor. { constructor. cbn. do 2 constructor; auto.
+                               repeat constructor; intros.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in *; try lia.
+                               all: intros.
+                               1-3: simpl; auto; repeat constructor.
+                               repeat constructor. destruct i; simpl in *; try lia. repeat constructor. }
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_case; auto.
+  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. apply step_app.
+  econstructor. constructor. { constructor. cbn. repeat constructor.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in H; try lia.
+                               all: simpl; auto; constructor; lia. }
+  econstructor. constructor; auto. { constructor. cbn. do 2 constructor; auto.
+                               all: destruct i; intros.
+                               all: try destruct i. all: simpl in *; try lia.
+                               all: auto. }
+  econstructor. apply step_app; auto.
+  econstructor. constructor. { constructor. cbn. do 2 constructor; auto.
+                               repeat constructor; intros.
+                               all: destruct i.
+                               all: try destruct i. all: simpl in *; try lia.
+                               all: intros.
+                               1-3: simpl; auto; repeat constructor.
+                               repeat constructor. destruct i; simpl in *; try lia. repeat constructor. }
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_case; auto.
+  econstructor. apply red_case_false; auto.
+
+  (** build list back, and apply +1 to the elements *)
+  (** 3rd element *)
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_cons.
+  econstructor. constructor; auto.
+  econstructor. apply step_bif.
+  econstructor. constructor; auto.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  (** 2nd element *)
+  econstructor. apply step_cons.
+  econstructor. constructor. auto.
+  econstructor. apply step_bif.
+  econstructor. constructor; auto.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  (** 1st element *)
+  econstructor. apply step_cons.
+  econstructor. constructor; auto.
+  econstructor. apply step_bif.
+  econstructor. constructor; auto.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  constructor.
+Qed.
+
 Ltac proof_irr :=
 match goal with
 | [H1 : ?P, H2 : ?P |- _] => assert (H1 = H2) by apply proof_irrelevance; subst
