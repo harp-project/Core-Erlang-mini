@@ -252,3 +252,91 @@ Proof.
     simpl in H0. break_match_hyp. inversion H0.
     eapply IHxs. 2: exact Heqo. rewrite map_length. auto.
 Qed.
+
+Theorem CIU_evaluates :
+  forall e1 e2 v, EXPCLOSED e1 -> EXPCLOSED e2 ->
+  ⟨[], e1⟩ -->* v -> ⟨[], e2⟩ -->* v ->
+  CIU e1 e2.
+Proof.
+  intros.
+  split. 2: split. 1-2: auto.
+  intros.
+  destruct H1 as [CL1 [k1 H1]], H2 as [CL2 [k2 H2]].
+  apply frame_indep_nil with (Fs' := F) in H2. simpl in H2.
+  apply frame_indep_nil with (Fs' := F) in H1. simpl in H1.
+  destruct H4 as [k1' H4].
+  eapply terminates_step_any_2 in H1. 2: exact H4.
+  eapply term_step_term_plus in H2. 2: exact H1.
+  now exists (k2 + (k1' - k1)).
+Qed.
+
+Theorem map_foldr_equiv :
+  forall l' l x y z e f
+  (VsCL : VALCLOSED l) (SCE : EXP 2 ⊢ e),
+  computes x e f -> cons_to_list l = Some l' ->
+  CIU (obj_map (EFun [x] e) l) (obj_foldr (EFun [y;z] (ECons (EApp (EFun [x] e) [EVar 1]) (EVar 2))) l ENil).
+Proof.
+  intros.
+  pose proof (obj_foldr_on_meta_level l' l x y z e f VsCL SCE H H0).
+  pose proof (obj_map_on_meta_level l' l x e f VsCL SCE H H0).
+  eapply CIU_evaluates; eauto.
+  {
+    unfold obj_map. do 3 constructor; auto; simpl.
+    3: destruct i; [ now apply (proj1 (scope_ext_app 1 0 ltac:(lia))) |
+                     simpl in *; lia ].
+    - constructor. simpl. constructor; auto.
+      cbn. constructor; auto.
+      now apply (proj2 (scope_ext_app 6 2 ltac:(lia))).
+      simpl. intros. destruct i; constructor. constructor; lia. lia.
+    - do 2 constructor; auto. simpl in H3. destruct i. constructor. all: lia.
+  }
+  {
+    unfold obj_map. do 3 constructor; auto; simpl.
+    3: destruct i; [ now apply (proj1 (scope_ext_app 1 0 ltac:(lia))) |
+                     simpl in *; lia ].
+    - do 2 constructor; auto. constructor; simpl; auto.
+      * do 2 constructor; simpl.
+        + constructor. simpl. now apply (proj2 (scope_ext_app 9 2 ltac:(lia))).
+        + intros. destruct i. do 2 constructor. all: simpl in *; lia.
+      * intros. constructor. constructor. lia.
+    - intros. destruct i. 2: destruct i. do 2 constructor. 1,3: lia.
+      constructor; auto. simpl. intros. destruct i. do 2 constructor; lia.
+      lia.
+  }
+Qed.
+
+Theorem map_foldr_equiv_rev :
+  forall l' l x y z e f
+  (VsCL : VALCLOSED l) (SCE : EXP 2 ⊢ e),
+  computes x e f -> cons_to_list l = Some l' ->
+  CIU (obj_foldr (EFun [y;z] (ECons (EApp (EFun [x] e) [EVar 1]) (EVar 2))) l ENil) (obj_map (EFun [x] e) l).
+Proof.
+  intros.
+  pose proof (obj_foldr_on_meta_level l' l x y z e f VsCL SCE H H0).
+  pose proof (obj_map_on_meta_level l' l x e f VsCL SCE H H0).
+  eapply CIU_evaluates; eauto.
+  {
+    unfold obj_map. do 3 constructor; auto; simpl.
+    3: destruct i; [ now apply (proj1 (scope_ext_app 1 0 ltac:(lia))) |
+                     simpl in *; lia ].
+    - do 2 constructor; auto. constructor; simpl; auto.
+      * do 2 constructor; simpl.
+        + constructor. simpl. now apply (proj2 (scope_ext_app 9 2 ltac:(lia))).
+        + intros. destruct i. do 2 constructor. all: simpl in *; lia.
+      * intros. constructor. constructor. lia.
+    - intros. destruct i. 2: destruct i. do 2 constructor. 1,3: lia.
+      constructor; auto. simpl. intros. destruct i. do 2 constructor; lia.
+      lia.
+  }
+ {
+    unfold obj_map. do 3 constructor; auto; simpl.
+    3: destruct i; [ now apply (proj1 (scope_ext_app 1 0 ltac:(lia))) |
+                     simpl in *; lia ].
+    - constructor. simpl. constructor; auto.
+      cbn. constructor; auto.
+      now apply (proj2 (scope_ext_app 6 2 ltac:(lia))).
+      simpl. intros. destruct i; constructor. constructor; lia. lia.
+    - do 2 constructor; auto. simpl in H3. destruct i. constructor. all: lia.
+  }
+Qed.
+
