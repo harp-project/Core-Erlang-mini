@@ -398,6 +398,25 @@ Proof.
   constructor.
 Qed.
 
+Definition computes (x : string) (e : Exp) (f : Exp -> Exp) :=
+  forall v, ⟨[], EApp (EFun [x] e) [v]⟩ -->* f v.
+
+Fixpoint cons_to_list (e : Exp) : option (list Exp) :=
+match e with
+| ENil => Some []
+| VCons e1 e2 => match cons_to_list e2 with
+                 | Some e2'=> Some (e1 :: e2')
+                 | _ => None
+                 end
+| _ => None
+end.
+
+Fixpoint list_to_cons (l : list Exp) : Exp :=
+match l with
+| [] => ENil
+| e1 :: xs => VCons e1 (list_to_cons xs)
+end.
+
 Ltac proof_irr :=
 match goal with
 | [H1 : ?P, H2 : ?P |- _] => assert (H1 = H2) by apply proof_irrelevance; subst
@@ -1390,5 +1409,82 @@ Proof.
   Unshelve.
     now inversion P.
     auto.
+Qed.
+
+Theorem obj_map_on_meta_level :
+  forall l' l x e f
+  (VsCL : VALCLOSED l) (SCE : EXP 2 ⊢ e),
+  computes x e f -> cons_to_list l = Some l' ->
+  ⟨[], obj_map (EFun [x] e) l⟩ -->* list_to_cons (map f l').
+Proof.
+  induction l'; intros.
+  * destruct l; simpl in H0; inversion H0.
+    2: { destruct (cons_to_list l2); inversion H0. }
+    unfold obj_map. cbn.
+    eexists. auto. eexists.
+    econstructor. constructor. cbn.
+    econstructor. constructor.
+    econstructor. constructor. { 
+      constructor. simpl. constructor; auto.
+      cbn. do 2 constructor; auto.
+      2-3: intros; destruct i; simpl; constructor; auto.
+      2: constructor; lia.
+      2-3: simpl in H1; lia.
+      do 2 constructor; simpl.
+      now apply (proj2 (scope_ext_app 6 2 ltac:(lia))).
+    }
+    econstructor. constructor; auto. cbn.
+    econstructor. constructor. cbn.
+    econstructor. apply red_case_false; auto.
+    constructor.
+  * destruct l; simpl in H0; inversion H0.
+    break_match_hyp; inversion H0. subst.
+    inversion VsCL. subst.
+    clear H0 H2 VsCL. specialize (IHl' _ _ _ _  H5 SCE H Heqo).
+    destruct IHl' as [VCL [k H']].
+    unfold obj_map in H'. inversion H'; subst.
+    1: { rewrite <- H3 in VCL. inversion_is_value. } clear H'.
+    inversion H0; subst. clear H0. simpl in H1.
+    (** eval first element (necessary before eexists): *)
+    specialize (H a) as [? [kk DER]].
+    (***)
+    unfold obj_map. split. { simpl. constructor; auto. }
+
+    eexists.
+    econstructor. constructor. cbn.
+    econstructor. constructor.
+    econstructor. constructor. {
+      constructor. simpl. constructor; auto.
+      cbn. do 2 constructor; auto.
+      2-3: intros; destruct i; simpl; constructor; auto.
+      2: constructor; lia.
+      2-3: simpl in H0; lia.
+      do 2 constructor; simpl.
+      now apply (proj2 (scope_ext_app 6 2 ltac:(lia))).
+    }
+    econstructor. constructor; auto. simpl.
+    econstructor. constructor; auto.
+    econstructor. constructor; auto. reflexivity. simpl.
+    econstructor. apply step_cons.
+    repeat rewrite renaming_is_subst.
+    repeat rewrite ren_up.
+    repeat rewrite subst_comp.
+    repeat rewrite up_comp.
+    repeat rewrite (proj2 (scoped_ignores_sub 2) e); auto.
+    Search app step_rt nil.
+    apply frame_indep_nil with (Fs' := [FCons1
+     (EApp (EFun [x] e)
+        [a.[EFun [XVar]
+              (ECase (EVar 1) (PCons PVar PVar)
+                 (ECons (EApp (EFun [x] e) [EVar 0])
+                    (EApp (EFunId 2) [EVar 1])) ENil)/]])]) in H1. simpl in H1.
+    eapply transitive_eval. exact H1.
+   (** evaluate first element *)
+    econstructor. constructor. { auto. }
+    rewrite vclosed_ignores_sub; auto.
+    apply frame_indep_nil with (Fs' := [FCons2 (list_to_cons (map f l'))])
+       in DER. simpl in DER.
+    eapply transitive_eval. exact DER.
+    econstructor. constructor; auto. constructor.
 Qed.
 
