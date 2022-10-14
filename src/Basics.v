@@ -1,3 +1,12 @@
+(**
+
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we define a number of theorems to extend Coq's
+  standard library to aid our formalisation.
+
+*)
+
 Require Export Coq.micromega.Lia
                Coq.Lists.List
                Coq.Arith.PeanoNat.
@@ -42,6 +51,8 @@ Proof.
       exists (a::x), x0. apply app_comm_cons. Unshelve. simpl. lia.
 Qed.
 
+(** Similar Forall, but this checks a property that is satisfied pairwise
+    by the elements of two lists. *)
 Inductive list_biforall {T1 T2 : Type} (P : T1 -> T2 -> Prop) : list T1 -> list T2 -> Prop :=
 | biforall_nil : list_biforall P [] []
 | biforall_cons hd hd' tl tl' : P hd hd' -> list_biforall P tl tl' -> list_biforall P (hd::tl) (hd'::tl').

@@ -1,3 +1,17 @@
+(**
+
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we define the static semantics of Core Erlang
+  expressions. We also connect these concepts to substitutions.
+  This work is based on the techniques of Wand et al. [1].
+
+  1: https://dl.acm.org/doi/10.1145/3236782
+
+  We also introduce the syntax and static semantics for frames here
+  which will be used by the frame stack semantics in `SubstSemantics.v`.
+*)
+
 Require Export ExpManipulation.
 Export Relations.Relations.
 Export Classes.RelationClasses.
@@ -104,21 +118,6 @@ Proof.
     erewrite IHvals; eauto. intros. eapply (H (S i)). simpl. lia. auto.
 Unshelve. simpl. lia.
 Qed.
-
-(* Theorem scoped_ignores_sub_helper_receive vals : forall l ξ,
-  (forall i : nat,
-     i < Datatypes.length vals ->
-     forall ξ : Substitution,
-     subst_preserves l ξ -> subst ξ (nth i vals (ELit 0)) = nth i vals (ELit 0)) ->
-  subst_preserves l ξ ->
-  (map (subst ξ) vals) = vals.
-Proof.
-  induction vals; intros.
-  * reflexivity.
-  * simpl. epose (H 0 _ _ H0). simpl in e. rewrite e.
-    erewrite IHvals; eauto. intros. eapply (H (S i)). simpl. lia. auto.
-Unshelve. simpl. lia.
-Qed. *)
 
 Theorem scoped_ignores_sub : forall Γ,
   (forall e, VAL Γ ⊢ e -> forall ξ, subst_preserves Γ ξ -> e.[ξ] = e) /\
@@ -289,7 +288,7 @@ Proof.
   intros; cbn; unfold renscoped in *).
   1-8: constructor. 1-4: constructor. 
   1, 5, 7: repeat constructor; try apply H0; try inversion H; try inversion H1; auto.
-  all: (** this solves around half the goals *)
+  all: (* this solves around half the goals *)
     try (specialize (H Γ id (renscope_id _)); rewrite idrenaming_is_id in H; apply H).
   all: try (inversion H; inversion H1).
   * constructor. apply H0. inversion H. auto.
@@ -475,10 +474,10 @@ Proof.
     intros.
   all: cbn; unfold subscoped in *.
   1-8: repeat constructor.
-  all: try (inversion H); try inversion H1; subst. (** cleaup contradictions *)
-  (** prove backward directions: *)
+  all: try (inversion H); try inversion H1; subst. (* cleaup contradictions *)
+  (* prove backward directions: *)
   all: try (specialize (H Γ idsubst (scope_idsubst _)); rewrite idsubst_is_id in H; auto).
-  (** forward: *)
+  (* forward: *)
   * specialize (H0 n H4). break_match_goal.
     - constructor. auto.
     - constructor. constructor. auto.
@@ -935,7 +934,7 @@ Qed.
 Global Hint Resolve vclosed_sub_closed : core.
 
 (** FrameStack *)
-(** Based on Pitts' work: https://www.cl.cam.ac.uk/~amp12/papers/opespe/opespe-lncs.pdf *)
+(** Based on Pitts' work (https://www.cl.cam.ac.uk/~amp12/papers/opespe/opespe-lncs.pdf) *)
 Inductive Frame : Set :=
 | FApp1 (l : list Exp) (* apply □(e₁, e₂, ..., eₙ) *)
 | FApp2 (v : Exp) (l1 l2 : list Exp) (* apply v(v₁, v₂, ... vᵢ₋₁, □, eᵢ₊₁, ..., eₙ) *)

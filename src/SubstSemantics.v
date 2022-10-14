@@ -1,3 +1,11 @@
+(**
+
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we describe the frame stack semantics for sequential
+  Core Erlang.
+*)
+
 Require Export Scoping.
 From Coq Require Export Logic.ProofIrrelevance Program.Equality.
 Export Coq.Arith.Wf_nat.
@@ -13,6 +21,12 @@ Import ListNotations.
 Reserved Notation "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" (at level 50).
 Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 (**  Reduction rules *)
+(** The semantics of applications and BIFs is tricky. We evaluate the
+    main expressions, and then the parameters are split into two lists:
+    the first contain the expressions that still need to be evaluated
+    while the second contains the already evaluated ones. Thus removing
+    and evaluating an element from the first list will append the
+    value to the end of the second list. *)
 | red_app_start v hd tl xs (H : VALCLOSED v):
   ⟨ (FApp1 (hd::tl))::xs, v ⟩ --> ⟨ (FApp2 v tl [])::xs, hd⟩
 
@@ -63,8 +77,6 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
 | step_bif fs name params:
   ⟨fs, EBIF name params⟩ --> ⟨FBIF1 params :: fs, name⟩
 | step_case xs e1 p e2 e3 : ⟨ xs, ECase e1 p e2 e3⟩ --> ⟨ (FCase p e2 e3)::xs, e1⟩
-
-(** Special step rules: need to "determinize them" *)
 | step_cons xs e1 e2: ⟨ xs, ECons e1 e2 ⟩ --> ⟨ (FCons1 e1) :: xs, e2 ⟩
 where "⟨ fs , e ⟩ --> ⟨ fs' , e' ⟩" := (step fs e fs' e').
 
@@ -85,6 +97,7 @@ Notation "⟨ fs , e ⟩ -->* v" := (step_any fs e v) (at level 50).
 Global Hint Constructors ExpScoped : core.
 Global Hint Constructors ValScoped : core.
 
+(** Example, simple evaluations *)
 Open Scope Z_scope.
 Goal ⟨ [], inc 1 ⟩ -->* ELit 2.
 Proof.
@@ -164,19 +177,43 @@ Proof.
   repeat econstructor.
 Qed.
 
+(** Complex example for map *)
 Local Goal
    ⟨[], obj_map (EFun [YVar] (EBIF (ELit "+"%string) [EVar 1; ELit 1]))
                 (ECons (ELit 0) (ECons (ELit 1) (ECons (ELit 2) ENil)))⟩ -->*
    VCons (ELit 1) (VCons (ELit 2) (VCons (ELit 3) ENil)).
 Proof.
-  split; auto. exists 60%nat.
-  econstructor. constructor. simpl.
-  econstructor. constructor. simpl.
-  econstructor. constructor. { constructor. cbn. repeat constructor.
+  (** closedness assertions for the occuring functions *)
+  assert (VALCLOSED (EFun [FVar; XVar]
+             (ECase (EVar 2) (PCons PVar PVar)
+                (ECons (EApp (EVar 3) [EVar 0])
+                   (EApp (EFunId 2) [EVar 3; EVar 1])) ENil))). {
+    constructor. cbn. repeat constructor.
                                all: destruct i.
                                all: try destruct i. all: simpl in H; try lia.
-                               all: simpl; auto; constructor; lia. }
-  (** evaluate list *)
+                               all: simpl; auto; constructor; lia.
+  }
+  assert (VALCLOSED (EFun [YVar] (EBIF (ELit "+"%string) [EVar 1; ELit 1]))). {
+    constructor. cbn. repeat constructor.
+                               all: destruct i.
+                               all: try destruct i.
+                               all: simpl; auto.
+                               simpl in H0. lia.
+  }
+  split; auto. exists 64%nat.
+
+  (** evaluate letrec *)
+  econstructor. constructor. simpl.
+
+  (** start application evaluation *)
+  econstructor. constructor. simpl.
+  econstructor. constructor. auto.
+
+  (** function parameter *)
+  econstructor. constructor; auto; simpl.
+
+  (** evaluate list to value list *)
+  simpl.
   econstructor. apply step_cons; auto.
   econstructor. apply step_cons; auto.
   econstructor. apply step_cons; auto.
@@ -187,73 +224,64 @@ Proof.
   econstructor. apply red_cons1; auto.
   econstructor. apply red_cons2; auto.
 
-  (** first element *)
+  (** process first element in the recursive call *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
   econstructor. constructor; auto. reflexivity. cbn.
   econstructor. apply step_cons. auto. cbn.
   econstructor. apply step_app.
-  econstructor. constructor. { constructor. cbn. repeat constructor.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in H; try lia.
-                               all: simpl; auto; constructor; lia. }
-  (** second element *)
+  econstructor. constructor. auto.
+  econstructor. constructor; auto. simpl.
+
+  (** process second element in the recursive call *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
   econstructor. constructor; auto. reflexivity. cbn.
   econstructor. apply step_cons. auto. cbn.
   econstructor. apply step_app.
-  econstructor. constructor. { constructor. cbn. repeat constructor.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in H; try lia.
-                               all: simpl; auto; constructor; lia. }
-  (** third element *)
+  econstructor. constructor. auto.
+  econstructor. constructor; auto. simpl.
+
+  (** process third element in the recursive call *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
   econstructor. constructor; auto. reflexivity. cbn.
   econstructor. apply step_cons. auto. cbn.
   econstructor. apply step_app.
-  econstructor. constructor. { constructor. cbn. repeat constructor.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in H; try lia.
-                               all: simpl; auto; constructor; lia. }
-  (** end *)
+  econstructor. constructor. auto.
+  econstructor. constructor; auto. simpl.
+
+  (** stop recursion with ENil *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
   econstructor. apply red_case_false; auto.
-  (** apply function to list elements *)
+
+  (** apply function to the third element *)
   econstructor. constructor; auto.
   econstructor. apply step_app; auto.
-  econstructor. constructor; auto. { constructor. cbn. repeat constructor.
-                                     destruct i.
-                                     2: try destruct i. all: simpl in *;
-                                        try lia; constructor; lia. }
+  econstructor. constructor; auto.
   econstructor. constructor; auto. cbn.
   econstructor. apply step_bif; auto.
   econstructor. constructor; auto.
   econstructor. constructor; auto. cbn.
   econstructor. constructor; auto. cbn.
   econstructor. constructor; auto.
-  (** apply function to list elements *)
+
+  (** apply function to the second element *)
   econstructor. constructor; auto.
   econstructor. apply step_app; auto.
-  econstructor. constructor; auto. { constructor. cbn. repeat constructor.
-                                     destruct i.
-                                     2: try destruct i. all: simpl in *;
-                                        try lia; constructor; lia. }
+  econstructor. constructor; auto.
   econstructor. constructor; auto. cbn.
   econstructor. apply step_bif; auto.
   econstructor. constructor; auto.
   econstructor. constructor; auto. cbn.
   econstructor. constructor; auto. cbn.
   econstructor. constructor; auto.
-  (** apply function to list elements *)
+
+  (** apply function to the first element *)
   econstructor. constructor; auto.
   econstructor. apply step_app; auto.
-  econstructor. constructor; auto. { constructor. cbn. repeat constructor.
-                                     destruct i.
-                                     2: try destruct i. all: simpl in *;
-                                        try lia; constructor; lia. }
+  econstructor. constructor; auto.
   econstructor. constructor; auto. cbn.
   econstructor. apply step_bif; auto.
   econstructor. constructor; auto.
@@ -263,111 +291,100 @@ Proof.
   constructor.
 Qed.
 
+(** Complex example for foldr *)
 Local Goal
    ⟨[], obj_foldr
                 (EFun [XVar;YVar] (ECons (EBIF (ELit "+"%string) [EVar 1; ELit 1]) (EVar 2)))
                 (ECons (ELit 0) (ECons (ELit 1) (ECons (ELit 2) ENil))) ENil⟩ -->*
    VCons (ELit 1) (VCons (ELit 2) (VCons (ELit 3) ENil)).
 Proof.
-  split; auto. exists 63%nat.
-  econstructor. constructor. simpl.
-  econstructor. constructor. simpl.
-  econstructor. constructor. { constructor. cbn. do 2 constructor; auto.
-                               repeat constructor; intros.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in *; try lia.
-                               all: intros.
-                               1-3: simpl; auto; repeat constructor.
-                               repeat constructor. destruct i; simpl in *; try lia. repeat constructor. }
-  (** evaluate list *)
-  econstructor. apply step_cons; auto.
-  econstructor. apply step_cons; auto.
-  econstructor. apply step_cons; auto.
-  econstructor. apply red_cons1; auto.
-  econstructor. apply red_cons2; auto.
-  econstructor. apply red_cons1; auto.
-  econstructor. apply red_cons2; auto.
-  econstructor. apply red_cons1; auto.
-  econstructor. apply red_cons2; auto.
+  (** closedness assertions for the occuring functions *)
+  assert (VALCLOSED (EFun [FVar; DVar; XVar]
+             (ECase (EVar 3) (PCons PVar PVar)
+                (EApp (EVar 3)
+                   [EVar 0; EApp (EFunId 2) [EVar 3; EVar 4; EVar 1]])
+                (EVar 2)))). {
+    constructor. cbn. do 2 constructor; auto.
+    repeat constructor; intros.
+    all: destruct i.
+    all: try destruct i. all: simpl in *; try lia.
+    all: intros.
+    1-2: simpl; auto; repeat constructor.
+    simpl in *.
+    destruct i. 2: destruct i. 3: destruct i. all: auto.
+    constructor. all: lia.
+  }
+  assert (VALCLOSED (EFun [XVar; YVar]
+             (ECons (EBIF (ELit "+"%string) [EVar 1; ELit 1]) (EVar 2)))). {
+    constructor. cbn. repeat constructor.
+    all: destruct i; simpl in *.
+    all: try destruct i. all: simpl in H; try lia.
+    all: simpl; auto; constructor; lia.
+  }
+  split; auto. exists 71%nat.
 
-  (** first element *)
-  econstructor. constructor; auto. cbn.
-  econstructor. apply step_case; auto.
-  econstructor. constructor; auto. reflexivity. cbn.
-  (* econstructor. apply step_cons. auto. cbn. *)
-  econstructor. apply step_app.
-  econstructor. constructor. { constructor. cbn. repeat constructor.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in H; try lia.
-                               all: simpl; auto; constructor; lia. }
-  (** second element *)
-  econstructor. constructor; auto. cbn. { constructor. cbn. repeat constructor.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in H; try lia.
-                               all: simpl; auto; constructor; lia. }
-  (* econstructor. apply step_case; auto.
-  econstructor. constructor; auto. reflexivity. cbn.
-  econstructor. apply step_cons. auto. cbn. *)
-  econstructor. apply step_app.
-  econstructor. constructor. { constructor. cbn. do 2 constructor; auto.
-                               repeat constructor; intros.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in *; try lia.
-                               all: intros.
-                               1-3: simpl; auto; repeat constructor.
-                               repeat constructor. destruct i; simpl in *; try lia. repeat constructor. } simpl.
-  (** third element *)
-  econstructor. constructor; auto. cbn.
-  econstructor. apply step_case; auto.
-  econstructor. constructor; auto. reflexivity. cbn.
-  (* econstructor. apply step_cons. auto. cbn. *)
-  econstructor. apply step_app.
-  econstructor. constructor. { constructor. cbn. repeat constructor.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in H; try lia.
-                               all: simpl; auto; constructor; lia. }
-  (** end *)
-  econstructor. constructor; auto. cbn.
-  (* econstructor. apply step_case; auto.
-  econstructor. apply red_case_false; auto. *)
-  econstructor. constructor; auto. { constructor. cbn. do 2 constructor; auto.
-                               all: destruct i; intros.
-                               all: try destruct i. all: simpl in *; try lia.
-                               all: auto. } simpl.
+  (** Evaluate letrec *)
+  econstructor. constructor. simpl.
 
-  econstructor. apply step_app; auto.
-  econstructor. constructor. { constructor. cbn. do 2 constructor; auto.
-                               repeat constructor; intros.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in *; try lia.
-                               all: intros.
-                               1-3: simpl; auto; repeat constructor.
-                               repeat constructor. destruct i; simpl in *; try lia. repeat constructor. }
+  (** Application with 3 params *)
+  econstructor. constructor. simpl.
+  econstructor. constructor. auto.
+  econstructor. constructor; auto. simpl.
+  econstructor. constructor; auto.
+
+  (** evaluate parameter list to list of values *)
+  econstructor. apply step_cons; auto.
+  econstructor. apply step_cons; auto.
+  econstructor. apply step_cons; auto.
+  econstructor. apply red_cons1; auto.
+  econstructor. apply red_cons2; auto.
+  econstructor. apply red_cons1; auto.
+  econstructor. apply red_cons2; auto.
+  econstructor. apply red_cons1; auto.
+  econstructor. apply red_cons2; auto. simpl.
+
+  (** apply recursive call with the first element *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
   econstructor. constructor; auto. reflexivity. cbn.
   econstructor. apply step_app.
-  econstructor. constructor. { constructor. cbn. repeat constructor.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in H; try lia.
-                               all: simpl; auto; constructor; lia. }
-  econstructor. constructor; auto. { constructor. cbn. do 2 constructor; auto.
-                               all: destruct i; intros.
-                               all: try destruct i. all: simpl in *; try lia.
-                               all: auto. }
-  econstructor. apply step_app; auto.
-  econstructor. constructor. { constructor. cbn. do 2 constructor; auto.
-                               repeat constructor; intros.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in *; try lia.
-                               all: intros.
-                               1-3: simpl; auto; repeat constructor.
-                               repeat constructor. destruct i; simpl in *; try lia. repeat constructor. }
+  econstructor. constructor. auto.
+  econstructor. constructor; auto. cbn.
+
+  (** apply recursive call with the second element *)
+  econstructor. apply step_app.
+  econstructor. constructor. auto.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_case; auto.
+  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. apply step_app.
+  econstructor. constructor. auto.
+  econstructor. constructor; auto. cbn.
+
+  (** apply recursive call with the third element *)
+  econstructor. apply step_app.
+  econstructor. constructor. auto.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. apply step_case; auto.
+  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. apply step_app.
+  econstructor. constructor. auto.
+  econstructor. constructor; auto. cbn.
+
+  (** end of recursion with ENil *)
+  econstructor. apply step_app.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
+  econstructor. constructor; auto. cbn.
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
   econstructor. apply red_case_false; auto.
 
-  (** build list back, and apply +1 to the elements *)
+  (** build the list back, by applying the +1 BIF *)
   (** 3rd element *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_cons.
@@ -423,6 +440,7 @@ match goal with
 end.
 Ltac proof_irr_many := repeat proof_irr.
 
+(** Properties of the semantics *)
 Theorem step_determinism {e e' fs fs'} :
   ⟨ fs, e ⟩ --> ⟨fs', e'⟩ ->
   (forall fs'' e'', ⟨fs, e⟩ --> ⟨fs'', e''⟩ -> fs'' = fs' /\ e'' = e').
@@ -544,6 +562,9 @@ Definition terminates_in_k_sem (fs : FrameStack) (e : Exp) (k : nat) : Prop :=
 
 Open Scope nat_scope.
 
+(** Inductively defined termination relation. This will be used by the
+    equivalence concepts (CIU, CTX, logical relations).
+*)
 Reserved Notation "| fs , e | k ↓" (at level 80).
 Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
 
@@ -1411,6 +1432,9 @@ Proof.
     auto.
 Qed.
 
+(** The following two theorems state general properties about the evaluation
+    of map and foldr. Specifically, they explain the conditions under they
+    evaluate to the same list value. *)
 Theorem obj_map_on_meta_level :
   forall l' l x e f
   (VsCL : VALCLOSED l) (SCE : EXP 2 ⊢ e),
@@ -1424,17 +1448,27 @@ Proof.
     eexists. auto. eexists.
     econstructor. constructor. cbn.
     econstructor. constructor.
-    econstructor. constructor. { 
+    econstructor. constructor. {
       constructor. simpl. constructor; auto.
-      cbn. do 2 constructor; auto.
-      2-3: intros; destruct i; simpl; constructor; auto.
-      2: constructor; lia.
-      2-3: simpl in H1; lia.
-      do 2 constructor; simpl.
-      now apply (proj2 (scope_ext_app 6 2 ltac:(lia))).
+      cbn. do 2 constructor; auto. 2: do 2 constructor; lia.
+      all: intros; destruct i; simpl; constructor; auto; simpl in *.
+      2-3: destruct i; try constructor; lia. constructor. lia.
     }
-    econstructor. constructor; auto. cbn.
-    econstructor. constructor. cbn.
+    econstructor. constructor. {
+      constructor. simpl. constructor; auto.
+      cbn. do 2 constructor; auto. 2: do 2 constructor; lia.
+      all: intros; destruct i; simpl; constructor; auto; simpl in *.
+      2-3: destruct i; try constructor; lia. constructor. lia.
+    } auto.
+    {
+      constructor. simpl. rewrite (proj2 (scoped_ignores_sub 2) e); auto.
+    }
+    simpl.
+    econstructor. constructor; auto. constructor; auto.
+    {
+      constructor. simpl. rewrite (proj2 (scoped_ignores_sub 2) e); auto.
+    }
+    econstructor. simpl. constructor; auto. cbn.
     econstructor. apply red_case_false; auto.
     constructor.
   * destruct l; simpl in H0; inversion H0.
@@ -1455,15 +1489,24 @@ Proof.
     econstructor. constructor.
     econstructor. constructor. {
       constructor. simpl. constructor; auto.
-      cbn. do 2 constructor; auto.
-      2-3: intros; destruct i; simpl; constructor; auto.
-      2: constructor; lia.
-      2-3: simpl in H0; lia.
-      do 2 constructor; simpl.
-      now apply (proj2 (scope_ext_app 6 2 ltac:(lia))).
+      cbn. do 2 constructor; auto. 2: do 2 constructor; lia.
+      all: intros; destruct i; simpl; constructor; auto; simpl in *.
+      2-3: destruct i; try constructor; lia. constructor. lia.
     }
+    econstructor. constructor. {
+      constructor. simpl. constructor; auto.
+      cbn. do 2 constructor; auto. 2: do 2 constructor; lia.
+      all: intros; destruct i; simpl; constructor; auto; simpl in *.
+      2-3: destruct i; try constructor; lia. constructor. lia.
+    } auto.
+    {
+      constructor. simpl. rewrite (proj2 (scoped_ignores_sub 2) e); auto.
+    }
+    econstructor. constructor; auto. simpl. constructor.
+    {
+      constructor. simpl. rewrite (proj2 (scoped_ignores_sub 2) e); auto.
+    } auto.
     econstructor. constructor; auto. simpl.
-    econstructor. constructor; auto.
     econstructor. constructor; auto. reflexivity. simpl.
     econstructor. apply step_cons.
     repeat rewrite renaming_is_subst.
@@ -1473,11 +1516,13 @@ Proof.
     repeat rewrite (proj2 (scoped_ignores_sub 2) e); auto.
     apply frame_indep_nil with (Fs' := [FCons1
      (EApp (EFun [x] e)
-        [a.[EFun [XVar]
-              (ECase (EVar 1) (PCons PVar PVar)
-                 (ECons (EApp (EFun [x] e) [EVar 0])
-                    (EApp (EFunId 2) [EVar 1])) ENil)/]])]) in H1. simpl in H1.
-    eapply transitive_eval. exact H1.
+        [a.[EFun [FVar; XVar]
+              (ECase (EVar 2) (PCons PVar PVar)
+                 (ECons (EApp (EVar 3) [EVar 0])
+                    (EApp (EFunId 2) [EVar 3; EVar 1])) ENil)/]])]) in H1. simpl in H1.
+    eapply transitive_eval.
+    rewrite (proj2 (scoped_ignores_sub 2) e) in H1; auto.
+    exact H1.
    (** evaluate first element *)
     econstructor. constructor. { auto. }
     rewrite vclosed_ignores_sub; auto.
@@ -1495,23 +1540,43 @@ Theorem obj_foldr_on_meta_level :
  -->* list_to_cons (map f l').
 Proof.
   induction l'; intros.
-  * destruct l; simpl in H0; inversion H0.
+  * assert (VALCLOSED (EFun [FVar; DVar; XVar]
+             (ECase (EVar 3) (PCons PVar PVar)
+                (EApp (EVar 3)
+                   [EVar 0; EApp (EFunId 2) [EVar 3; EVar 4; EVar 1]])
+                (EVar 2)))) as CLF1. {
+      do 2 constructor; auto. constructor; simpl; auto.
+      * do 2 constructor. lia.
+      * intros. destruct i. 2: destruct i. do 2 constructor. 1, 3: lia.
+        constructor; auto. simpl. intros.
+        do 2 constructor. lia.
+        simpl. intros. destruct i. 2: destruct i. 3: destruct i.
+        1-3: do 2 constructor. all: lia.
+      * simpl. do 2 constructor. lia.
+    }
+    assert (VALCLOSED (EFun [y; z] (ECons (EApp (EFun [x] e) [EVar 1]) (EVar 2)))). {
+      constructor. simpl. do 2 constructor.
+      * do 2 constructor. simpl. now apply (proj2 (scope_ext_app 5 2 ltac:(lia))).
+      * intros. simpl in H1. destruct i. do 2 constructor. all: lia.
+      * constructor. lia.
+    }
+    destruct l; simpl in H0; inversion H0.
     2: { destruct (cons_to_list l2); inversion H0. }
     unfold obj_map. cbn.
     eexists. auto. eexists.
     econstructor. constructor. cbn.
     econstructor. constructor.
-    econstructor. constructor. {
-      do 2 constructor; auto. constructor; simpl; auto.
-      * do 4 constructor; simpl.
-        - do 2 constructor. simpl. now apply (proj2 (scope_ext_app 9 2 ltac:(lia))).
-        - intros. destruct i. do 2 constructor. all: lia.
-        - constructor. lia.
-      * intros. destruct i. 2: destruct i. do 2 constructor. 1, 3: lia.
-        constructor; auto. simpl. intros. destruct i. do 2 constructor. all: lia.
-    }
-    econstructor. constructor; auto. cbn.
-    econstructor. constructor. cbn.
+    econstructor. constructor. auto.
+    repeat rewrite (proj2 (scoped_ignores_sub 2) e); auto.
+    econstructor. constructor; auto.
+    cbn.
+    econstructor. constructor; auto.
+    econstructor. constructor; auto.
+    {
+      constructor. auto.
+      constructor; auto.
+    } cbn.
+    econstructor. constructor; auto.
     econstructor. apply red_case_false; auto.
     constructor.
   * destruct l; simpl in H0; inversion H0.
@@ -1526,20 +1591,40 @@ Proof.
     specialize (H a) as [? [kk DER]].
     (***)
     unfold obj_map. split. { simpl. constructor; auto. }
-
+    assert (VALCLOSED (EFun [FVar; DVar; XVar]
+             (ECase (EVar 3) (PCons PVar PVar)
+                (EApp (EVar 3)
+                   [EVar 0; EApp (EFunId 2) [EVar 3; EVar 4; EVar 1]])
+                (EVar 2)))) as CLF1. {
+      do 2 constructor; auto. constructor; simpl; auto.
+      * do 2 constructor. lia.
+      * intros. destruct i. 2: destruct i. do 2 constructor. 1, 3: lia.
+        constructor; auto. simpl. intros.
+        do 2 constructor. lia.
+        simpl. intros. destruct i. 2: destruct i. 3: destruct i.
+        1-3: do 2 constructor. all: lia.
+      * simpl. do 2 constructor. lia.
+    }
+    assert (VALCLOSED (EFun [y; z] (ECons (EApp (EFun [x] e) [EVar 1]) (EVar 2)))) as CLVF2. {
+      constructor. simpl. do 2 constructor.
+      * do 2 constructor. simpl. now apply (proj2 (scope_ext_app 5 2 ltac:(lia))).
+      * intros. simpl in H1. destruct i. do 2 constructor. lia.
+        simpl in *. lia.
+      * constructor. lia.
+    }
     eexists.
     econstructor. constructor. cbn.
     econstructor. constructor.
-    econstructor. constructor. {
-      do 2 constructor; auto. constructor; simpl; auto.
-      * do 4 constructor; simpl.
-        - do 2 constructor. simpl. now apply (proj2 (scope_ext_app 9 2 ltac:(lia))).
-        - intros. destruct i. do 2 constructor. all: lia.
-        - constructor. lia.
-      * intros. destruct i. 2: destruct i. do 2 constructor. 1, 3: lia.
-        constructor; auto. simpl. intros. destruct i. do 2 constructor. all: lia.
-    }
+    econstructor. constructor. auto.
+    repeat rewrite (proj2 (scoped_ignores_sub 2) e); auto.
+    rewrite (proj2 (scoped_ignores_sub 2) e) in H1; auto.
     econstructor. constructor; auto. simpl.
+    econstructor. constructor; auto.
+    econstructor. constructor; auto.
+    {
+      constructor. auto.
+      constructor; auto.
+    } simpl.
     econstructor. constructor; auto.
     econstructor. constructor; auto. reflexivity. simpl.
     repeat rewrite renaming_is_subst.
@@ -1550,21 +1635,9 @@ Proof.
     repeat rewrite vclosed_ignores_sub; auto.
     rewrite vclosed_ignores_sub in H1; auto.
     econstructor. constructor.
-    econstructor. constructor. {
-      do 4 constructor; simpl.
-      - constructor. simpl. now apply (proj2 (scope_ext_app 5 2 ltac:(lia))).
-      - simpl in H0. intros. destruct i. do 2 constructor. all: lia.
-      - constructor.
-    }
-    econstructor. constructor; auto. {
-      do 4 constructor; simpl.
-      - constructor. simpl. now apply (proj2 (scope_ext_app 5 2 ltac:(lia))).
-      - simpl in H0. intros. destruct i. do 2 constructor. all: lia.
-      - constructor.
-    } simpl.
-    apply frame_indep_nil with (Fs' :=  [FApp2
-     (EFun [y; z]
-        (ECons (EApp (EFun [x] e) [EVar 1]) (EVar 2))) [] [a]]) in H1. simpl in H1.
+    econstructor. constructor. auto.
+    econstructor. constructor; auto. simpl.
+    apply frame_indep_nil with (Fs' :=  [FApp2 (EFun [y; z] (ECons (EApp (EFun [x] e) [EVar 1]) (EVar 2))) [] [a]]) in H1. simpl in H1.
     eapply transitive_eval. exact H1.
    (** evaluate first element *)
     econstructor. constructor; auto. simpl.

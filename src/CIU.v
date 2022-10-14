@@ -1,3 +1,10 @@
+(**
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we define CIU equivalence for sequential Core Erlang.
+  We prove that CIU equivalence coicides with logical relations.
+*)
+
 Require Export Compatibility.
 
 Import ListNotations.

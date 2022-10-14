@@ -1,3 +1,8 @@
+(**
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we show example program equivalences in sequential Core Erlang.
+*)
 Require Import CTX.
 Import ListNotations.
 
@@ -282,26 +287,33 @@ Proof.
   eapply CIU_evaluates; eauto.
   {
     unfold obj_map. do 3 constructor; auto; simpl.
-    3: destruct i; [ now apply (proj1 (scope_ext_app 1 0 ltac:(lia))) |
-                     simpl in *; lia ].
     - constructor. simpl. constructor; auto.
       cbn. constructor; auto.
-      now apply (proj2 (scope_ext_app 6 2 ltac:(lia))).
-      simpl. intros. destruct i; constructor. constructor; lia. lia.
-    - do 2 constructor; auto. simpl in H3. destruct i. constructor. all: lia.
+      destruct i. 2: destruct i.
+      all: constructor. lia.
+    - do 2 constructor; auto. simpl in H3.
+      destruct i. 2: destruct i. 3: destruct i. all: constructor. all: lia.
+    - simpl in *. destruct i. 2: destruct i.
+      constructor; simpl. now apply (proj2 (scope_ext_app 3 2 ltac:(lia))).
+      now apply (proj1 (scope_ext_app 1 0 ltac:(lia))).
+      lia.
   }
   {
     unfold obj_map. do 3 constructor; auto; simpl.
-    3: destruct i; [ now apply (proj1 (scope_ext_app 1 0 ltac:(lia))) |
-                     simpl in *; lia ].
-    - do 2 constructor; auto. constructor; simpl; auto.
-      * do 2 constructor; simpl.
-        + constructor. simpl. now apply (proj2 (scope_ext_app 9 2 ltac:(lia))).
-        + intros. destruct i. do 2 constructor. all: simpl in *; lia.
-      * intros. constructor. constructor. lia.
-    - intros. destruct i. 2: destruct i. do 2 constructor. 1,3: lia.
-      constructor; auto. simpl. intros. destruct i. do 2 constructor; lia.
-      lia.
+    - do 2 constructor; auto.
+    - intros. destruct i. 2: destruct i. 3: destruct i.
+      constructor. constructor. lia.
+      all: auto.
+      constructor. do 2 constructor. lia. simpl.
+      intros. destruct i. 2: destruct i. 3: destruct i.
+      1-3: do 2 constructor. all: lia.
+    - do 2 constructor; auto.
+    - simpl in *. destruct i. 2: destruct i. 3: destruct i.
+      do 3 constructor; simpl. all: auto.
+      + do 2 constructor. simpl. now apply (proj2 (scope_ext_app 6 2 ltac:(lia))).
+      + intros. destruct i. do 2 constructor. all: lia.
+      + now apply (proj1 (scope_ext_app 1 0 ltac:(lia))).
+      + lia.
   }
 Qed.
 
@@ -315,28 +327,35 @@ Proof.
   pose proof (obj_foldr_on_meta_level l' l x y z e f VsCL SCE H H0).
   pose proof (obj_map_on_meta_level l' l x e f VsCL SCE H H0).
   eapply CIU_evaluates; eauto.
-  {
+  2: {
     unfold obj_map. do 3 constructor; auto; simpl.
-    3: destruct i; [ now apply (proj1 (scope_ext_app 1 0 ltac:(lia))) |
-                     simpl in *; lia ].
-    - do 2 constructor; auto. constructor; simpl; auto.
-      * do 2 constructor; simpl.
-        + constructor. simpl. now apply (proj2 (scope_ext_app 9 2 ltac:(lia))).
-        + intros. destruct i. do 2 constructor. all: simpl in *; lia.
-      * intros. constructor. constructor. lia.
-    - intros. destruct i. 2: destruct i. do 2 constructor. 1,3: lia.
-      constructor; auto. simpl. intros. destruct i. do 2 constructor; lia.
-      lia.
-  }
- {
-    unfold obj_map. do 3 constructor; auto; simpl.
-    3: destruct i; [ now apply (proj1 (scope_ext_app 1 0 ltac:(lia))) |
-                     simpl in *; lia ].
     - constructor. simpl. constructor; auto.
       cbn. constructor; auto.
-      now apply (proj2 (scope_ext_app 6 2 ltac:(lia))).
-      simpl. intros. destruct i; constructor. constructor; lia. lia.
-    - do 2 constructor; auto. simpl in H3. destruct i. constructor. all: lia.
+      destruct i. 2: destruct i.
+      all: constructor. lia.
+    - do 2 constructor; auto. simpl in H3.
+      destruct i. 2: destruct i. 3: destruct i. all: constructor. all: lia.
+    - simpl in *. destruct i. 2: destruct i.
+      constructor; simpl. now apply (proj2 (scope_ext_app 3 2 ltac:(lia))).
+      now apply (proj1 (scope_ext_app 1 0 ltac:(lia))).
+      lia.
+  }
+  {
+    unfold obj_map. do 3 constructor; auto; simpl.
+    - do 2 constructor; auto.
+    - intros. destruct i. 2: destruct i. 3: destruct i.
+      constructor. constructor. lia.
+      all: auto.
+      constructor. do 2 constructor. lia. simpl.
+      intros. destruct i. 2: destruct i. 3: destruct i.
+      1-3: do 2 constructor. all: lia.
+    - do 2 constructor; auto.
+    - simpl in *. destruct i. 2: destruct i. 3: destruct i.
+      do 3 constructor; simpl. all: auto.
+      + do 2 constructor. simpl. now apply (proj2 (scope_ext_app 6 2 ltac:(lia))).
+      + intros. destruct i. do 2 constructor. all: lia.
+      + now apply (proj1 (scope_ext_app 1 0 ltac:(lia))).
+      + lia.
   }
 Qed.
 

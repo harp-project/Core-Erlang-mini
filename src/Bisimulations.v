@@ -1,3 +1,10 @@
+(**
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we show bisimulation-based equivalence concepts for
+  concurrent Core Erlang.
+*)
+
 Require Export ConcurrentProperties.
 Import ListNotations.
 

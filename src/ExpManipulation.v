@@ -1,3 +1,16 @@
+(**
+
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we describe the capture-avoiding
+  renaming and substitution for Core
+  Erlang expressions. This work is based on the techniques of the Autosubst
+  library [1] and Wand et al. [2].
+
+  1: https://github.com/coq-community/autosubst
+  2: https://dl.acm.org/doi/10.1145/3236782
+*)
+
 Require Export ExpSyntax
                Coq.Structures.OrderedType.
 
@@ -45,9 +58,11 @@ match e with
  | EReceive l => EReceive (map (fun '(p, v) => (p, rename (uprenn (pat_vars p) ρ) v)) l)
 end.
 
-Definition Substitution := nat -> Exp + nat. (** We need to have the names for the
-                                                  identity elements explicitly, because 
-                                                  of the shiftings (up, upn) *)
+Definition Substitution := nat -> Exp + nat.
+(** We need to have the names for the
+    identity elements explicitly, because of the shiftings (up, upn) *)
+
+
 Definition idsubst : Substitution := fun x => inr x.
 
 Definition shift (ξ : Substitution) : Substitution := 
