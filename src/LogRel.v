@@ -1,3 +1,9 @@
+(**
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we define logical relations for sequential Core Erlang.
+*)
+
 Require Export SubstSemantics.
 
 Import ListNotations.

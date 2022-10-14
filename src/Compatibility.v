@@ -1,3 +1,9 @@
+(**
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  We prove the reflexivity and compatibility of the logical relations.
+*)
+
 Require Export LogRel.
 Import ListNotations.
 

@@ -1,3 +1,10 @@
+(**
+
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we describe the syntax of Core Erlang.
+
+*)
 
 From Coq Require Export ZArith.BinInt
                         FunctionalExtensionality
@@ -10,15 +17,30 @@ Definition Var : Set := string.
 
 Definition FunctionIdentifier : Set := string * nat.
 
+(** Process identifiers are regarded as nats *)
 Definition PID : Set := nat.
 
+(** Currently, we include atoms and integers as literals. We note that 
+    atoms are also used for built-in function names.
+*)
 Inductive Lit : Set :=
 | Atom (s : string)
 | Int (z : Z).
 
+(** Coercions to be able to write down literals in a simpler way. *)
 Coercion Atom : string >-> Lit.
 Coercion Int  : Z >-> Lit.
 
+(** Patterns are the following contructs. Patterns variables in Core
+    Erlang are unique, they can appear at most once in any Pattern.
+    Because of this, in the nameless representation, no indices
+    are needed for pattern variables.
+
+    For technical reasons, PIDs are included as patterns, but they could
+    be omitted by implementing the function erlang:is_pid/1.
+
+    We note, that this resriction is not applicable for Erlang, though.
+*)
 Inductive Pat : Set :=
 | PLit (l : Lit)
 | PPid (p : PID)
@@ -26,18 +48,21 @@ Inductive Pat : Set :=
 | PNil
 | PCons (p1 p2 : Pat).
 
+(** The syntax of expressions: *)
 Inductive Exp : Set :=
 | ELit    (l : Lit)
 | EPid    (p : PID)
-| EVar    (n : nat) (** (v : Var) <- these will be assigned by a naming function *)
-| EFunId  (n : nat) (** (f : FunctionIdentifier) <- these will be assigned by a naming function *)
-(** Instead of multiple fun-s (recursive and non-recursive), 
+(** Variables and function identifiers are just indices.
+    TODO: In the future, function identifiers should include the arity too!
+*)
+| EVar    (n : nat)
+| EFunId  (n : nat)
+(** Instead of multiple fun constructs (recursive and non-recursive), 
     we use only recursive funs, which use the 0 DB-index as the recursive fun-exp *)
 | EFun    (vl : list Var) (e : Exp)
 | EApp    (exp : Exp)     (l : list Exp)
 | ELet    (v : Var) (e1 e2 : Exp)
 | ELetRec (f : FunctionIdentifier) (vl : list Var) (b e : Exp)
-(** Techical helper constructions: 1) simple bif: plus, 2) simple case: if *)
 (** Eliminator *)
 | ECase (e : Exp) (p : Pat) (e1 e2 : Exp)
 (** Lists *)
@@ -47,10 +72,17 @@ Inductive Exp : Set :=
 | VCons (e1 e2 : Exp)
 (** Concurrency *)
 | EReceive (l : list (Pat * Exp))
-| EBIF (e : Exp) (l : list Exp).
+| EBIF (e : Exp) (l : list Exp)
+(** We note, that both sequential and concurrent built-in functions
+    are represented by EBIF, just like in Core Erlang itself.
+*)
+.
 
 Section correct_exp_ind.
-
+(** Coq cannot automatically generate correct induction principle
+    for expressions (because of mutual induction between Exp
+    and list). Thus we define it by hand:
+*)
   Variables
     (P : Exp -> Prop)(Q : list Exp -> Prop)(W : list (Pat * Exp) -> Prop).
 
@@ -113,30 +145,49 @@ Fixpoint Exp_eq_dec (e e' : Exp) : {e = e'} + {e <> e'}.
 Proof. repeat decide equality. Qed.
 
 (** Examples *)
-
+(** Shorthands: *)
 Definition XVar : Var := "X"%string.
 Definition YVar : Var := "Y"%string.
 Definition ZVar : Var := "Z"%string.
+Definition FVar : Var := "F"%string.
+Definition DVar : Var := "D"%string.
 
 Definition F0 : FunctionIdentifier := ("f"%string, 0).
 Definition F1 : FunctionIdentifier := ("f"%string, 1).
+Definition MAP : FunctionIdentifier := ("map"%string, 2).
+Definition FOLDR : FunctionIdentifier := ("foldr"%string, 3).
 
+(** Incrementing expression *)
 Definition inc (n : Z) := ELet XVar (ELit n) (EBIF (ELit "+"%string) [EVar 0; ELit 1%Z]).
+(** Summation from 0 to the given positive number *)
 Definition sum (n : Z) := ELetRec F1 [XVar] (ECase (EVar 1) (PLit 0%Z) (EVar 1) (
                                             (EBIF (ELit "+"%string) [EVar 1;
                                             EApp (EFunId 0) [EBIF (ELit "+"%string) [EVar 1; ELit ((-1)%Z)]]])))
                         (EApp (EFunId 0) [ELit n]).
+(** Application of a 0-parameter function inside `let`. *)
 Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar 0) []).
+(** Application of a two-parameter function, which sums these. *)
 Definition simplefun2 (n m : Z) := EApp (EFun [XVar; YVar] (EBIF (ELit "+"%string) [EVar 1; EVar 2])) [ELit n; ELit m].
 
+(** Map function expressed with `letrec`. It transforms the list with
+    the given function value. *)
 Definition obj_map f e : Exp :=
-  ELetRec F1 [XVar]
-    (ECase (EVar 1)
-      (PCons PVar PVar) (ECons (EApp f [EVar 0])
-                               (EApp (EFunId 2) [EVar 1]))
+  ELetRec MAP [FVar;XVar]
+    (ECase (EVar 2)
+      (PCons PVar PVar) (ECons (EApp (EVar 3) [EVar 0])
+                               (EApp (EFunId 2) [EVar 3; EVar 1]))
                         ENil
     )
-    (EApp (EFunId 0) [e]).
+    (EApp (EFunId 0) [f;e]).
+
+(** Foldr function expressed with `letrec`. It aggregates a list. *)
+Definition obj_foldr f e d : Exp :=
+  ELetRec FOLDR [FVar;DVar;XVar]
+    (ECase (EVar 3)
+      (PCons PVar PVar) (EApp (EVar 3) [EVar 0; EApp (EFunId 2) [EVar 3; EVar 4; EVar 1]])
+                        (EVar 2)
+    )
+    (EApp (EFunId 0) [f;d;e]).
 
 (** Names, equalities *)
 
@@ -247,7 +298,7 @@ Qed.
 Global Hint Resolve var_funid_eqb_refl : core.
 
 Section in_list.
-
+(** Bool-based In for Coq *)
 Variable A : Type.
 Variable (eqb : A -> A -> bool).
 Hypothesis (eqb_true : forall e1 e2, eqb e1 e2 = true <-> e1 = e2).
@@ -312,6 +363,14 @@ Proof.
   intro. rewrite lit_eqb_eq. reflexivity.
 Qed.
 
+
+(** Pattern matching. Variable bindings in the nameless representation
+    will be created in an ascending order. E.g. the matching for
+
+    match_pattern (PCons (PVar PVar)) (VCons e₁ e₂)
+
+    will be 0 ↦ e₁, 1 ↦ e₂
+*)
 Fixpoint match_pattern (p : Pat) (e : Exp) : option (list Exp) :=
 match p with
 | PVar => Some [e]

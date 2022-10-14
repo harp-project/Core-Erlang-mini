@@ -1,3 +1,9 @@
+(**
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we show example program evaluation in concurrent Core Erlang.
+*)
+
 Require Import ConcurrentFunSemantics.
 Import ListNotations.
 Import PeanoNat.

@@ -1,4 +1,11 @@
-(* This part of the work is based on https://dl.acm.org/doi/10.1145/3123569.3123576 *)
+(**
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we describe the frame stack semantics for concurrent
+  Core Erlang.
+
+  This part of the work is based on https://dl.acm.org/doi/10.1145/3123569.3123576
+*)
 Require Export SubstSemantics.
 Require Export Coq.Sorting.Permutation.
 Require Export Coq.Classes.EquivDec.

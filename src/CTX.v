@@ -1,3 +1,13 @@
+(**
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we define contextual equivalence for sequential Core Erlang.
+  We prove the contextual equivalence coincides with CIU equivalence and
+  lofical relations.
+
+  At the bottom of the file, we define a notion of behavioural equivalence too,
+  which also proved to be coincide with CIU equivalence.
+*)
 Require Export CIU.
 
 Import ListNotations.

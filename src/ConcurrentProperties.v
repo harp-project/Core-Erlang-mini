@@ -1,3 +1,8 @@
+(**
+  This file is a part of a formalisation of a subset of Core Erlang.
+
+  In this file, we prove properties about concurrent Core Erlang.
+*)
 Require Export ConcurrentFunSemantics.
 Import ListNotations.
 
