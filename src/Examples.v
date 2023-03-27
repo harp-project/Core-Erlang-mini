@@ -57,9 +57,9 @@ Ltac ether_cleanup :=
 
 Example signal_ordering :
   exists acts,
-    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
-                                        (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
-                  1 : inl ([], EReceive [(PVar, EBIF (ELit "send")
+    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "!") [EPid 1; ELit "fst"])
+                                        (EBIF (ELit "!") [EPid 2; ELit "snd"]), [], [], false) ||||
+                  1 : inl ([], EReceive [(PVar, EBIF (ELit "!")
                                                        [EPid 2; EVar 0])], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[ acts ]ₙ->*
@@ -139,9 +139,9 @@ Qed.
 
 Example signal_ordering_2 :
   exists acts,
-    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
-                                        (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
-                  1 : inl ([], EReceive [(PVar, EBIF (ELit "send")
+    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "!") [EPid 1; ELit "fst"])
+                                        (EBIF (ELit "!") [EPid 2; ELit "snd"]), [], [], false) ||||
+                  1 : inl ([], EReceive [(PVar, EBIF (ELit "!")
                                                        [EPid 2; EVar 0])], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[ acts ]ₙ->*
@@ -219,8 +219,8 @@ Qed.
 
 Example signal_ordering_3 :
   exists acts,
-    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
-                                        (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
+    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "!") [EPid 1; ELit "fst"])
+                                        (EBIF (ELit "!") [EPid 2; ELit "snd"]), [], [], false) ||||
                   1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[ acts ]ₙ->*
@@ -273,8 +273,8 @@ Qed.
 
 Example signal_ordering_4 :
   exists acts,
-    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "send") [EPid 1; ELit "fst"])
-                                        (EBIF (ELit "send") [EPid 2; ELit "snd"]), [], [], false) ||||
+    (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "!") [EPid 1; ELit "fst"])
+                                        (EBIF (ELit "!") [EPid 2; ELit "snd"]), [], [], false) ||||
                   1 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) ||||
                   2 : inl ([], EReceive [(PVar, EVar 0)], [], [], false) |||| nullpool)
   -[ acts ]ₙ->*
@@ -329,9 +329,9 @@ Qed.
 (** Further tests: *)
 
 Goal exists acts,
-  (fun _ _ => [], 0 : inl ([], EBIF (ELit "send") [EPid 1; EBIF (ELit "+"%string) [ELit 1%Z; ELit 1%Z]], [], [], false) ||||
-       1 : inl ([], EReceive [(PVar, EBIF (ELit "send") [EPid 3;EVar 0])], [], [], false) ||||
-       2 : inl ([], EBIF (ELit "send") [EPid 3;ELit 3%Z], [], [], false) ||||
+  (fun _ _ => [], 0 : inl ([], EBIF (ELit "!") [EPid 1; EBIF (ELit "+"%string) [ELit 1%Z; ELit 1%Z]], [], [], false) ||||
+       1 : inl ([], EReceive [(PVar, EBIF (ELit "!") [EPid 3;EVar 0])], [], [], false) ||||
+       2 : inl ([], EBIF (ELit "!") [EPid 3;ELit 3%Z], [], [], false) ||||
        3 : inl ([], EReceive [(PVar, EReceive [(PVar, EBIF (ELit "+"%string) [EVar 0;EVar 1])])], [], [], false) |||| nullpool)
   -[ acts ]ₙ->*
   (fun _ _ => [], 0 : inl ([], ELit 2%Z, [], [], false) ||||
@@ -454,9 +454,9 @@ let X = spawn(fun() -> receive X -> X ! self() end end, [])
 
 *)
 Goal exists acts,
-  (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "spawn") [EFun [] (EReceive [(PVar, EBIF (ELit "send") [EVar 0; EBIF (ELit "self") []])]);
+  (fun _ _ => [], 0 : inl ([], ELet "X" (EBIF (ELit "spawn") [EFun [] (EReceive [(PVar, EBIF (ELit "!") [EVar 0; EBIF (ELit "self") []])]);
                                              ENil])
-             (ELet "Y"%string (EBIF (ELit "send") [EVar 0; EBIF (ELit "self") []])
+             (ELet "Y"%string (EBIF (ELit "!") [EVar 0; EBIF (ELit "self") []])
                  (EReceive [(PVar, EVar 0)]))
                   , [], [], false)
   |||| nullpool)

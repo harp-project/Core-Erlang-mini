@@ -143,12 +143,12 @@ Qed.
 
 Goal forall ether, Node_equivalence (ether, 
                          0 : inl ([], ELet "X"%string (ELit 0%Z) (EVar 0), [], [], false) ||||
-                         1 : inl ([], EBIF (ELit "send"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
+                         1 : inl ([], EBIF (ELit "!"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
                          nullpool
                       )
                       (ether,
                         0 : inl ([], ELit 0%Z, [], [], false) ||||
-                        1 : inl ([], EBIF (ELit "send"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
+                        1 : inl ([], EBIF (ELit "!"%string) [EPid 0;ELit 1%Z], [], [], false) ||||
                         nullpool
                       ).
 Proof.
@@ -160,6 +160,24 @@ Proof.
       eapply n_trans. do 4 constructor.
       simpl. apply n_refl.
 Qed.
+
+Fixpoint list_app (e1 e2 : Exp) : Exp :=
+  match e1 with
+  | ENil => e2
+  | ECons e1' e2' => ECons e1' (list_app e2' e2)
+  | _ => ENil
+  end.
+
+Goal forall Δ e x f (l1 l2 : list Exp),
+  computes x e f ->
+  Node_equivalence
+  (Δ, 0 : inl ([], obj_map (EFun [x] e) (list_to_cons (l1 ++ l2)), [], [], false) |||| nullpool)
+  (Δ, 1 : inl ([], EBIF send [EPid 0;obj_map (EFun [x] e) (list_to_cons l1)], [], [], false) ||||
+      2 : inl ([], EBIF send [EPid 0;obj_map (EFun [x] e) (list_to_cons l2)], [], [], false) ||||
+      0 : inl ([], EReceive [(PVar, EReceive [(PVar, list_app (EVar 0) (EVar 1))])], [], [], false) |||| nullpool).
+Proof.
+
+Abort.
 
 Lemma update_get :
   forall T x (a : T) f, update x a f x = a.
