@@ -168,16 +168,56 @@ Fixpoint list_app (e1 e2 : Exp) : Exp :=
   | _ => ENil
   end.
 
-Goal forall Δ e x f (l1 l2 : list Exp),
+Theorem internals_to_locals Fs Fs' e e' k mb links flag:
+  ⟨Fs, e⟩ -[k]-> ⟨Fs', e'⟩ ->
+  inl (Fs, e, mb, links, flag) -⌈repeat AInternal k⌉->*
+  inl (Fs', e', mb, links, flag).
+Proof.
+  intros. induction H; simpl in *; econstructor.
+  - constructor. eassumption.
+  - eassumption.
+Qed.
+
+
+
+Theorem locals_to_inter_nodes p p' Δ Π l l' pid:
+  Forall (fun a => a = AInternal) l ->
+  l' = map (fun a => (a, pid)) l ->
+  p -⌈l⌉->* p' ->
+  (Δ, pid : p |||| Π) -[l']ₙ->* (Δ, pid : p' |||| Π).
+Proof.
+  intros. subst. induction H1; econstructor.
+  - constructor. eassumption. inversion H; subst. now left.
+  - apply IHLabelStar. now inversion H.
+Qed.
+
+Goal forall Δ Π e x f (l : Exp) l' pid Fs,
+  cons_to_list l = Some l' ->
+  VALCLOSED l ->
+  EXP 2 ⊢ e ->
   computes x e f ->
   Node_equivalence
-  (Δ, 0 : inl ([], obj_map (EFun [x] e) (list_to_cons (l1 ++ l2)), [], [], false) |||| nullpool)
-  (Δ, 1 : inl ([], EBIF send [EPid 0;obj_map (EFun [x] e) (list_to_cons l1)], [], [], false) ||||
-      2 : inl ([], EBIF send [EPid 0;obj_map (EFun [x] e) (list_to_cons l2)], [], [], false) ||||
-      0 : inl ([], EReceive [(PVar, EReceive [(PVar, list_app (EVar 0) (EVar 1))])], [], [], false) |||| nullpool).
+  (Δ, pid : inl (Fs, obj_map (EFun [x] e) l, [], [], false) |||| Π)
+  (Δ, pid : inl (Fs, list_to_cons (map f l'), [], [], false) |||| Π).
 Proof.
-
-Abort.
+  exists internals. split.
+  * apply internalSteps_weak_bisim.
+  * eapply obj_map_on_meta_level in H. 4: eassumption. all: auto.
+    destruct H as [Hcl [k D]].
+    exists (repeat (AInternal, pid) k). split.
+    - clear. induction k; constructor; auto.
+    - eapply locals_to_inter_nodes with (l := repeat AInternal k).
+      2: {
+        clear.
+        induction k; simpl.
+        reflexivity. now rewrite IHk.
+      }
+      {
+        clear. induction k; now constructor.
+      }
+      apply internals_to_locals.
+      eapply frame_indep_nil in D. exact D.
+Qed.
 
 Lemma update_get :
   forall T x (a : T) f, update x a f x = a.
