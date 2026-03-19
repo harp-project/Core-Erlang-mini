@@ -7,10 +7,14 @@
 
 *)
 
-Require Export Coq.micromega.Lia
-               Coq.Lists.List
-               Coq.Arith.PeanoNat.
+From Stdlib Require Export micromega.Lia
+                           Strings.String
+                           Lists.List
+                           Arith.PeanoNat
+                           ZArith.BinInt
+                           FunctionalExtensionality.
 Import ListNotations.
+Open Scope list_scope.
 
 Theorem indexed_to_forall {A : Type} (l : list A) : forall P def,
   Forall P l
@@ -127,7 +131,7 @@ Lemma nth_possibilities {T : Type}:
 Proof.
   intros. destruct (i <? length l1) eqn:P.
   * apply Nat.ltb_lt in P. left. split; [ apply app_nth1 | ]; auto.
-  * apply Nat.ltb_nlt in P. right. split; [ apply app_nth2 | rewrite app_length in H ]; lia.
+  * apply Nat.ltb_nlt in P. right. split; [ apply app_nth2 | rewrite length_app in H ]; lia.
 Qed.
 
 Lemma nth_possibilities_alt {T : Type}:
@@ -137,7 +141,7 @@ Lemma nth_possibilities_alt {T : Type}:
 Proof.
   intros. destruct (i <? length l1) eqn:P.
   * apply Nat.ltb_lt in P. left. split; [ apply app_nth1 | ]; auto.
-  * apply Nat.ltb_nlt in P. right. split; [ apply app_nth2 | rewrite app_length in H ]; lia.
+  * apply Nat.ltb_nlt in P. right. split; [ apply app_nth2 | rewrite length_app in H ]; lia.
 Qed.
 
 Definition Injective {A B} (f : A->B) :=
@@ -220,7 +224,7 @@ Theorem list_app_neq :
   forall {T : Type} (l2 l1 : list T) t, l1 = l2 ++ t :: l1 -> False.
 Proof.
   intros. assert (length l1 = length (l2 ++ t :: l1)). { rewrite H at 1. auto. }
-  rewrite app_length in H0. simpl in H0. lia.
+  rewrite length_app in H0. simpl in H0. lia.
 Qed.
 
 Theorem fold_left_map :
@@ -287,9 +291,6 @@ Proof.
       now constructor 2.
 Qed.
 
-Notation "x '.1'" := (fst x) (at level 65, left associativity).
-Notation "x '.2'" := (snd x) (at level 65, left associativity).
-
 Theorem not_in_app :
   forall {A : Type} (l1 l2 : list A) x, ~In x (l1 ++ l2) ->
   ~In x l1 /\ ~In x l2.
@@ -327,3 +328,5 @@ Proof.
       intro. apply H. now constructor 2.
       intro. apply H0. now constructor 2.
 Qed.
+
+

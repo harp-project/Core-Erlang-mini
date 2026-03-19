@@ -1,0 +1,45 @@
+From Coq Require Export ZArith.BinInt
+                        FunctionalExtensionality
+                        Strings.String.
+Require Export Basics.
+From stdpp Require Import base list.
+
+Import ListNotations.
+
+
+Inductive Pat : Set :=
+| PLit (l : Lit)
+| PPid (p : PID)
+| PVar (** will be assigned in increasing order *)
+| PNil
+| PCons (p1 p2 : Pat).
+
+(** The syntax of expressions: *)
+Inductive Exp : Set :=
+| ELit    (l : Lit)
+| EPid    (p : PID)
+(** Variables and function identifiers are just indices.
+    TODO: In the future, function identifiers should include the arity too!
+*)
+| EVar    (n : nat)
+| EFunId  (n : nat)
+(** Instead of multiple fun constructs (recursive and non-recursive), 
+    we use only recursive funs, which use the 0 DB-index as the recursive fun-exp *)
+| EFun    (vl : list Var) (e : Exp)
+| EApp    (exp : Exp)     (l : list Exp)
+| ELet    (v : Var) (e1 e2 : Exp)
+| ELetRec (f : FunctionIdentifier) (vl : list Var) (b e : Exp)
+(** Eliminator *)
+| ECase (e : Exp) (p : Pat) (e1 e2 : Exp)
+(** Lists *)
+| ECons (e1 e2 : Exp)
+| ENil
+(** Recursive data structures which are values: *)
+| VCons (e1 e2 : Exp)
+(** Concurrency *)
+| EReceive (l : list (Pat * Exp))
+| EBIF (e : Exp) (l : list Exp)
+(** We note, that both sequential and concurrent built-in functions
+    are represented by EBIF, just like in Core Erlang itself.
+*)
+.

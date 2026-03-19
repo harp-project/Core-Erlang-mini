@@ -58,9 +58,6 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
   VALCLOSED v -> match_pattern p v = None ->
   ⟨ (FCase p e2 e3)::xs, v ⟩ --> ⟨ xs, e3 ⟩
 
-| red_letrec xs f vl b e:
-  ⟨ xs, ELetRec f vl b e ⟩ --> ⟨ xs, e.[EFun vl b/] ⟩
-
 | red_cons1 xs v2 e1 (H : VALCLOSED v2):
   ⟨ FCons1 e1::xs, v2⟩ --> ⟨FCons2 v2::xs, e1 ⟩
 

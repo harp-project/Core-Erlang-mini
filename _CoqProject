@@ -1,5 +1,17 @@
--R src/ Core_Erlang
+-R src/ CoreErlang
 src/Basics.v
+src/SyntaxBasics.v
+
+src/Env/Syntax.v
+src/Env/Semantics.v
+
+
+
+
+
+
+
+
 src/ExpSyntax.v
 src/ExpManipulation.v
 src/Scoping.v

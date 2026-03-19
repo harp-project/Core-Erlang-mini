@@ -5,48 +5,9 @@
   In this file, we describe the syntax of Core Erlang.
 
 *)
-
-From Coq Require Export ZArith.BinInt
-                        FunctionalExtensionality
-                        Strings.String.
-Require Export Basics.
+Require Export SyntaxBasics.
 
 Import ListNotations.
-
-Definition Var : Set := string.
-
-Definition FunctionIdentifier : Set := string * nat.
-
-(** Process identifiers are regarded as nats *)
-Definition PID : Set := nat.
-
-(** Currently, we include atoms and integers as literals. We note that 
-    atoms are also used for built-in function names.
-*)
-Inductive Lit : Set :=
-| Atom (s : string)
-| Int (z : Z).
-
-(** Coercions to be able to write down literals in a simpler way. *)
-Coercion Atom : string >-> Lit.
-Coercion Int  : Z >-> Lit.
-
-(** Patterns are the following contructs. Patterns variables in Core
-    Erlang are unique, they can appear at most once in any Pattern.
-    Because of this, in the nameless representation, no indices
-    are needed for pattern variables.
-
-    For technical reasons, PIDs are included as patterns, but they could
-    be omitted by implementing the function erlang:is_pid/1.
-
-    We note, that this resriction is not applicable for Erlang, though.
-*)
-Inductive Pat : Set :=
-| PLit (l : Lit)
-| PPid (p : PID)
-| PVar (** will be assigned in increasing order *)
-| PNil
-| PCons (p1 p2 : Pat).
 
 (** The syntax of expressions: *)
 Inductive Exp : Set :=
@@ -56,13 +17,11 @@ Inductive Exp : Set :=
     TODO: In the future, function identifiers should include the arity too!
 *)
 | EVar    (n : nat)
-| EFunId  (n : nat)
 (** Instead of multiple fun constructs (recursive and non-recursive), 
     we use only recursive funs, which use the 0 DB-index as the recursive fun-exp *)
-| EFun    (vl : list Var) (e : Exp)
+| VFun    (vl : nat) (e : Exp)
 | EApp    (exp : Exp)     (l : list Exp)
-| ELet    (v : Var) (e1 e2 : Exp)
-| ELetRec (f : FunctionIdentifier) (vl : list Var) (b e : Exp)
+| ELet    (e1 e2 : Exp)
 (** Eliminator *)
 | ECase (e : Exp) (p : Pat) (e1 e2 : Exp)
 (** Lists *)
@@ -90,14 +49,11 @@ Section correct_exp_ind.
    (H0 : forall (l : Lit), P (ELit l))
    (H00 : forall (l : PID), P (EPid l))
    (H1 : forall (n : nat), P (EVar n))
-   (H2 : forall (n : nat), P (EFunId n))
-   (H3 : forall (vl : list Var) (e : Exp), P e -> P (EFun vl e))
+   (H3 : forall (vl : nat) (e : Exp), P e -> P (VFun vl e))
    (H5 : forall (e : Exp), P e -> forall (el : list Exp), Q el 
        -> P (EApp e el))
-   (H6 : forall (v : Var) (e1 : Exp), P e1 -> forall e2 : Exp, P e2 
-       -> P (ELet v e1 e2))
-   (H7 : forall (f : FunctionIdentifier) (vl : list Var) (b : Exp), P b -> forall e : Exp, P e 
-       -> P (ELetRec f vl b e))
+   (H6 : forall (e1 : Exp), P e1 -> forall e2 : Exp, P e2 
+       -> P (ELet e1 e2))
    (H9 : forall (e1 : Exp), P e1 ->  forall e2, P e2 -> forall e3, P e3 -> forall p, P (ECase e1 p e2 e3))
    (H10 : forall e1, P e1 -> forall e2, P e2 -> P (ECons e1 e2))
    (H11 : P ENil)
@@ -114,15 +70,13 @@ Section correct_exp_ind.
   | ELit l => H0 l
   | EPid l => H00 l
   | EVar n => H1 n
-  | EFunId n => H2 n
-  | EFun vl e => H3 vl e (Exp_ind2 e)
+  | VFun vl e => H3 vl e (Exp_ind2 e)
   | EApp e el => H5 e (Exp_ind2 e) el ((fix l_ind (l':list Exp) : Q l' :=
                                          match l' as x return Q x with
                                          | [] => H1'
                                          | v::xs => H' v (Exp_ind2 v) xs (l_ind xs)
                                          end) el)
-  | ELet v e1 e2 => H6 v e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
-  | ELetRec f vl b e => H7 f vl b (Exp_ind2 b) e (Exp_ind2 e)
+  | ELet e1 e2 => H6 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ECase e p e1 e2 => H9 e (Exp_ind2 e) e1 (Exp_ind2 e1) e2 (Exp_ind2 e2) p
   | ECons e1 e2 => H10 e1 (Exp_ind2 e1) e2 (Exp_ind2 e2)
   | ENil => H11
@@ -145,25 +99,14 @@ Fixpoint Exp_eq_dec (e e' : Exp) : {e = e'} + {e <> e'}.
 Proof. repeat decide equality. Qed.
 
 (** Examples *)
-(** Shorthands: *)
-Definition XVar : Var := "X"%string.
-Definition YVar : Var := "Y"%string.
-Definition ZVar : Var := "Z"%string.
-Definition FVar : Var := "F"%string.
-Definition DVar : Var := "D"%string.
-
-Definition F0 : FunctionIdentifier := ("f"%string, 0).
-Definition F1 : FunctionIdentifier := ("f"%string, 1).
-Definition MAP : FunctionIdentifier := ("map"%string, 2).
-Definition FOLDR : FunctionIdentifier := ("foldr"%string, 3).
 
 (** Incrementing expression *)
-Definition inc (n : Z) := ELet XVar (ELit n) (EBIF (ELit "+"%string) [EVar 0; ELit 1%Z]).
+Definition inc (n : Z) := ELet (ELit n) (EBIF (ELit "+"%string) [EVar 0; ELit 1%Z]).
 (** Summation from 0 to the given positive number *)
-Definition sum (n : Z) := ELetRec F1 [XVar] (ECase (EVar 1) (PLit 0%Z) (EVar 1) (
+Definition sum (n : Z) := ELet (VFun 1 (ECase (EVar 1) (PLit 0%Z) (EVar 1) (
                                             (EBIF (ELit "+"%string) [EVar 1;
-                                            EApp (EFunId 0) [EBIF (ELit "+"%string) [EVar 1; ELit ((-1)%Z)]]])))
-                        (EApp (EFunId 0) [ELit n]).
+                                            EApp (EVar 0) [EBIF (ELit "+"%string) [EVar 1; ELit ((-1)%Z)]]]))))
+                        (EApp (EVar 0) [ELit n]).
 (** Application of a 0-parameter function inside `let`. *)
 Definition simplefun (n : Z) := ELet XVar (EFun [] (ELit n)) (EApp (EVar 0) []).
 (** Application of a two-parameter function, which sums these. *)
@@ -342,28 +285,6 @@ Qed.
 
 End in_list.
 
-Definition lit_eqb (l1 l2 : Lit) : bool :=
-match l1, l2 with
- | Atom s, Atom s2 => String.eqb s s2
- | Int z , Int z2  => Z.eqb z z2
- | _     , _       => false
-end.
-
-Lemma lit_eqb_eq : forall l1 l2, lit_eqb l1 l2 = true <-> l1 = l2.
-Proof.
-  destruct l1, l2; split; intros; subst; auto; simpl in H; try congruence.
-  * apply eqb_eq in H. now inversion H.
-  * inversion H. subst. simpl. now rewrite eqb_refl.
-  * apply Z.eqb_eq in H. now inversion H.
-  * inversion H. subst. simpl. now rewrite Z.eqb_refl.
-Qed.
-
-Lemma lit_eqb_refl : forall l, lit_eqb l l = true.
-Proof.
-  intro. rewrite lit_eqb_eq. reflexivity.
-Qed.
-
-
 (** Pattern matching. Variable bindings in the nameless representation
     will be created in an ascending order. E.g. the matching for
 
@@ -416,5 +337,5 @@ Proof.
   * simpl in *. destruct v; inversion H. subst. auto.
   * simpl. simpl in H. destruct v; try congruence.
     break_match_hyp; try congruence. break_match_hyp; try congruence. inversion H.
-    subst. erewrite app_length, IHp1, IHp2. reflexivity. all: eauto.
+    subst. erewrite length_app, IHp1, IHp2. reflexivity. all: eauto.
 Qed.
