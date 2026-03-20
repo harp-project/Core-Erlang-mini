@@ -1,7 +1,7 @@
 (*** migrated ExpManipulation.v: adapt rename/subst to new Exp/Val/NonVal split *)
 
 Require Export ExpSyntax
-               Coq.Structures.OrderedType.
+               Stdlib.Structures.OrderedType.
 
 Import ListNotations.
 

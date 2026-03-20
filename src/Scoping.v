@@ -22,60 +22,67 @@ Reserved Notation "'EXP' Γ ⊢ e"
          (at level 69, no associativity).
 Reserved Notation "'VAL' Γ ⊢ v"
          (at level 69, no associativity).
+Reserved Notation "'NVAL' Γ ⊢ v"
+         (at level 69, no associativity).
 Inductive ExpScoped (Γ : nat) : Exp -> Prop :=
-| scoped_app exp exps : 
+| scoped_val v :
+  VAL Γ ⊢ v -> EXP Γ ⊢ v
+| scoped_nonval e :
+  NVAL Γ ⊢ e -> EXP Γ ⊢ e
+with NonValScoped (Γ : nat) : NonVal -> Prop :=
+| scoped_app exp (exps : list Exp) : 
   EXP Γ ⊢ exp ->
-  (forall i, i < length exps -> EXP Γ ⊢ nth i exps (ELit 0%Z))
+  (forall i, i < length exps -> EXP Γ ⊢ nth i exps (VLit 0%Z))
 ->
-  EXP Γ ⊢ EApp exp exps
-| scoped_let v e1 e2 :
+  NVAL Γ ⊢ EApp exp exps
+| scoped_let e1 e2 :
   EXP Γ ⊢ e1 -> EXP (S Γ) ⊢ e2 
 ->
-  EXP Γ ⊢ ELet v e1 e2
-| scoped_letrec f vl b e :
-  EXP (S (length vl) + Γ) ⊢ b -> EXP (S Γ) ⊢ e
-->
-  EXP Γ ⊢ ELetRec f vl b e
+  NVAL Γ ⊢ ELet e1 e2
 | scoped_case e1 e2 e3 p :
   EXP Γ ⊢ e1 -> EXP pat_vars p + Γ ⊢ e2 -> EXP Γ ⊢ e3
 ->
-  EXP Γ ⊢ ECase e1 p e2 e3
+  NVAL Γ ⊢ ECase e1 p e2 e3
 | escoped_cons e1 e2 :
   EXP Γ ⊢ e1 -> EXP Γ ⊢ e2
 ->
-  EXP Γ ⊢ ECons e1 e2
-| scoped_conc_bif exp exps : 
+  NVAL Γ ⊢ ECons e1 e2
+| scoped_conc_bif exp (exps : list Exp) : 
   EXP Γ ⊢ exp ->
-  (forall i, i < length exps -> EXP Γ ⊢ nth i exps (ELit 0%Z))
+  (forall i, i < length exps -> EXP Γ ⊢ nth i exps (VLit 0%Z))
 ->
-  EXP Γ ⊢ EBIF exp exps
-| scoped_receive l :
-  (forall i, i < length l -> EXP (nth i (map (fst >>> pat_vars) l) 0) + Γ ⊢ nth i (map snd l) (ELit 0%Z))
+  NVAL Γ ⊢ EBIF exp exps
+| scoped_receive (l : list (Pat * Exp)) :
+  (forall i, i < length l -> EXP (nth i (map (fst >>> pat_vars) l) 0) + Γ ⊢ nth i (map snd l) (VLit 0%Z))
 ->
-  EXP Γ ⊢ EReceive l
+  NVAL Γ ⊢ EReceive l
 
-| scoped_val v :
-  VAL Γ ⊢ v -> EXP Γ ⊢ v
-with ValScoped (Γ : nat) : Exp -> Prop :=
-| scoped_lit lit : VAL Γ ⊢ ELit lit
-| scoped_pid p : VAL Γ ⊢ EPid p
+with ValScoped (Γ : nat) : Val -> Prop :=
+| scoped_lit lit : VAL Γ ⊢ VLit lit
+| scoped_pid p : VAL Γ ⊢ VPid p
 | vscoped_cons e1 e2 : 
   VAL Γ ⊢ e1 -> VAL Γ ⊢ e2
 ->
   VAL Γ ⊢ VCons e1 e2
-| scoped_nil : VAL Γ ⊢ ENil
-| scoped_var n : n < Γ -> VAL Γ ⊢ EVar n
-| scoped_funid n : n < Γ -> VAL Γ ⊢ EFunId n
-| scoped_fun vl e : EXP (S (length vl) + Γ) ⊢ e -> VAL Γ ⊢ EFun vl e
+| scoped_nil : VAL Γ ⊢ VNil
+| scoped_var n : n < Γ -> VAL Γ ⊢ VVar n
+| scoped_fun vl e : EXP (S vl + Γ) ⊢ e -> VAL Γ ⊢ VFun vl e
 where "'EXP' Γ ⊢ e" := (ExpScoped Γ e)
-and "'VAL' Γ ⊢ e" := (ValScoped Γ e).
+and "'VAL' Γ ⊢ e" := (ValScoped Γ e)
+and "'NVAL' Γ ⊢ e" := (NonValScoped Γ e).
 
 Notation "'EXPCLOSED' e" := (EXP 0 ⊢ e) (at level 5).
 Notation "'VALCLOSED' v" := (VAL 0 ⊢ v) (at level 5).
+Notation "'NVALCLOSED' v" := (NVAL 0 ⊢ v) (at level 5).
 
-Scheme ValScoped_ind2 := Induction for ValScoped Sort Prop
-  with ExpScoped_ind2 := Induction for ExpScoped Sort Prop.
-Combined Scheme scoped_ind from ValScoped_ind2, ExpScoped_ind2.
+Global Hint Constructors ExpScoped : core.
+Global Hint Constructors ValScoped : core.
+Global Hint Constructors NonValScoped : core.
+
+Scheme ExpScoped_ind2 := Induction for ExpScoped Sort Prop
+  with NonValScoped_ind2 := Induction for NonValScoped Sort Prop
+  with ValScoped_ind2 := Induction for ValScoped Sort Prop.
+Combined Scheme scoped_ind from ExpScoped_ind2, NonValScoped_ind2, ValScoped_ind2.
 
 Definition subst_preserves (Γ : nat) (ξ : Substitution) : Prop :=
   forall v, v < Γ -> ξ v = inr v.
@@ -84,7 +91,7 @@ Theorem subst_preserves_up : forall Γ ξ,
   subst_preserves Γ ξ -> subst_preserves (S Γ) (up_subst ξ).
 Proof.
   intros. unfold subst_preserves in *. intros. unfold up_subst. destruct v; auto.
-  apply Lt.lt_S_n in H0. apply H in H0. unfold shift. rewrite H0. auto.
+  unfold shift. rewrite H. reflexivity. lia.
 Qed.
 
 Global Hint Resolve subst_preserves_up : core.
@@ -104,35 +111,32 @@ Proof. intro. intros. inversion H. Qed.
 
 Global Hint Resolve subst_preserves_empty : core.
 
-Theorem scoped_ignores_sub_helper vals : forall l ξ,
+Theorem scoped_ignores_sub_helper (exps : list Exp) : forall l ξ,
   (forall i : nat,
-     i < Datatypes.length vals ->
+     i < Datatypes.length exps ->
      forall ξ : Substitution,
-     subst_preserves l ξ -> subst ξ (nth i vals (ELit 0%Z)) = nth i vals (ELit 0%Z)) ->
+     subst_preserves l ξ -> subst ξ (nth i exps (VLit 0%Z)) = nth i exps (VLit 0%Z)) ->
   subst_preserves l ξ ->
-  (map (subst ξ) vals) = vals.
+  (map (subst ξ) exps) = exps.
 Proof.
-  induction vals; intros.
+  induction exps; intros.
   * reflexivity.
   * simpl. epose (H 0 _ _ H0). simpl in e. rewrite e.
-    erewrite IHvals; eauto. intros. eapply (H (S i)). simpl. lia. auto.
+    erewrite IHexps; eauto. intros. eapply (H (S i)). simpl. lia. auto.
 Unshelve. simpl. lia.
 Qed.
 
-Theorem scoped_ignores_sub : forall Γ,
-  (forall e, VAL Γ ⊢ e -> forall ξ, subst_preserves Γ ξ -> e.[ξ] = e) /\
-  (forall e, EXP Γ ⊢ e -> forall ξ, subst_preserves Γ ξ -> e.[ξ] = e).
+Theorem Private_scoped_ignores_sub : forall Γ,
+  (forall e, EXP Γ ⊢ e -> forall ξ, subst_preserves Γ ξ -> e.[ξ] = e) /\
+  (forall e, NVAL Γ ⊢ e -> forall ξ, subst_preserves Γ ξ -> e.ₙ[ξ] = e) /\
+  (forall e, VAL Γ ⊢ e -> forall ξ, subst_preserves Γ ξ -> e.ᵥ[ξ] = e)
+  .
 Proof.
   apply scoped_ind; intros; auto.
-  * cbn. rewrite H, H0; auto.
-  * specialize (H n l). simpl. rewrite H. auto.
-  * specialize (H n l). simpl. rewrite H. auto.
-  * simpl. epose (H _ _). rewrite e1. reflexivity.
-    Unshelve. apply subst_preserves_up, subst_preserves_upn. auto.
+  * simpl. by rewrite H.
+  * simpl. by rewrite H.
   * simpl. rewrite H; auto. erewrite scoped_ignores_sub_helper; eauto.
   * simpl. rewrite H; auto. rewrite H0; auto.
-  * simpl. rewrite H, H0; auto.
-    apply subst_preserves_up, subst_preserves_upn. auto.
   * simpl. rewrite H, H0, H1; auto.
   * simpl. rewrite H, H0; auto.
   * simpl. rewrite H; auto. erewrite scoped_ignores_sub_helper; eauto.
@@ -143,60 +147,95 @@ Proof.
     intros. apply (e (S i)). simpl. lia.
     intros. apply (H (S i)). simpl. lia. simpl. auto.
     now apply subst_preserves_upn.
+  * cbn. rewrite H, H0; auto.
+  * specialize (H n l). simpl. rewrite H. auto.
+  * simpl. epose (H _ _). rewrite e1. reflexivity.
+    Unshelve. apply subst_preserves_up, subst_preserves_upn. auto.
 Qed.
 
-Corollary eclosed_ignores_sub :
+Corollary closed_ignores_sub :
   forall e ξ,
   EXPCLOSED e -> subst ξ e = e.
 Proof.
-  intros. eapply scoped_ignores_sub with (Γ := 0); auto.
+  intros. eapply Private_scoped_ignores_sub with (Γ := 0); auto.
 Qed.
 
-Corollary vclosed_ignores_sub :
+Corollary closed_ignores_sub_val :
   forall e ξ,
-  VALCLOSED e -> subst ξ e = e.
+  VALCLOSED e -> subst_val ξ e = e.
 Proof.
-  intros. pose (scoped_ignores_sub 0). destruct a. apply H0; auto.
+  intros. pose proof (Private_scoped_ignores_sub 0) as [_ [_ ?]]. apply H0; auto.
 Qed.
 
-Global Hint Resolve eclosed_ignores_sub : core.
+Corollary closed_ignores_sub_nonval :
+  forall e ξ,
+  NVALCLOSED e -> subst_nonval ξ e = e.
+Proof.
+  intros. pose proof (Private_scoped_ignores_sub 0) as [_ [? _]]. apply H0; auto.
+Qed.
 
-Global Hint Resolve vclosed_ignores_sub : core.
+Global Hint Resolve closed_ignores_sub : core.
 
-Theorem scope_ext : forall Γ,
-  (forall e, VAL Γ ⊢ e ->  VAL (S Γ) ⊢ e) /\
-  forall e, EXP Γ ⊢ e -> EXP (S Γ) ⊢ e.
+Global Hint Resolve closed_ignores_sub_val : core.
+
+Global Hint Resolve closed_ignores_sub_nonval : core.
+
+Theorem Private_scope_ext : forall Γ,
+  (forall e, EXP Γ ⊢ e -> EXP (S Γ) ⊢ e) /\
+  (forall e, NVAL Γ ⊢ e ->  NVAL (S Γ) ⊢ e) /\
+  (forall e, VAL Γ ⊢ e ->  VAL (S Γ) ⊢ e).
 Proof.
   apply scoped_ind; intros; constructor; try constructor 2; auto.
-  1-2: rewrite Nat.add_succ_r; auto.
-  now replace (pat_vars p + S Γ) with (S (pat_vars p + Γ)) by lia.
-  intros. rewrite Nat.add_succ_r. auto.
+  * now replace (pat_vars p + S Γ) with (S (pat_vars p + Γ)) by lia.
+  * intros. rewrite Nat.add_succ_r. auto.
+  * rewrite Nat.add_succ_r; auto.
 Qed.
 
-Lemma scope_ext_Exp : forall {e Γ},
+Corollary scope_ext : forall {e Γ},
     EXP Γ ⊢ e -> EXP S Γ ⊢ e.
 Proof.
   intros.
-  apply scope_ext.
+  apply Private_scope_ext.
   auto.
 Qed.
 
-Lemma scope_ext_Val : forall {e Γ},
+Corollary scope_ext_val : forall {e Γ},
     VAL Γ ⊢ e -> VAL S Γ ⊢ e.
 Proof.
   intros.
-  apply scope_ext.
+  apply Private_scope_ext.
   auto.
 Qed.
 
-Corollary scope_ext_app : forall Γ' Γ, Γ <= Γ' ->
-  (forall e, VAL Γ ⊢ e -> VAL Γ' ⊢ e) /\
-  forall e, EXP Γ ⊢ e -> EXP Γ' ⊢ e.
+Corollary scope_ext_nonval : forall {e Γ},
+    NVAL Γ ⊢ e -> NVAL S Γ ⊢ e.
+Proof.
+  intros.
+  apply Private_scope_ext.
+  auto.
+Qed.
+
+Corollary Private_scope_ext_app : forall Γ' Γ, Γ <= Γ' ->
+  (forall e, EXP Γ ⊢ e -> EXP Γ' ⊢ e) /\
+  (forall e, NVAL Γ ⊢ e -> NVAL Γ' ⊢ e) /\
+  (forall e, VAL Γ ⊢ e -> VAL Γ' ⊢ e).
 Proof.
  intros. induction H.
  * intuition.
- * split; intros; eapply scope_ext; eapply IHle; auto. 
+ * repeat split; intros; eapply Private_scope_ext; eapply IHle; auto. 
 Qed.
+
+Corollary scope_ext_app : forall Γ' Γ, Γ <= Γ' ->
+  (forall e, EXP Γ ⊢ e -> EXP Γ' ⊢ e).
+Proof. by apply Private_scope_ext_app. Qed.
+
+Corollary scope_ext_app_val : forall Γ' Γ, Γ <= Γ' ->
+  (forall e, VAL Γ ⊢ e -> VAL Γ' ⊢ e).
+Proof. by apply Private_scope_ext_app. Qed.
+
+Corollary scope_ext_app_nonval : forall Γ' Γ, Γ <= Γ' ->
+  (forall e, NVAL Γ ⊢ e -> NVAL Γ' ⊢ e).
+Proof. by apply Private_scope_ext_app. Qed.
 
 Definition subscoped (Γ Γ' : nat) (ξ : Substitution) : Prop :=
   forall v, v < Γ -> (match ξ v with
@@ -255,113 +294,110 @@ Qed.
 Global Hint Resolve upren_scope : core.
 Global Hint Resolve uprenn_scope : core.
 
-Lemma ren_preserves_scope : forall e Γ,
-    (EXP Γ ⊢ e <->
+Lemma Private_ren_preserves_scope :
+    (forall e Γ, EXP Γ ⊢ e <->
      forall Γ' ξ,
        RENSCOPE Γ ⊢ ξ ∷ Γ' ->
        EXP Γ' ⊢ rename ξ e) /\
-    (VAL Γ ⊢ e <->
+    (forall e Γ, NVAL Γ ⊢ e <->
      forall Γ' ξ,
        RENSCOPE Γ ⊢ ξ ∷ Γ' ->
-       VAL Γ' ⊢ rename ξ e).
+       NVAL Γ' ⊢ rename_nonval ξ e) /\
+    (forall e Γ, VAL Γ ⊢ e <->
+     forall Γ' ξ,
+       RENSCOPE Γ ⊢ ξ ∷ Γ' ->
+       VAL Γ' ⊢ rename_val ξ e).
 Proof.
-  induction e using Exp_ind2 with
-  (Q := fun l => Forall (fun e => forall Γ,(EXP Γ ⊢ e <->
+  apply Exp_full_ind with
+  (Q := Forall (fun e => forall Γ,(EXP Γ ⊢ e <->
      forall Γ' ξ,
        RENSCOPE Γ ⊢ ξ ∷ Γ' ->
-       EXP Γ' ⊢ rename ξ e) /\
-    (VAL Γ ⊢ e <->
+       EXP Γ' ⊢ rename ξ e)))
+  (W := Forall (fun '(_,e) => forall Γ,(EXP Γ ⊢ e <->
      forall Γ' ξ,
        RENSCOPE Γ ⊢ ξ ∷ Γ' ->
-       VAL Γ' ⊢ rename ξ e)) l)
-  (W := fun l => Forall (fun '(_,e) => forall Γ,(EXP Γ ⊢ e <->
-     forall Γ' ξ,
-       RENSCOPE Γ ⊢ ξ ∷ Γ' ->
-       EXP Γ' ⊢ rename ξ e) /\
-    (VAL Γ ⊢ e <->
-     forall Γ' ξ,
-       RENSCOPE Γ ⊢ ξ ∷ Γ' ->
-       VAL Γ' ⊢ rename ξ e)) l);
-  try (intros Γ;
-  split;
-  split;
-  intros; cbn; unfold renscoped in *).
-  1-8: constructor. 1-4: constructor. 
-  1, 5, 7: repeat constructor; try apply H0; try inversion H; try inversion H1; auto.
-  all: (* this solves around half the goals *)
-    try (specialize (H Γ id (renscope_id _)); rewrite idrenaming_is_id in H; apply H).
-  all: try (inversion H; inversion H1).
+       EXP Γ' ⊢ rename ξ e))).
+  15-18: by constructor.
+  all: intros; split; intros; cbn; unfold renscoped in *.
+  (* prove backward directions: *)
+  all: try by (pose proof (H Γ) id (renscope_id _) as X ||
+              pose proof (H0 Γ) id (renscope_id _) as X ||
+              pose proof (H1 Γ) id (renscope_id _) as X ||
+              pose proof (H2 Γ) id (renscope_id _) as X);
+            (rewrite idrenaming_is_id in X ||
+             rewrite idrenaming_is_id_val in X ||
+             rewrite idrenaming_is_id_nonval in X);
+           apply X.
+  all: try by constructor.
+  * inv H0. eapply H in H3; try eassumption. by constructor.
+  * inv H0. eapply H in H3; try eassumption. by constructor.
   * constructor. apply H0. inversion H. auto.
-  * constructor. constructor. inversion H; inversion H1. subst.
-    eapply IHe; eauto. intros. pose (uprenn_scope (S (length vl)) _ Γ' ξ H0 v H2). auto.
-  * constructor. inversion H. subst.
-    eapply IHe; eauto. intros. pose (uprenn_scope (S (length vl)) _ Γ' ξ H0 v H1). auto.
-  * subst. constructor.
-    - eapply IHe; eauto.
-    - intros. rewrite indexed_to_forall in IHe0.
-      replace (ELit 0%Z) with (rename ξ (ELit 0%Z)) by auto.
-      rewrite map_nth. rewrite map_length in H1. eapply IHe0; eauto.
-  * subst. constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto. intros. eapply upren_scope; eauto.
-  * subst. constructor.
-    - eapply IHe1; eauto. intros. eapply upren_scope; eauto.
-    - eapply IHe2; eauto. intros. eapply upren_scope; eauto.
-  * subst. constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto. intros. eapply uprenn_scope; eauto.
-    - eapply IHe3; eauto.
-  * subst. constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
-  * do 2 constructor.
-  * constructor.
-  * subst. apply scoped_val, vscoped_cons.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
-  * subst. constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
-  * subst. constructor.
-    - eapply IHe; eauto.
-    - intros. rewrite indexed_to_forall in IHe0.
-      replace (ELit 0%Z) with (rename ξ (ELit 0%Z)) by auto.
-      rewrite map_nth. rewrite map_length in H1. eapply IHe0; eauto.
-  * subst. constructor. intros. rewrite map_length in H1. generalize dependent i.
+  * constructor. inv H0. subst.
+    eapply H; eauto. intros. pose proof (uprenn_scope (S  vl) _ Γ' ξ H1 v H0). auto.
+  * inv H1. constructor.
+    - eapply H; by eauto.
+    - intros. rewrite indexed_to_forall in H0.
+      replace (˝VLit 0%Z) with (rename ξ (˝VLit 0%Z)) by auto.
+      rewrite map_nth. rewrite length_map in H1. eapply H0; by eauto.
+  * inv H1. constructor.
+    - eapply H; by eauto.
+    - eapply H0; eauto. intros. eapply upren_scope; eauto.
+  * inv H2. constructor.
+    - eapply H; by eauto.
+    - eapply H0; eauto. intros. eapply uprenn_scope; eauto.
+    - eapply H1; by eauto.
+  * inv H1. constructor.
+    - eapply H; by eauto.
+    - eapply H0; by eauto.
+  * inv H1. constructor.
+    - eapply H; by eauto.
+    - eapply H0; by eauto.
+  * inv H1. constructor.
+    - eapply H; eauto.
+    - intros. rewrite indexed_to_forall in H0.
+      replace (˝VLit 0%Z) with (rename ξ (˝VLit 0%Z)) by auto.
+      rewrite map_nth. rewrite length_map in H1. eapply H0; eauto.
+  * inv H0. constructor. intros. rewrite length_map in H0. generalize dependent i.
     induction l; intros.
-    - inversion H1.
+    - inv H0.
     - destruct i; simpl.
-      + destruct a; cbn. inversion IHe. subst.
-        eapply H6; eauto. apply (H2 0). simpl. lia. intros. eapply uprenn_scope; eauto.
+      + destruct a; cbn.
+        specialize (H3 0 ltac:(lia)). cbn in H3.
+        inv H. eapply H5; try eassumption.
+        by eapply uprenn_scope.
       + simpl in H1. eapply IHl; auto.
-        now inversion IHe.
-        constructor. intros. apply (H2 (S i0)). simpl. lia.
-        intros. apply (H2 (S i0)). simpl. lia.
-        lia.
-  * constructor.
-  * constructor; auto.
-  * constructor.
-  * constructor; auto.
+        now inversion H. 2: simpl in H0; lia.
+        intros. apply (H3 (S i0)). simpl. lia.
 Qed.
 
-Lemma ren_preserves_scope_exp : forall e Γ,
+Corollary ren_preserves_scope : forall e Γ,
     (EXP Γ ⊢ e <->
      forall Γ' ξ,
        RENSCOPE Γ ⊢ ξ ∷ Γ' ->
        EXP Γ' ⊢ rename ξ e).
 Proof.
   intros.
-  apply ren_preserves_scope.
+  apply Private_ren_preserves_scope.
 Qed.
 
 Lemma ren_preserves_scope_val : forall e Γ,
     (VAL Γ ⊢ e <->
      forall Γ' ξ,
        RENSCOPE Γ ⊢ ξ ∷ Γ' ->
-       VAL Γ' ⊢ rename ξ e).
+       VAL Γ' ⊢ rename_val ξ e).
 Proof.
   intros.
-  apply ren_preserves_scope.
+  apply Private_ren_preserves_scope.
+Qed.
+
+Lemma ren_preserves_scope_nonval : forall e Γ,
+    (NVAL Γ ⊢ e <->
+     forall Γ' ξ,
+       RENSCOPE Γ ⊢ ξ ∷ Γ' ->
+       NVAL Γ' ⊢ rename_nonval ξ e).
+Proof.
+  intros.
+  apply Private_ren_preserves_scope.
 Qed.
 
 Lemma up_val : forall Γ v (ξ : Substitution),
@@ -425,7 +461,7 @@ Proof.
   * simpl. apply H0. lia.
 Qed.
 
-Lemma consn_scope : forall (vals : list Exp) Γ Γ' (ξ : Substitution),
+Lemma consn_scope : forall (vals : list Val) Γ Γ' (ξ : Substitution),
     Forall (fun v => VAL Γ' ⊢ v) vals ->
     SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
     SUBSCOPE length vals + Γ ⊢ fold_right (fun v acc => v .: acc) ξ vals ∷ Γ'.
@@ -439,136 +475,126 @@ Global Hint Resolve cons_scope : core.
 Global Hint Resolve consn_scope : core.
 
 (** Substitution is scope-preserving. *)
-Lemma subst_preserves_scope : forall e Γ,
-    (EXP Γ ⊢ e <->
+Lemma Private_subst_preserves_scope :
+    (forall e Γ, EXP Γ ⊢ e <->
      forall Γ' ξ,
        SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
        EXP Γ' ⊢ e.[ξ]) /\
-    (VAL Γ ⊢ e <->
+    (forall e Γ, NVAL Γ ⊢ e <->
      forall Γ' ξ,
        SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
-       VAL Γ' ⊢ e.[ξ]).
+       NVAL Γ' ⊢ e.ₙ[ξ]) /\
+    (forall e Γ, VAL Γ ⊢ e <->
+     forall Γ' ξ,
+       SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
+       VAL Γ' ⊢ e.ᵥ[ξ]).
 Proof.
-  induction e using Exp_ind2 with
-  (Q := fun l => forall Γ,
-  Forall (fun e => (EXP Γ ⊢ e <->
+  apply Exp_full_ind with
+  (Q :=
+  Forall (fun e => forall Γ, (EXP Γ ⊢ e <->
      forall Γ' ξ,
        SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
-       EXP Γ' ⊢ e.[ξ]) /\
-    (VAL Γ ⊢ e <->
+       EXP Γ' ⊢ e.[ξ])))
+  (W :=
+  Forall (fun '(_,e) => forall Γ, (EXP Γ ⊢ e <->
      forall Γ' ξ,
        SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
-       VAL Γ' ⊢ e.[ξ])) l)
-  (W := fun l => forall Γ,
-  Forall (fun '(_,e) => (EXP Γ ⊢ e <->
-     forall Γ' ξ,
-       SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
-       EXP Γ' ⊢ e.[ξ]) /\
-    (VAL Γ ⊢ e <->
-     forall Γ' ξ,
-       SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
-       VAL Γ' ⊢ e.[ξ])) l);
-    try intros Γ;
+       EXP Γ' ⊢ e.[ξ])));
+    try intros;
     try split;
     try split;
     intros.
   all: cbn; unfold subscoped in *.
-  1-8: repeat constructor.
-  all: try (inversion H); try inversion H1; subst. (* cleaup contradictions *)
   (* prove backward directions: *)
-  all: try (specialize (H Γ idsubst (scope_idsubst _)); rewrite idsubst_is_id in H; auto).
+  all: try by ((specialize (H0 Γ idsubst (scope_idsubst _)) as X ||
+                specialize (H Γ idsubst (scope_idsubst _)) as X ||
+                specialize (H2 Γ idsubst (scope_idsubst _)) as X ||
+                specialize (H1 Γ idsubst (scope_idsubst _)) as X);
+             (rewrite idsubst_is_id in X ||
+              rewrite idsubst_is_id_val in X ||
+              rewrite idsubst_is_id_nonval in X); apply X).
+
+  15-18: by constructor.
   (* forward: *)
-  * specialize (H0 n H4). break_match_goal.
-    - constructor. auto.
-    - constructor. constructor. auto.
-  * specialize (H0 n H2). break_match_goal.
-    - auto.
-    - constructor. auto.
-  * specialize (H0 n H4). break_match_goal.
-    - constructor. auto.
-    - constructor. constructor. auto.
-  * specialize (H0 n H2). break_match_goal.
-    - auto.
-    - constructor. auto.
-  * constructor. constructor. eapply IHe; eauto. intros.
+  * inv H0. constructor. by eapply H.
+  * inv H0. constructor. by eapply H.
+  * constructor.
+  * constructor.
+  * inv H. specialize (H0 n H2). break_match_goal. by simpl. by constructor.
+  * constructor. inv H0. eapply H; eauto. intros.
     eapply up_scope; eauto.
-  * constructor. eapply IHe; eauto. intros.
-    eapply up_scope; eauto.
-  * constructor.
-    - eapply IHe; eauto.
-    - replace (ELit 0%Z) with (subst ξ (ELit 0%Z)) by reflexivity. intros.
-      specialize (IHe0 Γ).
-      rewrite map_nth. rewrite indexed_to_forall in IHe0. rewrite map_length in H1.
-      eapply IHe0; eauto.
-  * constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto. apply up_scope. auto.
-  * constructor.
-    - eapply IHe1; eauto. apply up_scope. auto.
-    - eapply IHe2; eauto. apply up_scope. auto.
-  * constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto. apply upn_scope. auto.
-    - eapply IHe3; eauto.
-  * constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
-  * do 2 constructor.
-  * constructor.
-  * do 2 constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
-  * constructor.
-    - eapply IHe1; eauto.
-    - eapply IHe2; eauto.
-  * constructor.
-    - eapply IHe; eauto.
-    - replace (ELit 0%Z) with (subst ξ (ELit 0%Z)) by reflexivity. intros.
-      specialize (IHe0 Γ).
-      rewrite map_nth. rewrite indexed_to_forall in IHe0. rewrite map_length in H1.
-      eapply IHe0; eauto.
-  * subst. constructor. intros. rewrite map_length in H1. generalize dependent i. induction l; intros.
-    - inversion H1.
+  * inv H1. constructor.
+    - eapply H; by eauto.
+    - replace (˝VLit 0%Z) with (subst ξ (˝VLit 0%Z)) by reflexivity. intros.
+      specialize (H6 i).
+      rewrite map_nth. rewrite indexed_to_forall in H0. rewrite length_map in H1.
+      eapply H0; by eauto.
+  * inv H1. constructor.
+    - eapply H; by eauto.
+    - eapply H0; eauto. apply up_scope. by auto.
+  * inv H2. constructor.
+    - eapply H; eauto.
+    - eapply H0; eauto. apply upn_scope. auto.
+    - eapply H1; eauto.
+  * inv H1. constructor.
+    - eapply H; by eauto.
+    - eapply H0; by eauto.
+  * by constructor.
+  * inv H1. constructor.
+    - eapply H; by eauto.
+    - eapply H0; by eauto.
+  * inv H1. constructor.
+    - eapply H; by eauto.
+    - replace (˝VLit 0%Z) with (subst ξ (˝VLit 0%Z)) by reflexivity. intros.
+      specialize (H6 i).
+      rewrite map_nth. rewrite indexed_to_forall in H0. rewrite length_map in H1.
+      eapply H0; by eauto.
+  * inv H0. constructor.
+    intros. rewrite length_map in H0. generalize dependent i. induction l; intros.
+    - inversion H0.
     - destruct i; simpl.
-      + destruct a; cbn. specialize (IHe (pat_vars p + Γ)). inversion IHe. subst.
-        eapply H6; eauto. apply (H2 0). simpl. lia. apply upn_scope; auto.
-      + simpl in H1. eapply IHl; auto. intro.
-        specialize (IHe Γ0). now inversion IHe.
-        constructor. intros. apply (H2 (S i0)). simpl. lia.
-        intros. apply (H2 (S i0)). simpl. lia.
-        lia.
-  * constructor.
-  * constructor; auto.
-  * constructor.
-  * constructor; auto.
+      + destruct a; cbn. inversion H. subst.
+        eapply H5; eauto. apply (H3 0). simpl. lia. apply upn_scope; auto.
+      + inv H. simpl in H0. eapply IHl; eauto. 2: lia.
+        intros. apply (H3 (S i0)). simpl. lia.
 Qed.
 
-Lemma subst_preserves_scope_exp : forall e Γ,
+Corollary subst_preserves_scope_exp : forall e Γ,
     EXP Γ ⊢ e <->
     forall Γ' ξ,
       SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
       EXP Γ' ⊢ e.[ξ].
 Proof.
   intros.
-  apply subst_preserves_scope.
+  apply Private_subst_preserves_scope.
 Qed.
 
-Lemma subst_preserves_scope_val : forall e Γ,
+Corollary subst_preserves_scope_nonval : forall e Γ,
+    NVAL Γ ⊢ e <->
+    forall Γ' ξ,
+      SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
+      NVAL Γ' ⊢ e.ₙ[ξ].
+Proof.
+  intros.
+  apply Private_subst_preserves_scope.
+Qed.
+
+Corollary subst_preserves_scope_val : forall e Γ,
     VAL Γ ⊢ e <->
     forall Γ' ξ,
       SUBSCOPE Γ ⊢ ξ ∷ Γ' ->
-      VAL Γ' ⊢ e.[ξ].
+      VAL Γ' ⊢ e.ᵥ[ξ].
 Proof.
   intros.
-  apply subst_preserves_scope.
+  apply Private_subst_preserves_scope.
 Qed.
 
 Module SUB_IMPLIES_SCOPE.
-  Definition magic_ξ (Γ Γ' : nat) (n : nat) : Exp + nat :=
+  Definition magic_ξ (Γ Γ' : nat) (n : nat) : Val + nat :=
     if Compare_dec.lt_dec n Γ
     then if Compare_dec.lt_dec n Γ'
          then inr n
-         else inl (ELit 0%Z)
+         else inl (VLit 0%Z)
     else inr Γ'.
 
   Lemma magic_ξ_scope : forall Γ Γ', SUBSCOPE Γ ⊢ magic_ξ Γ Γ' ∷ Γ'.
@@ -637,7 +663,7 @@ Module SUB_IMPLIES_SCOPE.
       rewrite upn_magic in H3. eauto.
     * inversion H. 2: inversion H0. constructor.
       - eapply IHe; eauto.
-      - replace (ELit 0%Z) with (subst (magic_ξ Γ Γ') (ELit 0%Z)) in H3 by reflexivity.
+      - replace (VLit 0%Z) with (subst (magic_ξ Γ Γ') (VLit 0%Z)) in H3 by reflexivity.
         intros. erewrite <- map_length in H4. specialize (H3 i H4).
         rewrite map_nth in H3. subst. rewrite indexed_to_forall in IHe0.
         rewrite map_length in H4.
@@ -677,7 +703,7 @@ Module SUB_IMPLIES_SCOPE.
       - eapply IHe2; eauto.
     * inversion H. 2: inversion H0. constructor.
       - eapply IHe; eauto.
-      - replace (ELit 0%Z) with (subst (magic_ξ Γ Γ') (ELit 0%Z)) in H3 by reflexivity.
+      - replace (VLit 0%Z) with (subst (magic_ξ Γ Γ') (VLit 0%Z)) in H3 by reflexivity.
         intros. erewrite <- map_length in H4. specialize (H3 i H4).
         rewrite map_nth in H3. subst. rewrite indexed_to_forall in IHe0.
         rewrite map_length in H4.
@@ -727,7 +753,7 @@ Module SUB_IMPLIES_SCOPE.
       if Compare_dec.lt_dec n Γ'
       then idsubst n
       else if Nat.eq_dec n Γ'
-           then inl (ELit 0%Z)
+           then inl (VLit 0%Z)
            else idsubst (pred n).
 
   Lemma up_magic_2 : forall Γ,
@@ -751,7 +777,7 @@ Module SUB_IMPLIES_SCOPE.
     * rewrite <- up_magic_2, IHn. auto.
   Qed.
 
-  Lemma magic_const : magic_ξ_2 0 = ELit 0%Z .: idsubst.
+  Lemma magic_const : magic_ξ_2 0 = VLit 0%Z .: idsubst.
   Proof.
     unfold magic_ξ_2.
     extensionality x.
@@ -792,7 +818,7 @@ Module SUB_IMPLIES_SCOPE.
       split; intros; inversion H1; subst. 2: inversion H2. rewrite H; auto.
       apply Forall_and_inv in IHe0. destruct IHe0. erewrite map_ext_Forall. reflexivity.
       rewrite indexed_to_forall in *. intros. apply H2; auto.
-      replace (ELit 0%Z) with ((ELit 0%Z).[magic_ξ_2 Γ']) in H5 by reflexivity.
+      replace (VLit 0%Z) with ((VLit 0%Z).[magic_ξ_2 Γ']) in H5 by reflexivity.
       rewrite map_length in H5. specialize (H5 i H6). rewrite map_nth in H5.
       exact H5.
     * specialize (IHe1 Γ'). specialize (IHe2 (S Γ')). destruct IHe1, IHe2.
@@ -821,7 +847,7 @@ Module SUB_IMPLIES_SCOPE.
       split; intros; inversion H1; subst. 2: inversion H2. rewrite H; auto.
       apply Forall_and_inv in IHe0. destruct IHe0. erewrite map_ext_Forall. reflexivity.
       rewrite indexed_to_forall in *. intros. apply H2; auto.
-      replace (ELit 0%Z) with ((ELit 0%Z).[magic_ξ_2 Γ']) in H5 by reflexivity.
+      replace (VLit 0%Z) with ((VLit 0%Z).[magic_ξ_2 Γ']) in H5 by reflexivity.
       rewrite map_length in H5. specialize (H5 i H6). rewrite map_nth in H5.
       exact H5.
     * split. 2: intros; inversion H.
@@ -832,17 +858,17 @@ Module SUB_IMPLIES_SCOPE.
       rewrite upn_magic, upn_magic_2. rewrite <- plus_n_Sm. rewrite H3. reflexivity.
       inversion H. 2: inversion H0. subst. specialize (H2 0 ltac:(simpl;lia)).
       cbn in H2. rewrite upn_magic_2 in H2. auto.
-  Unshelve. 1-2:exact (ELit 0%Z).
+  Unshelve. 1-2:exact (VLit 0%Z).
     intros. specialize (IHe Γ'0). inversion IHe. auto.
     inversion H. subst. 2: inversion H0. constructor; auto. intros.
     apply (H1 (S i) ltac:(simpl; lia)).
   Qed.
 
   Lemma magic_ξ_magic_ξ_2_closed : forall e,
-      (EXPCLOSED e.[ELit 0%Z/] ->
-       e.[magic_ξ 1 0] = e.[ELit 0%Z .: idsubst]) /\
-      (VALCLOSED e.[ELit 0%Z/] ->
-       e.[magic_ξ 1 0] = e.[ELit 0%Z .: idsubst]).
+      (EXPCLOSED e.[VLit 0%Z/] ->
+       e.[magic_ξ 1 0] = e.[VLit 0%Z .: idsubst]) /\
+      (VALCLOSED e.[VLit 0%Z/] ->
+       e.[magic_ξ 1 0] = e.[VLit 0%Z .: idsubst]).
   Proof.
     intros.
     rewrite <- magic_const.
@@ -850,7 +876,7 @@ Module SUB_IMPLIES_SCOPE.
   Qed.
 
   Lemma sub_implies_scope_exp_1 : forall e,
-      EXPCLOSED e.[ELit 0%Z/] ->
+      EXPCLOSED e.[VLit 0%Z/] ->
       EXP 1 ⊢ e.
   Proof.
     intros;
@@ -860,7 +886,7 @@ Module SUB_IMPLIES_SCOPE.
   Qed.
 
   Lemma sub_implies_scope_val_1 : forall e,
-      VALCLOSED e.[ELit 0%Z/] ->
+      VALCLOSED e.[VLit 0%Z/] ->
       VAL 1 ⊢ e.
   Proof.
     intros;
@@ -1062,7 +1088,7 @@ match goal with
 | [ H: VAL _ ⊢ (ELetRec _ _ _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (ECase _ _ _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EApp _ _) |- _ ] => inversion H
-| [ H: VAL _ ⊢ (EVar _) |- _ ] => inversion H
+| [ H: VAL _ ⊢ (VVar _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EFunId _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (ECons _ _) |- _ ] => inversion H
 | [ H: VAL _ ⊢ (EBIF _ _) |- _ ] => inversion H
