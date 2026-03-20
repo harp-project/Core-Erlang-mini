@@ -32,10 +32,13 @@ with Val : Set :=
 | VCons (e1 e2 : Val)
 | VClos (Γ : list Val) (vl : nat) (e : Exp).
 
+Declare Scope env_scope.
+Delimit Scope env_scope with env.
+
 Coercion EExp : NonVal >-> Exp.
 Coercion VVal : Val >-> Exp.
-Notation "˝ v" := (VVal v) (at level 11).
-Notation "° n" := (EExp n) (at level 11).
+Notation "˝ v" := (VVal v) (at level 11) : env_scope.
+Notation "° n" := (EExp n) (at level 11) : env_scope.
 
 
 Section correct_ind.

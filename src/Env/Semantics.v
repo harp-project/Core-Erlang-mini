@@ -1,5 +1,7 @@
 From CoreErlang Require Export Env.Syntax.
 Import ListNotations.
+Open Scope env_scope.
+
 
 Inductive Frame : Set :=
 | FApp1 (l : list Exp) (* apply □(e₁, e₂, ..., eₙ) *)
@@ -34,6 +36,7 @@ match f with
     else None
 | _ => None
 end.
+
 
 Reserved Notation "⟨ G , fs , e ⟩ --> ⟨ G' , fs' , e' ⟩" (at level 50).
 Inductive step : Environment -> FrameStack -> Exp -> Environment -> FrameStack -> Exp -> Prop :=

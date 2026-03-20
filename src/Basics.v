@@ -13,6 +13,8 @@ From Stdlib Require Export micromega.Lia
                            Arith.PeanoNat
                            ZArith.BinInt
                            FunctionalExtensionality.
+From stdpp Require Export base list sets.
+
 Import ListNotations.
 Open Scope list_scope.
 
@@ -153,7 +155,10 @@ Proof.
   induction l; intros; intro.
   * inversion H1.
   * inversion H1.
-    - apply H in H2. subst. apply H0. intuition.
+    - apply H in H2. subst. apply H0.
+      destruct H1. by left.
+      exfalso. eapply IHl; try eassumption.
+      by apply not_in_cons in H0 as [].
     - eapply IHl; eauto. apply not_in_cons in H0. destruct H0. auto.
 Qed.
 

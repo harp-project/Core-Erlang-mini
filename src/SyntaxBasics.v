@@ -43,8 +43,8 @@ end.
 Lemma lit_eqb_eq : forall l1 l2, lit_eqb l1 l2 = true <-> l1 = l2.
 Proof.
   destruct l1, l2; split; intros; subst; auto; simpl in H; try congruence.
-  * apply eqb_eq in H. now inversion H.
-  * inversion H. subst. simpl. now rewrite eqb_refl.
+  * apply String.eqb_eq in H. now inversion H.
+  * inversion H. subst. simpl. now rewrite String.eqb_refl.
   * apply Z.eqb_eq in H. now inversion H.
   * inversion H. subst. simpl. now rewrite Z.eqb_refl.
 Qed.
