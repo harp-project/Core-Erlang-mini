@@ -27,49 +27,48 @@ Inductive step : FrameStack -> Exp -> FrameStack -> Exp -> Prop :=
     while the second contains the already evaluated ones. Thus removing
     and evaluating an element from the first list will append the
     value to the end of the second list. *)
-| red_app_start v hd tl xs (H : VALCLOSED v):
-  ⟨ (FApp1 (hd::tl))::xs, v ⟩ --> ⟨ (FApp2 v tl [])::xs, hd⟩
+| red_app_start v hd tl xs:
+  ⟨ (FApp1 (hd::tl))::xs, VVal v ⟩ --> ⟨ (FApp2 v [] tl)::xs, hd⟩
 
 | red_app_fin xs e :
-  ⟨ (FApp1 [])::xs, EFun [] e ⟩ --> ⟨ xs, e.[EFun [] e/] ⟩
+  ⟨ (FApp1 [])::xs, VVal (VFun 0 e) ⟩ --> ⟨ xs, e.[VFun 0 e/] ⟩
 
-| app2_step v (H : VALCLOSED v) hd tl vs (H2 : Forall (fun v => VALCLOSED v) vs) xs v' (H' : VALCLOSED v') :
-  ⟨ (FApp2 v (hd::tl) vs) :: xs, v' ⟩ --> ⟨ (FApp2 v tl (vs ++ [v'])) :: xs, hd ⟩
+| app2_step v hd tl vs xs v' :
+  ⟨ (FApp2 v vs (hd::tl)) :: xs, VVal v' ⟩ --> ⟨ (FApp2 v (vs ++ [v']) tl) :: xs, hd ⟩
 
-| red_app2 vl e vs v xs (H2 : Forall (fun v => VALCLOSED v) vs) : 
-  VALCLOSED v -> length vl = S (length vs) ->
-  ⟨ (FApp2 (EFun vl e) [] vs) :: xs, v ⟩ --> ⟨ xs,  e.[list_subst (EFun vl e :: (vs ++ [v])) idsubst] ⟩
+| red_app2 vl e vs v xs : 
+  vl = S (length vs) ->
+  ⟨ (FApp2 (VFun vl e) vs []) :: xs, VVal v ⟩ --> ⟨ xs,  e.[list_subst (VFun vl e :: (vs ++ [v])) idsubst] ⟩
 
-| red_bif_start fs e params v : VALCLOSED v ->
-  ⟨FBIF1 (e::params) :: fs, v⟩ --> ⟨ FBIF2 v params [] ::fs , e⟩
+| red_bif_start fs e params v :
+  ⟨FBIF1 (e::params) :: fs, VVal v⟩ --> ⟨ FBIF2 v [] params ::fs , e⟩
 | red_bif_step fs e v v' params vals :
-  Forall (fun v => VALCLOSED v) vals -> VALCLOSED v -> VALCLOSED v' ->
-  ⟨FBIF2 v (e :: params) vals :: fs, v'⟩ -->
-  ⟨FBIF2 v params (vals ++ [v']) :: fs, e⟩
+  ⟨FBIF2 v vals (e :: params) :: fs, VVal v'⟩ -->
+  ⟨FBIF2 v (vals ++ [v']) params :: fs, e⟩
 
-| red_let val e2 xs v (H : VALCLOSED val) : ⟨ (FLet v e2)::xs, val ⟩ --> ⟨ xs, e2.[val/] ⟩
+| red_let val e2 xs : ⟨ (FLet e2)::xs, VVal val ⟩ --> ⟨ xs, e2.[val/] ⟩
 
 | red_case_true e2 e3 v p xs l : 
-  VALCLOSED v -> match_pattern p v = Some l
+  match_pattern p v = Some l
 ->
-  ⟨ (FCase p e2 e3)::xs, v ⟩ --> ⟨ xs, e2.[list_subst l idsubst] ⟩
+  ⟨ (FCase p e2 e3)::xs, VVal v ⟩ --> ⟨ xs, e2.[list_subst l idsubst] ⟩
 
-| red_case_false e2 e3 p v xs (H : VALCLOSED v) :
-  VALCLOSED v -> match_pattern p v = None ->
-  ⟨ (FCase p e2 e3)::xs, v ⟩ --> ⟨ xs, e3 ⟩
+| red_case_false e2 e3 p v xs :
+  match_pattern p v = None ->
+  ⟨ (FCase p e2 e3)::xs, VVal v ⟩ --> ⟨ xs, e3 ⟩
 
-| red_cons1 xs v2 e1 (H : VALCLOSED v2):
-  ⟨ FCons1 e1::xs, v2⟩ --> ⟨FCons2 v2::xs, e1 ⟩
+| red_cons1 xs v2 e1 :
+  ⟨ FCons1 e1::xs, VVal v2⟩ --> ⟨FCons2 v2::xs, e1 ⟩
 
-| red_cons2 xs v2 v1 (H : VALCLOSED v1) (H0 : VALCLOSED v2):
-  ⟨ FCons2 v2::xs, v1⟩ --> ⟨xs, VCons v1 v2 ⟩
+| red_cons2 xs v2 v1 :
+  ⟨ FCons2 v2::xs, VVal v1⟩ --> ⟨xs, VCons v1 v2 ⟩
 
 | red_plus xs i1 i2 :
-  ⟨ (FBIF2 (ELit "+"%string) [] [ELit (Int i1)]) :: xs, ELit (Int i2)⟩ --> 
-    ⟨xs, ELit (Z.add i1 i2)⟩
+  ⟨ (FBIF2 (VLit "+"%string) [VLit (Int i1)] []) :: xs, VVal (VLit (Int i2))⟩ --> 
+    ⟨xs, VVal (VLit (Z.add i1 i2))⟩
 
 (** Steps *)
-| step_let xs v e1 e2 : ⟨ xs, ELet v e1 e2 ⟩ --> ⟨ (FLet v e2)::xs, e1 ⟩
+| step_let xs e1 e2 : ⟨ xs, ELet e1 e2 ⟩ --> ⟨ (FLet e2)::xs, e1 ⟩
 | step_app xs e el: ⟨ xs, EApp e el ⟩ --> ⟨ (FApp1 el)::xs, e ⟩
 | step_bif fs name params:
   ⟨fs, EBIF name params⟩ --> ⟨FBIF1 params :: fs, name⟩
@@ -86,8 +85,8 @@ Inductive step_rt : FrameStack -> Exp -> nat -> FrameStack -> Exp -> Prop :=
   ⟨ fs, e ⟩ -[S k]-> ⟨fs'', e''⟩
 where "⟨ fs , e ⟩ -[ k ]-> ⟨ fs' , e' ⟩" := (step_rt fs e k fs' e').
 
-Definition step_any (fs : FrameStack) (e : Exp) (v : Exp) : Prop :=
-  VALCLOSED v /\ exists k, ⟨fs, e⟩ -[k]-> ⟨[], v⟩.
+Definition step_any (fs : FrameStack) (e : Exp) (v : Val) : Prop :=
+  exists k, ⟨fs, e⟩ -[k]-> ⟨[], v⟩.
 
 Notation "⟨ fs , e ⟩ -->* v" := (step_any fs e v) (at level 50).
 
