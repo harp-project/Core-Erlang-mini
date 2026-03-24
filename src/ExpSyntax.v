@@ -317,7 +317,7 @@ End in_list.
 
     will be 0 ↦ e₁, 1 ↦ e₂
 *)
-Fixpoint match_pattern (p : Pat) (e : Exp) : option (list Exp) :=
+Fixpoint match_pattern (p : Pat) (e : Val) : option (list Val) :=
 match p with
 | PVar => Some [e]
 | PPid x => match e with
@@ -356,12 +356,11 @@ Lemma match_pattern_length : forall p v l,
   match_pattern p v = Some l -> pat_vars p = length l.
 Proof.
   induction p; intros.
-  * simpl in *. destruct v; inversion H. destruct v; try break_match_hyp; by inversion H.
-  * simpl in *. destruct v; inversion H. destruct v; try break_match_hyp; by inversion H.
+  * simpl in *. destruct v; inversion H. break_match_hyp; now inversion H.
+  * simpl in *. destruct v; inversion H. break_match_hyp; now inversion H.
   * simpl in *. destruct v; inversion H; subst; auto.
-  * simpl in *. destruct v; inversion H. destruct v; subst; try congruence.
-    by inversion H.
-  * simpl. simpl in H. destruct v; try congruence. destruct v; try congruence.
+  * simpl in *. destruct v; inversion H. subst. auto.
+  * simpl. simpl in H. destruct v; try congruence.
     break_match_hyp; try congruence. break_match_hyp; try congruence. inversion H.
     subst. erewrite length_app, IHp1, IHp2. reflexivity. all: eauto.
 Qed.
