@@ -16,6 +16,13 @@ src/ExpSyntax.v
 src/ExpManipulation.v
 src/Scoping.v
 src/SubstSemantics.v
+src/SemanticProperties.v
+
+src/Env/EnvSubst.v
+
+
+
+
 src/ConcurrentFunSemantics.v
 src/Examples.v
 src/ConcurrentProperties.v

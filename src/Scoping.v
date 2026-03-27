@@ -948,13 +948,13 @@ Global Hint Resolve closed_sub_closed_val : core.
 (** Based on Pitts' work (https://www.cl.cam.ac.uk/~amp12/papers/opespe/opespe-lncs.pdf) *)
 Inductive Frame : Set :=
 | FApp1 (l : list Exp) (* apply □(e₁, e₂, ..., eₙ) *)
-| FApp2 (v : Exp) (l1 : list Val) (l2 : list Exp) (* apply v(v₁, v₂, ... vᵢ₋₁, □, eᵢ₊₁, ..., eₙ) *)
+| FApp2 (v : Val) (l1 : list Val) (l2 : list Exp) (* apply v(v₁, v₂, ... vᵢ₋₁, □, eᵢ₊₁, ..., eₙ) *)
 | FLet (e2 : Exp) (* let v = □ in e2 *)
 | FCase (p : Pat) (e2 e3 : Exp) (* if □ then e2 else e3 *)
 | FCons1 (e1 : Exp) (* [e1 | □] *)
 | FCons2 (v2 : Val) (* [□ | v2] *)
 | FBIF1 (l : list Exp) (* call □(e₁, e₂, ..., eₙ) *)
-| FBIF2 (v : Exp) (l1 : list Val) (l2 : list Exp) (* call v(v₁, v₂, ... vᵢ₋₁, □, eᵢ₊₁, ..., eₙ) *).
+| FBIF2 (v : Val) (l1 : list Val) (l2 : list Exp) (* call v(v₁, v₂, ... vᵢ₋₁, □, eᵢ₊₁, ..., eₙ) *).
 
 (* Inductive frame_wf : Frame -> Prop :=
 | wf_app1 l : frame_wf (FApp1 l)
