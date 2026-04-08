@@ -226,6 +226,31 @@ Proof.
   unfold convert_env. rewrite map_app. apply eq_sym, list_subst_concat.
 Qed.
 
+(** Characterise the only possible result of [ESem.eval]:
+    the only BIF is ["+"] applied to two integers. *)
+Lemma eval_characterize v l res :
+  ESem.eval v l = Some res →
+  ∃ z1 z2, v = ESyn.VLit (Atom "+") ∧
+           l = [ESyn.VLit (Int z1); ESyn.VLit (Int z2)] ∧
+           res = ESyn.VLit (Int (z1 + z2)).
+Proof.
+  intros H. unfold ESem.eval in H.
+  repeat case_match; try discriminate; subst.
+  inv H. eauto.
+Qed.
+
+(** Applying a substitution to each [convert_val] in a list is a no-op
+    when all elements are well-formed (closed). *)
+Lemma map_wf_val_subst_id (l : list ESyn.Val) σ :
+  Forall wf_val l →
+  map (subst_val σ ∘ convert_val) l = map convert_val l.
+Proof.
+  induction l; intro H; [reflexivity|].
+  inv H. cbn. f_equal.
+  - exact (closed_ignores_sub_val _ _ H2).
+  - exact (IHl H3).
+Qed.
+
 (* ------------------------------------------------------------------ *)
 (*  Main theorem                                                       *)
 (* ------------------------------------------------------------------ *)
@@ -297,21 +322,144 @@ Proof.
     rewrite 2! (closed_ignores_sub_val (convert_val v0)).
     2-3: by apply Hval.
     constructor.
-  * 
-  *
-  *
-  *
-  *
-  *
-  *
-  *
-  *
-  *
-  *
-  *
-  *
-  *
-  *
-  *
-  *
+  * (* red_bif_params: eval v (vl ++ [v0]) = Some res *)
+    inv HwfFs. destruct H2 as (HwfΓ' & Hwfv & Hwfvl).
+    apply eval_characterize in H as (z1 & z2 & -> & Hvleq & ->).
+    destruct vl as [|w [|? ?]]; try discriminate.
+    2: { inv Hvleq. apply f_equal with (f := length) in H2.
+         rewrite length_app in H2. simpl in H2. lia.
+       }
+    inv Hwfvl.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val _ _ Hwfv).
+    cbn.
+    rewrite (closed_ignores_sub_val _ _ H1).
+    simpl in Hvleq. inv Hvleq.
+    exists 1. split. 2: lia.
+    econstructor. constructor.
+    constructor.
+  * (* red_app0: beta_reduce v [] = Some (Γ', res) *)
+    inv HwfFs.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    destruct v; cbn in H; try discriminate.
+    destruct vl; try congruence.
+    inv H.
+    cbn.
+    exists 1. split. 2: lia.
+    econstructor. constructor.
+    rewrite subst_comp, subst_extend.
+    constructor.
+  * (* red_app: start evaluating first argument *)
+    inv HwfFs.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    cbn.
+    exists 1. split. 2: lia.
+    econstructor. constructor.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    constructor.
+  * (* step_app_params: accumulate evaluated argument *)
+    exists 1. split. 2: lia.
+    econstructor. constructor.
+    rewrite map_app. simpl.
+    rewrite 2! (closed_ignores_sub_val (convert_val v0)).
+    2-3: by apply Hval.
+    constructor.
+  * (* red_app_params: beta_reduce v (vl ++ [v0]) = Some (Γ', res) *)
+    inv HwfFs. destruct H2 as (HwfΓ' & Hwfv & Hwfvl).
+    destruct v; cbn in H; try discriminate.
+    destruct (Nat.eqb_spec (length (vl ++ [v0])) vl0) as [Hn|]; [|discriminate].
+    inv H.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val _ _ Hwfv).
+    rewrite (map_wf_val_subst_id _ _ Hwfvl).
+    cbn [convert_val].
+    exists 1. split. 2: lia.
+    econstructor.
+    - apply red_app2.
+      rewrite length_map.
+      rewrite length_app. simpl. lia.
+    - rewrite subst_comp.
+      simpl.
+      rewrite substcomp_scons.
+      rewrite subst_list_extend. 2: { rewrite 2! length_app, length_map. simpl. lia. }
+      rewrite list_subst_concat.
+      cbn.
+      rewrite 2!map_app. constructor.
+  * (* red_let: pop let frame and extend environment *)
+    inv HwfFs.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    cbn.
+    exists 1. split. 2: lia.
+    econstructor. constructor.
+    rewrite subst_comp, subst_extend.
+    constructor.
+  * (* red_case_true: pattern matches, extend env with bindings *)
+    inv HwfFs.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    pose proof (ESyn.match_pattern_length _ _ _ H) as Hlen.
+    apply match_pattern_convert in H.
+    cbn.
+    exists 1. split. 2: lia.
+    econstructor.
+    - apply red_case_true. exact H.
+    - rewrite subst_comp.
+      enough (upn (pat_vars p) (convert_env Γ1) >>
+              list_subst (map convert_val l) idsubst
+              = convert_env (l ++ Γ1)) as HE.
+      { rewrite HE. constructor. }
+      rewrite convert_env_app.
+      rewrite subst_list_extend. reflexivity.
+      by rewrite length_map.
+  * (* red_case_false: pattern fails, fall through *)
+    inv HwfFs.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    apply match_pattern_convert_none in H.
+    cbn.
+    exists 1. split. 2: lia.
+    econstructor. apply red_case_false. exact H.
+    constructor.
+  * (* red_cons1: push second element frame *)
+    inv HwfFs.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    cbn.
+    exists 1. split. 2: lia.
+    econstructor. constructor.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    constructor.
+  * (* red_cons2: build the cons cell *)
+    inv HwfFs. destruct H1 as (HwfΓ' & Hwfv2).
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val _ _ Hwfv2).
+    cbn.
+    exists 1. split. 2: lia.
+    econstructor. constructor.
+    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    constructor.
+  * (* step_let: push let frame *)
+    exists 1. split. 2: lia.
+    econstructor. constructor. constructor.
+  * (* step_app: push app frame *)
+    exists 1. split. 2: lia.
+    econstructor. constructor.
+    rewrite map_map.
+    constructor.
+  * (* step_bif: push bif frame *)
+    exists 1. split. 2: lia.
+    econstructor. constructor.
+    rewrite map_map.
+    constructor.
+  * (* step_case: push case frame *)
+    exists 1. split. 2: lia.
+    econstructor. constructor. constructor.
+  * (* step_cons: push cons frame *)
+    exists 1. split. 2: lia.
+    econstructor. constructor. constructor.
+  * (* red_fun: EFun becomes VClos capturing env — requires scoping invariant *)
+    exists 0. split. 2: lia.
+    rewrite subst_comp.
+    rewrite up_comp, upn_comp.
+     
+  * (* red_var: look up variable in environment *)
+    specialize (Hval _ eq_refl).
+    inv Hval. lia.
 Admitted.

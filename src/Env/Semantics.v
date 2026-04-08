@@ -180,3 +180,41 @@ Inductive step_rt : Env -> FrameStack -> Exp -> nat -> Env -> FrameStack -> Exp 
   ⟨ Γ, fs, e ⟩ -[S k]-> ⟨Γ'', fs'', e''⟩
 where "⟨ G , fs , e ⟩ -[ k ]-> ⟨ G' , fs' , e' ⟩" := (step_rt G fs e k G' fs' e') : env_scope.
 
+(** * Semantic properties *)
+
+(**
+  [eval_app_partial_core]: when the remaining argument list of an [FApp2] frame
+  begins with [map (˝) hds'] (pre-evaluated values embedded as expressions)
+  followed by [e' :: vals], then after [S (length hds')] steps the machine has:
+  - stored the current value [v] and all of [hds'] into the accumulator, and
+  - reached expression [e'].
+
+  The proof is by induction on [hds']:
+
+  - Base ([hds' = []]): one [step_app_params] step stores [v] in the
+    accumulator and exposes [e'].
+
+  - Step ([hds' = a :: rest]):
+      * One [step_app_params] step stores [v], then exposes [˝a].
+      * IH (with [hds ++ [v]] as new accumulator and [a] as new current value)
+        covers the remaining [S (length rest)] steps.
+      * Rewrite [(hds ++ [v]) ++ a :: rest = hds ++ v :: a :: rest]
+        (via [app_assoc] on the IH instance) to match the goal.
+
+  Note: unlike the substitution-based analogue in [SemanticProperties.v],
+  no closedness side-conditions are needed because the env-based step
+  relation carries no such guards.
+*)
+Lemma eval_app_partial_core :
+  forall (hds' : list Val) exps f e' v Γ Γ0 Fs hds,
+  ⟨ Γ0, FApp2 f hds (map (fun u => ˝u) hds' ++ e' :: exps) Γ :: Fs, ˝v ⟩
+  -[S (length hds')]->
+  ⟨ Γ, FApp2 f (hds ++ v :: hds') exps Γ :: Fs, e' ⟩.
+Proof.
+  induction hds'; intros.
+  - simpl. econstructor. apply step_app_params. constructor.
+  - simpl. econstructor. apply step_app_params.
+    epose proof (IHhds' exps f e' a Γ Γ Fs (hds ++ [v])).
+    rewrite <-app_assoc in H. exact H.
+Qed.
+
