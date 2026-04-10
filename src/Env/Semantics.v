@@ -218,3 +218,54 @@ Proof.
     rewrite <-app_assoc in H. exact H.
 Qed.
 
+(** * Determinism *)
+
+(**
+  The step relation is deterministic: each configuration has at most one
+  successor.  The proof proceeds by inversion on both step hypotheses.
+  Every pair of constructors is discriminated either by the shape of the
+  expression (NonVal constructors are disjoint) or by the top frame
+  (frame constructors are disjoint, and empty vs non-empty argument lists
+  are distinguished by the list constructor).  The only non-trivial case
+  is [red_case_true] vs [red_case_false]: they share the same frame, but
+  their [match_pattern] hypotheses are contradictory (Some vs None), so
+  [congruence] closes both cross-cases.  All remaining goals are closed by
+  [intuition congruence].
+*)
+Theorem step_determinism :
+  forall Γ fs e Γ' fs' e',
+  ⟨ Γ, fs, e ⟩ --> ⟨ Γ', fs', e'⟩ ->
+  forall Γ'' fs'' e'',
+  ⟨ Γ, fs, e ⟩ --> ⟨ Γ'', fs'', e''⟩ ->
+  Γ'' = Γ' /\ fs'' = fs' /\ e'' = e'.
+Proof.
+  intros * H. inversion H; subst; intros * H2; inversion H2; subst;
+    intuition congruence.
+Qed.
+
+(**
+  A value expression with an empty frame stack cannot step.
+*)
+Lemma value_nostep : forall Γ (v : Val) Γ' fs' e',
+  ⟨ Γ, [], ˝v ⟩ --> ⟨ Γ', fs', e' ⟩ -> False.
+Proof.
+  intros * H. inversion H.
+Qed.
+
+(**
+  Determinism lifts to the reflexive-transitive closure: two runs of
+  exactly [k] steps from the same configuration reach the same state.
+*)
+Theorem step_rt_determinism :
+  forall Γ fs e k Γ' fs' e',
+  ⟨ Γ, fs, e ⟩ -[k]-> ⟨ Γ', fs', e'⟩ ->
+  forall Γ'' fs'' e'',
+  ⟨ Γ, fs, e ⟩ -[k]-> ⟨ Γ'', fs'', e''⟩ ->
+  Γ'' = Γ' /\ fs'' = fs' /\ e'' = e'.
+Proof.
+  intros * H. induction H; intros * H2; inversion H2; subst.
+  - intuition.
+  - pose proof (step_determinism _ _ _ _ _ _ H _ _ _ H3) as [-> [-> ->]].
+    apply IHstep_rt. exact H7.
+Qed.
+
