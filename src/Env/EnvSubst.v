@@ -1,4 +1,4 @@
-From CoreErlang.Env Require Import Semantics.
+From CoreErlang.Env Require Import Scoping.
 From CoreErlang Require Import SubstSemantics.
 
 (** Module aliases to disambiguate between environment-based and
@@ -25,7 +25,6 @@ Fixpoint convert_val (v : ESyn.Val) : Val :=
   match v with
   | ESyn.VLit l      => VLit l
   | ESyn.VPid p      => VPid p
-  | ESyn.VVar n      => VVar n   (* absent in closed runtime values *)
   | ESyn.VNil        => VNil
   | ESyn.VCons v1 v2 => VCons (convert_val v1) (convert_val v2)
   | ESyn.VClos Γ vl body =>
@@ -51,6 +50,7 @@ with convert_nv (nv : ESyn.NonVal) : Exp :=
   | ESyn.ECase e p e1 e2 => EExp (ECase (convert_exp e) p (convert_exp e1) (convert_exp e2))
   | ESyn.ECons e1 e2     => EExp (ECons (convert_exp e1) (convert_exp e2))
   | ESyn.EBIF f args     => EExp (EBIF (convert_exp f) (map convert_exp args))
+  | ESyn.EVar n          => VVar n
   end.
 
 (** Turn a runtime environment (a list of Env values) into a substitution
@@ -109,54 +109,8 @@ Definition convert_frame (f : ESem.Frame) : Frame :=
 Definition convert_framestack (Fs : ESem.FrameStack) : FrameStack :=
   map convert_frame Fs.
 
-(* ------------------------------------------------------------------ *)
-(*  Runtime well-formedness                                            *)
-(* ------------------------------------------------------------------ *)
 
-(** A runtime Env value is [wf_val v] when its Sub translation is closed. *)
-Definition wf_val (v : ESyn.Val) : Prop := VALCLOSED (convert_val v).
-
-(** An environment [Γ] is [wf_env Γ] when every stored value is closed. *)
-Definition wf_env (Γ : ESem.Env) : Prop := Forall wf_val Γ.
-
-(** A frame is [wf_frame f] when the values stored inside it are closed.
-    Only [FCons2] currently needs explicit tracking (its [v2] is used as
-    a Val in the Sub [red_cons2] rule). *)
-Print ESem.Frame.
-Definition wf_frame (f : ESem.Frame) : Prop :=
-match f with
- | ESem.FApp1 l Γ => wf_env Γ
- | ESem.FBIF1 l Γ => wf_env Γ
- | ESem.FLet e2 Γ => wf_env Γ
- | ESem.FCase p e2 e3 Γ => wf_env Γ
- | ESem.FCons1 e1 Γ => wf_env Γ
- | ESem.FCons2 v2 Γ => wf_env Γ /\ wf_val v2
- | ESem.FApp2 v l el Γ => wf_env Γ /\ wf_val v /\ Forall wf_val l
- | ESem.FBIF2 v l el Γ => wf_env Γ /\ wf_val v /\ Forall wf_val l
-end.
-
-Definition wf_framestack (Fs : ESem.FrameStack) : Prop :=
-  Forall wf_frame Fs.
-
-(* ------------------------------------------------------------------ *)
-(*  Helper lemmas                                                      *)
-(* ------------------------------------------------------------------ *)
-
-Lemma wf_env_lookup Γ n v :
-  wf_env Γ → Γ !! n = Some v → wf_val v.
-Proof.
-  intros HΓ Hn. eapply Forall_lookup in HΓ.
-  2: exact Hn. assumption.
-Qed.
-
-(** A closed Sub value is invariant under any substitution. *)
-Lemma wf_val_subst_id v σ :
-  wf_val v → (VVal (convert_val v)).[σ] = VVal (convert_val v).
-Proof.
-  intros Hv. simpl. rewrite closed_ignores_sub_val; auto.
-Qed.
-
-(** Looking up variable [n] in the converted environment gives [convert_val] of
+(* (** Looking up variable [n] in the converted environment gives [convert_val] of
     the [n]-th environment entry. *)
 Lemma convert_env_lookup_var Γ n v :
   Γ !! n = Some v →
@@ -170,7 +124,7 @@ Proof.
   setoid_rewrite map_nth with (f := convert_val) (d := ESyn.VLit 0%Z).
   apply f_equal.
   by apply nth_lookup_Some.
-Qed.
+Qed. *)
 
 (** [list_subst] distributes over list concatenation:
     substituting a concatenated list is the same as substituting in two
@@ -239,16 +193,93 @@ Proof.
   inv H. eauto.
 Qed.
 
+(** Conversion respects Sub scoping: Env scoping of an expression implies
+    Sub scoping of its conversion. *)
+Lemma convert_scoped : forall Γ,
+  (forall e,  (EXP Γ ⊢ e)%env  → EXP Γ ⊢ convert_exp e) /\
+  (forall nv, (NVAL Γ ⊢ nv)%env → EXP Γ ⊢ convert_nv nv) /\
+  (forall v,  (VAL Γ ⊢ v)%env  → VAL Γ ⊢ convert_val v).
+Proof.
+  apply Env.Scoping.scoped_ind; cbn.
+  (* scoped_val *)
+  - intros. constructor; auto.
+  (* scoped_nonval *)
+  - intros. auto.
+  (* scoped_fun *)
+  - intros. constructor; constructor; auto.
+  (* scoped_app *)
+  - intros ? ? ? ? IH_f ? IH_args.
+    constructor; constructor; [auto|].
+    intros i Hi.
+    pose proof (length_map convert_exp exps) as Hlen.
+    rewrite nth_indep with (d' := convert_exp (ESyn.VVal (ESyn.VLit (Int 0)))) by lia.
+    rewrite map_nth. apply IH_args. lia.
+  (* scoped_let *)
+  - intros. constructor; constructor; auto.
+  (* scoped_case *)
+  - intros. constructor; constructor; auto.
+  (* scoped_cons (NonVal) *)
+  - intros. constructor; constructor; auto.
+  (* scoped_bif *)
+  - intros ? ? ? ? IH_f ? IH_args.
+    constructor; constructor; [auto|].
+    intros i Hi.
+    pose proof (length_map convert_exp exps) as Hlen.
+    rewrite nth_indep with (d' := convert_exp (ESyn.VVal (ESyn.VLit (Int 0)))) by lia.
+    rewrite map_nth. apply IH_args. lia.
+  (* scoped_var *)
+  - intros. constructor; auto.
+  (* scoped_lit *)
+  - intros. constructor.
+  (* scoped_pid *)
+  - intros. constructor.
+  (* scoped_nil *)
+  - intros. constructor.
+  (* scoped_cons_v *)
+  - intros. constructor; auto.
+  (* scoped_clos *)
+  - intros Γ Γ_env vl e Henv_orig Henv_IH Hbody_orig Hbody_IH.
+    apply scoped_fun.
+    apply (proj1 (subst_preserves_scope_exp _ _) Hbody_IH).
+    refine (upn_scope (S vl) (length Γ_env) Γ (list_subst (map convert_val Γ_env) idsubst) _).
+    rewrite <- length_map with (f := convert_val).
+    apply scoped_list_idsubst.
+    (* Prove Forall (fun v => VAL Γ ⊢ v) (map convert_val Γ_env) from pointwise IH *)
+    clear Hbody_orig Hbody_IH Henv_orig.
+    revert Henv_IH.
+    induction Γ_env as [|v rest IHl]; intro Henv_IH.
+    + constructor.
+    + simpl. constructor.
+      * exact (Henv_IH 0 ltac:(simpl; lia)).
+      * apply IHl. intros i Hi. exact (Henv_IH (S i) ltac:(simpl; lia)).
+Qed.
+
 (** Applying a substitution to each [convert_val] in a list is a no-op
     when all elements are well-formed (closed). *)
 Lemma map_wf_val_subst_id (l : list ESyn.Val) σ :
-  Forall wf_val l →
+  Forall (fun v => VALCLOSED v)%env l →
   map (subst_val σ ∘ convert_val) l = map convert_val l.
 Proof.
   induction l; intro H; [reflexivity|].
   inv H. cbn. f_equal.
-  - exact (closed_ignores_sub_val _ _ H2).
+  - rewrite closed_ignores_sub_val. reflexivity.
+    by apply convert_scoped.
   - exact (IHl H3).
+Qed.
+
+
+(** The convert_env of a well-formed environment is a well-scoped substitution.
+    Proved here as a standalone lemma to avoid evar-unification issues inside
+    the main [env_to_sub] proof. *)
+Lemma ENVCLOSED_scoped_list : forall Γ,
+  ENVCLOSED Γ →
+  SUBSCOPE (length Γ) ⊢ convert_env Γ ∷ 0.
+Proof.
+  intros Γ HwfΓ. unfold convert_env, ENVCLOSED in *.
+  rewrite <- length_map with (f := convert_val).
+  apply scoped_list_idsubst.
+  induction HwfΓ; constructor; auto.
+  by apply convert_scoped.
 Qed.
 
 (* ------------------------------------------------------------------ *)
@@ -296,17 +327,18 @@ Definition sub_stack (σ : Substitution) (fs : FrameStack) :=
 map (sub_frame σ) fs.
 
 Lemma env_to_sub :
-  forall Γ Fs e Γ' Fs' e',
-  wf_env Γ →
-  wf_framestack Fs →
-  (forall v, e = ESyn.VVal v → wf_val v) →
+  forall Γ (Fs : Semantics.FrameStack) e Γ' Fs' e',
+  ENVCLOSED Γ →
+  Env.Scoping.FSCLOSED Fs ->
+  (forall v, e = ESyn.VVal v -> VALCLOSED v)%env →
+  (EXP length Γ ⊢ e)%env →
   ⟨Γ, Fs, e⟩ --> ⟨Γ', Fs', e'⟩ ->
   exists k,
   ⟨convert_framestack Fs, (convert_exp e).[convert_env Γ]⟩
     -[k]->
   ⟨convert_framestack Fs', (convert_exp e').[convert_env Γ']⟩ /\ k <= 1.
 Proof.
-  intros * HwfΓ HwfFs Hval D. inv D; cbn.
+  intros * HwfΓ HwfFs Hwf_val Hscoped D. inv D; cbn.
   * destruct v; simpl in *; try congruence.
     destruct l. 2: congruence.
     case_match. congruence.
@@ -314,33 +346,29 @@ Proof.
   * exists 1. split. 2: lia.
     econstructor. constructor.
     rewrite 2! (closed_ignores_sub_val (convert_val v)).
-    2-3: by apply Hval.
+    2-3: by apply convert_scoped, Hwf_val.
     constructor.
   * exists 1. split. 2: lia.
     econstructor. constructor.
     rewrite map_app. simpl.
     rewrite 2! (closed_ignores_sub_val (convert_val v0)).
-    2-3: by apply Hval.
+    2-3: by apply convert_scoped, Hwf_val.
     constructor.
   * (* red_bif_params: eval v (vl ++ [v0]) = Some res *)
-    inv HwfFs. destruct H2 as (HwfΓ' & Hwfv & Hwfvl).
+    inv HwfFs.
     apply eval_characterize in H as (z1 & z2 & -> & Hvleq & ->).
     destruct vl as [|w [|? ?]]; try discriminate.
-    2: { inv Hvleq. apply f_equal with (f := length) in H2.
-         rewrite length_app in H2. simpl in H2. lia.
+    2: { inv Hvleq. apply f_equal with (f := length) in H4.
+         rewrite length_app in H4. simpl in H4. lia.
        }
-    inv Hwfvl.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
-    rewrite (closed_ignores_sub_val _ _ Hwfv).
-    cbn.
-    rewrite (closed_ignores_sub_val _ _ H1).
-    simpl in Hvleq. inv Hvleq.
+    simpl in Hvleq. inv Hvleq. simpl.
     exists 1. split. 2: lia.
-    econstructor. constructor.
-    constructor.
+    econstructor. constructor. constructor.
   * (* red_app0: beta_reduce v [] = Some (Γ', res) *)
     inv HwfFs.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val _ _). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
     destruct v; cbn in H; try discriminate.
     destruct vl; try congruence.
     inv H.
@@ -351,27 +379,36 @@ Proof.
     constructor.
   * (* red_app: start evaluating first argument *)
     inv HwfFs.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
     cbn.
     exists 1. split. 2: lia.
     econstructor. constructor.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
     constructor.
   * (* step_app_params: accumulate evaluated argument *)
     exists 1. split. 2: lia.
     econstructor. constructor.
     rewrite map_app. simpl.
     rewrite 2! (closed_ignores_sub_val (convert_val v0)).
-    2-3: by apply Hval.
+    2-3: by apply convert_scoped, Hwf_val.
     constructor.
   * (* red_app_params: beta_reduce v (vl ++ [v0]) = Some (Γ', res) *)
-    inv HwfFs. destruct H2 as (HwfΓ' & Hwfv & Hwfvl).
+    inv HwfFs.
     destruct v; cbn in H; try discriminate.
     destruct (Nat.eqb_spec (length (vl ++ [v0])) vl0) as [Hn|]; [|discriminate].
     inv H.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
-    rewrite (closed_ignores_sub_val _ _ Hwfv).
-    rewrite (map_wf_val_subst_id _ _ Hwfvl).
+    rewrite (closed_ignores_sub_val). 2: {
+      apply convert_scoped. by inv H2.
+    }
+    rewrite (closed_ignores_sub_val). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
+    rewrite (map_wf_val_subst_id).
+    2: { by inv H2. }
     cbn [convert_val].
     exists 1. split. 2: lia.
     econstructor.
@@ -387,7 +424,9 @@ Proof.
       rewrite 2!map_app. constructor.
   * (* red_let: pop let frame and extend environment *)
     inv HwfFs.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
     cbn.
     exists 1. split. 2: lia.
     econstructor. constructor.
@@ -395,7 +434,9 @@ Proof.
     constructor.
   * (* red_case_true: pattern matches, extend env with bindings *)
     inv HwfFs.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
     pose proof (ESyn.match_pattern_length _ _ _ H) as Hlen.
     apply match_pattern_convert in H.
     cbn.
@@ -412,7 +453,9 @@ Proof.
       by rewrite length_map.
   * (* red_case_false: pattern fails, fall through *)
     inv HwfFs.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
     apply match_pattern_convert_none in H.
     cbn.
     exists 1. split. 2: lia.
@@ -420,20 +463,28 @@ Proof.
     constructor.
   * (* red_cons1: push second element frame *)
     inv HwfFs.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
     cbn.
     exists 1. split. 2: lia.
     econstructor. constructor.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
     constructor.
   * (* red_cons2: build the cons cell *)
-    inv HwfFs. destruct H1 as (HwfΓ' & Hwfv2).
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
-    rewrite (closed_ignores_sub_val _ _ Hwfv2).
+    inv HwfFs. inv H1.
+    rewrite (closed_ignores_sub_val). 2: by apply convert_scoped.
+    rewrite (closed_ignores_sub_val). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
     cbn.
     exists 1. split. 2: lia.
     econstructor. constructor.
-    rewrite (closed_ignores_sub_val _ _ (Hval _ eq_refl)).
+    rewrite (closed_ignores_sub_val). 2: {
+      by apply convert_scoped, Hwf_val.
+    }
     constructor.
   * (* step_let: push let frame *)
     exists 1. split. 2: lia.
@@ -454,12 +505,25 @@ Proof.
   * (* step_cons: push cons frame *)
     exists 1. split. 2: lia.
     econstructor. constructor. constructor.
-  * (* red_fun: EFun becomes VClos capturing env — requires scoping invariant *)
-    exists 0. split. 2: lia.
-    rewrite subst_comp.
-    rewrite up_comp, upn_comp.
-     
+  * simpl.
+    replace (VFun _ _.[_].[_]) with
+      ((VFun vl (convert_exp e0)).ᵥ[convert_env Γ'].ᵥ[convert_env Γ']) by reflexivity.
+    rewrite (closed_ignores_sub_val ((VFun vl (convert_exp e0)).ᵥ[convert_env Γ'])).
+    - exists 0. split. constructor. lia.
+    - apply -> subst_preserves_scope_val.
+      + constructor. inv Hscoped. inv H0.
+        apply convert_scoped. eassumption.
+      + apply ENVCLOSED_scoped_list. assumption.
   * (* red_var: look up variable in environment *)
-    specialize (Hval _ eq_refl).
-    inv Hval. lia.
-Admitted.
+    apply lookup_lt_Some in H as Hlt.
+    exists 0. split. 2: lia.
+    unfold convert_env.
+    rewrite list_subst_lt by (rewrite length_map; exact Hlt).
+    rewrite map_nth with (d := ESyn.VLit (Int 0)).
+    erewrite (nth_lookup_Some). 2: eassumption.
+    rewrite closed_ignores_sub_val. constructor.
+    apply convert_scoped.
+    eapply Forall_lookup_1 in H. 2: exact HwfΓ.
+    assumption.
+Qed.
+

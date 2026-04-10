@@ -168,7 +168,7 @@ Inductive step : Env -> FrameStack -> Exp -> Env -> FrameStack -> Exp -> Prop :=
 
 | red_var Γ xs x (val : Val) :
   Γ !! x = Some val ->
-  ⟨Γ, xs, VVar x⟩ --> ⟨Γ, xs, ˝val⟩
+  ⟨Γ, xs, EVar x⟩ --> ⟨Γ, xs, ˝val⟩
 where "⟨ G , fs , e ⟩ --> ⟨ G' , fs' , e' ⟩" := (step G fs e G' fs' e') : env_scope.
 
 Reserved Notation "⟨ G , fs , e ⟩ -[ k ]-> ⟨ G' , fs' , e' ⟩" (at level 50).

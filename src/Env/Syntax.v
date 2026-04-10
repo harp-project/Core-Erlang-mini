@@ -19,6 +19,7 @@ with NonVal : Set :=
 (** Concurrency *)
 (* | EReceive (l : list (Pat * Exp)) *)
 | EBIF (e : Exp) (l : list Exp)
+| EVar    (n : nat) (* !!! *)
 
 with Val : Set :=
 | VLit    (l : Lit)
@@ -26,7 +27,6 @@ with Val : Set :=
 (** Variables and function identifiers are just indices.
     TODO: In the future, function identifiers should include the arity too!
 *)
-| VVar    (n : nat)
 | VNil
 (** Recursive data structures which are values: *)
 | VCons (e1 e2 : Val)
@@ -56,9 +56,9 @@ Hypotheses
   (HNF_Case : forall (e : Exp) (p : Pat) (e1 e2 : Exp), P e -> P e1 -> P e2 -> PN (ECase e p e1 e2))
   (HNF_Cons : forall (e1 e2 : Exp), P e1 -> P e2 -> PN (ECons e1 e2))
   (HNF_EBIF : forall (e : Exp), P e -> forall (l : list Exp), Q l -> PN (EBIF e l))
+  (HNF_Var : forall (n : nat), PN (EVar n))
 
   (HV_Lit : forall (l : Lit), PV (VLit l))
-  (HV_Var : forall (n : nat), PV (VVar n))
   (HV_Pid : forall (n : nat), PV (VPid n))
   (HV_Nil : PV VNil)
   (HV_Cons : forall (v1 v2 : Val), PV v1 -> PV v2 -> PV (VCons v1 v2))
@@ -94,12 +94,12 @@ with NonVal_ind2 (nv : NonVal) : PN nv :=
          | [] => HQ_nil
          | v::xs => HQ_cons v (Exp_ind2 v) xs (l_ind xs)
          end) l)
+  | EVar n => HNF_Var n
   end
 
 with Val_ind2 (v : Val) : PV v :=
   match v as x return PV x with
   | VLit l => HV_Lit l
-  | VVar n => HV_Var n
   | VPid p => HV_Pid p
   | VNil => HV_Nil
   | VCons v1 v2 => HV_Cons v1 v2 (Val_ind2 v1) (Val_ind2 v2)
