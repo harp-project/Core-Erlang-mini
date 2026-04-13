@@ -111,6 +111,8 @@ with Val_ind2 (v : Val) : PV v :=
          end) Gamma) (Exp_ind2 e)
   end.
 
+  Combined Scheme Env_Exp_full_ind from Exp_ind2, NonVal_ind2, Val_ind2.
+
 End correct_ind.
 
 Fixpoint match_pattern (p : Pat) (e : Val) : option (list Val) :=

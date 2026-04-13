@@ -5,6 +5,8 @@ src/SyntaxBasics.v
 src/Env/Syntax.v
 src/Env/Semantics.v
 src/Env/Scoping.v
+src/Env/Termination.v
+src/Env/CIU.v
 
 
 

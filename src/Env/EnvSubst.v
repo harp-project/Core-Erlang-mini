@@ -527,3 +527,389 @@ Proof.
     assumption.
 Qed.
 
+
+(**
+  Inverse conversion: from substitution-based syntax back to
+  environment-based syntax.
+
+  These functions return [option] so that partial/undefined cases are
+  handled cleanly instead of returning dummy values.  The callers may
+  assume that the Sub term is *closed* (no free [VVar] occurrences),
+  which is guaranteed for any term that lies in the image of
+  [convert_val] / [convert_exp].
+
+  Partial cases that yield [None]:
+  - [VVar n]    — not in the image of [convert_val]; free variable.
+  - [EReceive]  — has no counterpart in the Env syntax.
+
+  [VFun vl e] recovers [VClos [] vl body] with an empty environment,
+  since the original environment was baked into the body by substitution
+  and cannot be recovered.
+*)
+
+(** Helper: lift [map f] into [option], failing as soon as [f] fails. *)
+Fixpoint map_option {A B} (f : A → option B) (l : list A) : option (list B) :=
+  match l with
+  | []      => Some []
+  | x :: xs =>
+      match f x, map_option f xs with
+      | Some y, Some ys => Some (y :: ys)
+      | _,      _       => None
+      end
+  end.
+
+Fixpoint inv_convert_val (v : Val) : option ESyn.Val :=
+  match v with
+  | VLit l      => Some (ESyn.VLit l)
+  | VPid p      => Some (ESyn.VPid p)
+  | VNil        => Some ESyn.VNil
+  | VCons v1 v2 =>
+      match inv_convert_val v1, inv_convert_val v2 with
+      | Some v1', Some v2' => Some (ESyn.VCons v1' v2')
+      | _,        _        => None
+      end
+  | VVar _      => None   (* free variable; not in image of convert_val *)
+  | VFun vl e   =>
+      match inv_convert_exp e with
+      | Some e' => Some (ESyn.VClos [] vl e')
+      | None    => None
+      end
+  end
+with inv_convert_exp (e : Exp) : option ESyn.Exp :=
+  match e with
+  | VVal v => ESyn.VVal <$> inv_convert_val v
+  | EExp nv => ESyn.EExp <$> inv_convert_nv nv
+  end
+with inv_convert_nv (nv : NonVal) : option ESyn.NonVal :=
+  match nv with
+  | EApp f args =>
+      match inv_convert_exp f, map_option inv_convert_exp args with
+      | Some f', Some args' => Some (ESyn.EApp f' args')
+      | _,       _          => None
+      end
+  | ELet e1 e2 =>
+      match inv_convert_exp e1, inv_convert_exp e2 with
+      | Some e1', Some e2' => Some (ESyn.ELet e1' e2')
+      | _,        _        => None
+      end
+  | ECase e' p e1 e2 =>
+      match inv_convert_exp e', inv_convert_exp e1, inv_convert_exp e2 with
+      | Some e'', Some e1', Some e2' => Some (ESyn.ECase e'' p e1' e2')
+      | _,        _,        _        => None
+      end
+  | ECons e1 e2 =>
+      match inv_convert_exp e1, inv_convert_exp e2 with
+      | Some e1', Some e2' => Some (ESyn.ECons e1' e2')
+      | _,        _        => None
+      end
+  | EBIF f args =>
+      match inv_convert_exp f, map_option inv_convert_exp args with
+      | Some f', Some args' => Some (ESyn.EBIF f' args')
+      | _,       _          => None
+      end
+  | EReceive _  => None   (* no counterpart in Env syntax *)
+  end.
+
+(**
+  Partial inverse of [convert_frame].
+
+  The saved environment [Γ] that was baked into each frame's sub-expressions
+  during [convert_frame] cannot be recovered from the converted Sub frame
+  alone (it was folded in via [convert_env Γ] / [up_subst (convert_env Γ)]).
+  Consequently, the result always carries an empty saved environment [[]].
+
+  Returns [None] if any sub-expression in the frame falls outside the image
+  of [convert_exp] — which happens exactly when [up_subst (convert_env Γ)]
+  leaves a free [VVar 0] in the body (e.g., in [FLet] frames with non-empty Γ).
+*)
+Definition inv_convert_frame (f : Frame) : option ESem.Frame :=
+  match f with
+  | FApp1 args =>
+      match map_option inv_convert_exp args with
+      | Some args' => Some (ESem.FApp1 args' [])
+      | None       => None
+      end
+  | FApp2 v vl args =>
+      match inv_convert_val v,
+            map_option inv_convert_val vl,
+            map_option inv_convert_exp args with
+      | Some v', Some vl', Some args' =>
+          Some (ESem.FApp2 v' vl' args' [])
+      | _, _, _ => None
+      end
+  | FLet e2 =>
+      match inv_convert_exp e2 with
+      | Some e2' => Some (ESem.FLet e2' [])
+      | None     => None
+      end
+  | FCase p e2 e3 =>
+      match inv_convert_exp e2, inv_convert_exp e3 with
+      | Some e2', Some e3' => Some (ESem.FCase p e2' e3' [])
+      | _, _               => None
+      end
+  | FCons1 e1 =>
+      match inv_convert_exp e1 with
+      | Some e1' => Some (ESem.FCons1 e1' [])
+      | None     => None
+      end
+  | FCons2 v2 =>
+      match inv_convert_val v2 with
+      | Some v2' => Some (ESem.FCons2 v2' [])
+      | None     => None
+      end
+  | FBIF1 args =>
+      match map_option inv_convert_exp args with
+      | Some args' => Some (ESem.FBIF1 args' [])
+      | None       => None
+      end
+  | FBIF2 v vl args =>
+      match inv_convert_val v,
+            map_option inv_convert_val vl,
+            map_option inv_convert_exp args with
+      | Some v', Some vl', Some args' =>
+          Some (ESem.FBIF2 v' vl' args' [])
+      | _, _, _ => None
+      end
+  end.
+
+(** Lift [inv_convert_frame] pointwise over a full frame stack. *)
+Definition inv_convert_framestack (Fs : FrameStack) : option ESem.FrameStack :=
+  map_option inv_convert_frame Fs.
+(* 
+Open Scope env_scope.
+Lemma inv_correct :
+  (forall e, EXPCLOSED e -> inv_convert_exp (convert_exp e) = Some e) /\
+  (forall e, NVALCLOSED e -> inv_convert_exp (convert_nv e) = Some (ESyn.EExp e)) /\
+  (forall e, VALCLOSED e -> inv_convert_val (convert_val e) = Some e).
+Proof.
+  apply Env_Exp_full_ind with
+    (Q := Forall (fun e => EXPCLOSED e -> inv_convert_exp (convert_exp e) = Some e))
+    (R := Forall (fun e => VALCLOSED e -> inv_convert_val (convert_val e) = Some e)); simpl; intros; try reflexivity.
+  * inv H0. by apply H.
+  * inv H0. apply H in H2. by rewrite H2.
+  * rewrite H.
+  *
+  *
+  *
+  *
+  *
+  *
+  *
+  *
+  *
+  *
+  *
+  *
+Qed. *)
+
+
+Open Scope env_scope.
+
+Ltac invSome :=
+match goal with
+| [H : Some _ = Some _ |- _] => inv H
+| [H : Some _ = None |- _] => inv H
+| [H : None = Some _ |- _] => inv H
+| [H : (_, _) = (_, _) |- _] => inv H
+end.
+
+(** map_option distributes over append *)
+Lemma map_option_app {A B} (f : A → option B) l1 l2 l1' l2' :
+  map_option f l1 = Some l1' →
+  map_option f l2 = Some l2' →
+  map_option f (l1 ++ l2) = Some (l1' ++ l2').
+Proof.
+  revert l1'. induction l1; intros; cbn in *.
+  - inv H. assumption.
+  - destruct (f a); [| discriminate].
+    destruct (map_option f l1); [| discriminate].
+    inv H.
+    specialize (IHl1 _ eq_refl H0).
+    rewrite IHl1. reflexivity.
+Qed.
+
+(** map_option preserves list length *)
+Lemma map_option_length {A B} (f : A → option B) l l' :
+  map_option f l = Some l' → length l = length l'.
+Proof.
+  revert l'. induction l; intros; cbn in *.
+  - inv H. reflexivity.
+  - destruct (f a); [| discriminate].
+    destruct (map_option f l); [| discriminate].
+    inv H. cbn. f_equal. apply IHl. reflexivity.
+Qed.
+
+Lemma inv_convert_exp_subst_id e e' σ :
+  inv_convert_exp e = Some e' → e.[σ] = e.
+Proof.
+Admitted.
+
+Lemma match_pattern_inv_some p v v_s l :
+  inv_convert_val v = Some v_s →
+  match_pattern p v = Some l →
+  ∃ l_s, ESyn.match_pattern p v_s = Some l_s.
+Proof.
+Admitted.
+
+Lemma match_pattern_inv_none p v v_s :
+  inv_convert_val v = Some v_s →
+  match_pattern p v = None →
+  ESyn.match_pattern p v_s = None.
+Proof.
+Admitted.
+
+Lemma sub_to_env Fs Fs' e e' Fs_start e_start :
+  ⟨Fs, e⟩ --> ⟨Fs', e'⟩ →
+  inv_convert_framestack Fs = Some Fs_start →
+  inv_convert_exp e = Some e_start →
+  ∀ Γ, Γ = [] →
+  ∃ Γ' Fs_fin e_fin,
+    ⟨Γ, Fs_start, e_start⟩ -->
+    ⟨Γ', Fs_fin, e_fin⟩ ∧
+    inv_convert_framestack Fs' = Some Fs_fin ∧
+    inv_convert_exp e' = Some e_fin.
+Proof.
+  intros Hstep HFs He Γ HΓ. subst Γ.
+  inv Hstep;
+  cbn [inv_convert_framestack map_option inv_convert_frame
+       inv_convert_exp inv_convert_nv inv_convert_val] in *;
+  repeat case_match; cbn in *; try congruence; repeat invSome.
+
+  (* Case 1: red_app_start *)
+  - do 3 eexists. split.
+    + apply ESem.red_app.
+    + cbn [inv_convert_framestack map_option inv_convert_frame
+           inv_convert_val map_option].
+      rewrite He0. rewrite He1. rewrite He2. rewrite He3. rewrite He4.
+      split; reflexivity.
+
+  (* Case 2: red_app_fin *)
+  - do 3 eexists. split.
+    + apply ESem.red_app0. cbn. reflexivity.
+    + split.
+      * assumption.
+      * rewrite (inv_convert_exp_subst_id _ _ _ He). assumption.
+
+  (* Case 3: app2_step *)
+  - do 3 eexists. split.
+    + apply ESem.step_app_params.
+    + cbn [inv_convert_framestack map_option inv_convert_frame
+           inv_convert_val].
+      erewrite map_option_app; [| eassumption | cbn; rewrite He1; reflexivity].
+      cbn. rewrite He0. rewrite He2. rewrite He3. rewrite He4. rewrite He5.
+      split; reflexivity.
+
+  (* Case 4: red_app2 *)
+  - do 3 eexists. split.
+    + apply ESem.red_app_params.
+      cbn.
+      apply PeanoNat.Nat.eqb_eq.
+      rewrite app_length. cbn.
+      pose proof (map_option_length _ _ _ He1) as Hlen.
+      lia.
+    + split.
+      * assumption.
+      * rewrite (inv_convert_exp_subst_id _ _ _ He). assumption.
+
+  (* Case 5: red_bif_start *)
+  - do 3 eexists. split.
+    + apply ESem.red_bif.
+    + cbn [inv_convert_framestack map_option inv_convert_frame
+           inv_convert_val map_option].
+      rewrite He0. rewrite He1. rewrite He2. rewrite He3.
+      split; reflexivity.
+
+  (* Case 6: red_bif_step *)
+  - do 3 eexists. split.
+    + apply ESem.step_bif_params.
+    + cbn [inv_convert_framestack map_option inv_convert_frame
+           inv_convert_val].
+      erewrite map_option_app; [| eassumption | cbn; rewrite He1; reflexivity].
+      cbn. rewrite He0. rewrite He2. rewrite He3. rewrite He4. rewrite He5.
+      split; reflexivity.
+
+  (* Case 7: red_let *)
+  - do 3 eexists. split.
+    + apply ESem.red_let.
+    + split.
+      * assumption.
+      * rewrite (inv_convert_exp_subst_id _ _ _ He0). assumption.
+
+  (* Case 8: red_case_true *)
+  - pose proof (match_pattern_inv_some _ _ _ _ He1 He2) as [l_s Hls].
+    do 3 eexists. split.
+    + apply ESem.red_case_true. exact Hls.
+    + split.
+      * cbn [inv_convert_framestack map_option]. assumption.
+      * rewrite (inv_convert_exp_subst_id _ _ _ He0). assumption.
+
+  (* Case 9: red_case_false *)
+  - pose proof (match_pattern_inv_none _ _ _ He1 He2) as Hno.
+    do 3 eexists. split.
+    + apply ESem.red_case_false. exact Hno.
+    + split.
+      * cbn [inv_convert_framestack map_option]. assumption.
+      * assumption.
+
+  (* Case 10: red_cons1 *)
+  - do 3 eexists. split.
+    + apply ESem.red_cons1.
+    + cbn [inv_convert_framestack map_option inv_convert_frame
+           inv_convert_val].
+      rewrite He0. rewrite He1. rewrite He2.
+      split; reflexivity.
+
+  (* Case 11: red_cons2 *)
+  - do 3 eexists. split.
+    + apply ESem.red_cons2.
+    + split.
+      * assumption.
+      * cbn. rewrite He0. rewrite He1. reflexivity.
+
+  (* Case 12: red_plus *)
+  - do 3 eexists. split.
+    + apply ESem.red_bif_params.
+      cbn. reflexivity.
+    + split.
+      * assumption.
+      * cbn. reflexivity.
+
+  (* Case 13: step_let *)
+  - do 3 eexists. split.
+    + apply ESem.step_let.
+    + cbn [inv_convert_framestack map_option inv_convert_frame].
+      rewrite He0. rewrite He1. rewrite He2.
+      split; reflexivity.
+
+  (* Case 14: step_app *)
+  - do 3 eexists. split.
+    + apply ESem.step_app.
+    + cbn [inv_convert_framestack map_option inv_convert_frame].
+      rewrite He0. rewrite He1. rewrite He2.
+      split; reflexivity.
+
+  (* Case 15: step_bif *)
+  - do 3 eexists. split.
+    + apply ESem.step_bif.
+    + cbn [inv_convert_framestack map_option inv_convert_frame].
+      rewrite He0. rewrite He1. rewrite He2.
+      split; reflexivity.
+
+  (* Case 16: step_case *)
+  - do 3 eexists. split.
+    + apply ESem.step_case.
+    + cbn [inv_convert_framestack map_option inv_convert_frame].
+      rewrite He0. rewrite He1. rewrite He2. rewrite He3.
+      split; reflexivity.
+
+  (* Case 17: step_cons *)
+  - do 3 eexists. split.
+    + apply ESem.step_cons.
+    + cbn [inv_convert_framestack map_option inv_convert_frame].
+      rewrite He0. rewrite He1. rewrite He2.
+      split; reflexivity.
+Qed.
+
+
+
+

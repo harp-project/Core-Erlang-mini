@@ -118,6 +118,8 @@ Section correct_exp_ind.
   | VCons e1 e2 => H12 e1 (Val_ind2 e1) e2 (Val_ind2 e2)
   end.
 
+  Combined Scheme Exp_full_ind from Exp_ind2, NonVal_ind2, Val_ind2.
+
 End correct_exp_ind.
 
 Fixpoint Exp_eq_dec (e e' : Exp) : {e = e'} + {e <> e'}

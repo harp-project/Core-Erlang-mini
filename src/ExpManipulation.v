@@ -190,8 +190,6 @@ Proof.
   cbn. rewrite ren_up. rewrite IHn. auto.
 Qed.
 
-Combined Scheme Exp_full_ind from Exp_ind2, NonVal_ind2, Val_ind2.
-
 Theorem Private_renaming_is_subst : (forall e ρ,
   rename ρ e = e.[ren ρ]) /\ (forall e ρ,
   rename_nonval ρ e = e.ₙ[ren ρ]) /\ (forall e ρ,
