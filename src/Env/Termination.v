@@ -217,3 +217,84 @@ Proof.
   exists k. eapply semantics_termination. exact Hsteps.
 Qed.
 
+Corollary transitive_eval :
+  forall k Γ fs e Γ' fs' e',
+    ⟨ Γ, fs, e ⟩ -[k]-> ⟨ Γ', fs', e' ⟩ ->
+    forall k' Γ'' fs'' e'',
+      ⟨ Γ', fs', e' ⟩ -[k']-> ⟨ Γ'', fs'', e'' ⟩ ->
+      ⟨ Γ, fs, e ⟩ -[k + k']-> ⟨ Γ'', fs'', e'' ⟩.
+Proof.
+  intros k Γ fs e Γ' fs' e' Hrt.
+  induction Hrt; intros k' Γ1 fs1 e1 Hrt'; simpl.
+  - exact Hrt'.
+  - econstructor.
+    + exact H.
+    + eapply IHHrt. exact Hrt'.
+Qed.
+
+Corollary terminates_step_any :
+  forall Γ fs e,
+    | Γ, fs, e | ↓ ->
+    forall k Γ' fs' e',
+      ⟨ Γ, fs, e ⟩ -[k]-> ⟨ Γ', fs', e' ⟩ ->
+      | Γ', fs', e' | ↓.
+Proof.
+  intros Γ fs e Hterm k Γ' fs' e' Hpre.
+  assert (Hstep_term :
+    forall Γ0 fs0 e0 Γ1 fs1 e1,
+      | Γ0, fs0, e0 | ↓ ->
+      ⟨ Γ0, fs0, e0 ⟩ --> ⟨ Γ1, fs1, e1 ⟩ ->
+      | Γ1, fs1, e1 | ↓).
+  {
+    intros Γ0 fs0 e0 Γ1 fs1 e1 [n Hn] Hstep.
+    destruct (termination_semantics _ _ _ _ Hn) as [Γf [v Hfull]].
+    inversion Hfull; subst.
+    - inversion Hn; subst. exfalso. eapply value_nostep. exact Hstep.
+    - match goal with
+        | Hs : ⟨ _, _, _ ⟩ --> ⟨ _, _, _ ⟩,
+          Htail : ⟨ _, _, _ ⟩ -[ _ ]-> ⟨ _, _, _ ⟩ |- _ =>
+            pose proof (step_determinism _ _ _ _ _ _ Hstep _ _ _ Hs) as [-> [-> ->]];
+            eapply semantics_terminates;
+            exists k0, Γf;
+            exact Htail
+      end.
+  }
+  induction Hpre.
+  - exact Hterm.
+  - eapply IHHpre.
+    eapply Hstep_term; eauto.
+Qed.
+
+(**
+  For a value plugged into a frame stack, termination is independent of the
+  current ambient environment.
+ *)
+Lemma value_terminates_in_k_env_indep :
+  forall k Γ1 Γ2 fs (v : Val),
+    | Γ1, fs, ˝v | k ↓ ->
+    | Γ2, fs, ˝v | k ↓.
+Proof.
+  intros k Γ1 Γ2 fs v Hterm.
+  destruct (termination_semantics _ _ _ _ Hterm) as [Γ' [w Hsteps]].
+  destruct (value_core_env_indep _ _ _ _ _ _ Hsteps Γ2) as [Γ'' Hsteps'].
+  eapply semantics_termination. exact Hsteps'.
+Qed.
+
+Corollary value_terminates_env_indep :
+  forall Γ1 Γ2 fs (v : Val),
+    | Γ1, fs, ˝v | ↓ ->
+    | Γ2, fs, ˝v | ↓.
+Proof.
+  intros Γ1 Γ2 fs v [k Hterm].
+  exists k. eapply value_terminates_in_k_env_indep. exact Hterm.
+Qed.
+
+Corollary value_terminates_sem_env_indep :
+  forall Γ1 Γ2 fs (v w : Val),
+    ⟨ Γ1, fs, ˝v ⟩ -->* w ->
+    ⟨ Γ2, fs, ˝v ⟩ -->* w.
+Proof.
+  intros Γ1 Γ2 fs v w [k [Γ' Hsteps]].
+  destruct (value_core_env_indep _ _ _ _ _ _ Hsteps Γ2) as [Γ'' Hsteps'].
+  exists k, Γ''. exact Hsteps'.
+Qed.

@@ -269,3 +269,69 @@ Proof.
     apply IHstep_rt. exact H7.
 Qed.
 
+(**
+  Frame independence for one step: appending an extra suffix of frames does
+  not affect the step, because every rule only inspects or rewrites the head
+  of the current frame stack.
+*)
+Theorem frame_indep_step :
+  forall Γ fs e Γ' fs' e',
+    ⟨ Γ, fs, e ⟩ --> ⟨ Γ', fs', e' ⟩ ->
+    forall fs'',
+      ⟨ Γ, fs ++ fs'', e ⟩ --> ⟨ Γ', fs' ++ fs'', e' ⟩.
+Proof.
+  intros Γ fs e Γ' fs' e' Hstep.
+  induction Hstep; intros fs''; simpl; econstructor; eauto.
+Qed.
+
+(**
+  Frame independence lifts to the reflexive-transitive closure.
+*)
+Theorem frame_indep_core :
+  forall k Γ fs e Γ' fs' e',
+    ⟨ Γ, fs, e ⟩ -[k]-> ⟨ Γ', fs', e' ⟩ ->
+    forall fs'',
+      ⟨ Γ, fs ++ fs'', e ⟩ -[k]-> ⟨ Γ', fs' ++ fs'', e' ⟩.
+Proof.
+  intros k Γ fs e Γ' fs' e' Hsteps.
+  induction Hsteps; intros fs0.
+  - simpl. constructor.
+  - econstructor.
+    + apply frame_indep_step with (fs'' := fs0). exact H.
+    + exact (IHHsteps fs0).
+Qed.
+
+(**
+  For a value currently being plugged into a frame stack, the ambient
+  environment is irrelevant: every step rule only inspects the value itself
+  and the top frame's saved environment.
+ *)
+Lemma value_step_env_indep :
+  forall Γ1 fs (v : Val) Γ' fs' e',
+    ⟨ Γ1, fs, ˝v ⟩ --> ⟨ Γ', fs', e' ⟩ ->
+    forall Γ2,
+      ⟨ Γ2, fs, ˝v ⟩ --> ⟨ Γ', fs', e' ⟩.
+Proof.
+  intros Γ1 fs v Γ' fs' e' Hstep Γ2.
+  inversion Hstep; subst; econstructor; eauto.
+Qed.
+
+(**
+  If a run starts from a value expression and ends in a final value, changing
+  only the initial ambient environment preserves the whole run and the final
+  value (though the final environment may change in the 0-step case).
+ *)
+Lemma value_core_env_indep :
+  forall k Γ1 fs (v w : Val) Γ' ,
+    ⟨ Γ1, fs, ˝v ⟩ -[k]-> ⟨ Γ', [], ˝w ⟩ ->
+    forall Γ2,
+      exists Γ'',
+        ⟨ Γ2, fs, ˝v ⟩ -[k]-> ⟨ Γ'', [], ˝w ⟩.
+Proof.
+  intros k Γ1 fs v w Γ' Hsteps Γ2.
+  inversion Hsteps; subst.
+  - exists Γ2. constructor.
+  - eexists. econstructor.
+    + eapply value_step_env_indep. exact H.
+    + exact H0.
+Qed.
