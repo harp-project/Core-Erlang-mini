@@ -2,12 +2,12 @@ From CoreErlang Require Export Env.Termination
                                Env.ClosedScoping.
 
 Definition CIU (Γ : Env) (e1 e2 : Exp) :=
-  EXP length Γ ⊢ e1 /\ EXP length Γ ⊢ e2 /\
+  ENVCLOSED Γ /\ EXP length Γ ⊢ e1 /\ EXP length Γ ⊢ e2 /\
     forall Fs, FSCLOSED Fs ->
       | Γ, Fs, e1 | ↓ -> | Γ, Fs, e2 | ↓.
 
 Definition CIU_open (n : nat) (e1 e2 : Exp) :=
-  forall Γ, length Γ = n -> CIU Γ e1 e2.
+  forall Γ, length Γ = n -> ENVCLOSED Γ -> CIU Γ e1 e2.
 
 Lemma CIU_scope : forall Γ e1 e2,
     CIU Γ e1 e2 ->
@@ -46,10 +46,19 @@ Lemma CIU_open_scope : forall {Γ e1 e2},
 Proof.
   intros Γ e1 e2 H.
   unfold CIU_open in H.
-  pose proof (H (repeat VNil Γ) (repeat_length VNil Γ)) as HCIU.
-  apply CIU_scope in HCIU.
-  rewrite repeat_length in HCIU.
-  exact HCIU.
+  assert (ENVCLOSED (repeat VNil Γ)) as Hclosed.
+  {
+    clear H e1 e2.
+    induction Γ.
+    - constructor.
+    - simpl. constructor.
+      + constructor.
+      + exact IHΓ.
+  }
+  specialize (H (repeat VNil Γ) (repeat_length VNil Γ) Hclosed).
+  apply CIU_scope in H.
+  rewrite repeat_length in H.
+  exact H.
 Qed.
 
 Lemma CIU_open_scope_l : forall {Γ e1 e2},

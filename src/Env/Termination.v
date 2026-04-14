@@ -1,4 +1,5 @@
-From CoreErlang Require Export Env.Semantics.
+From CoreErlang Require Export Env.Semantics
+                               Env.ClosedScoping.
 
 Reserved Notation "| G , fs , e | k ↓" (at level 80).
 Inductive terminates_in_k : Env -> FrameStack -> Exp -> nat -> Prop :=
@@ -232,6 +233,69 @@ Proof.
     + eapply IHHrt. exact Hrt'.
 Qed.
 
+Corollary step_term_term :
+  forall k n Γ fs e Γ' fs' e',
+    ⟨ Γ, fs, e ⟩ -[k]-> ⟨ Γ', fs', e' ⟩ ->
+    | Γ', fs', e' | n - k ↓ ->
+    n >= k ->
+    | Γ, fs, e | n ↓.
+Proof.
+  intros k n Γ fs e Γ' fs' e' Hrt Hterm Hge.
+  destruct (termination_semantics _ _ _ _ Hterm) as [Γ'' [v Hrt']].
+  eapply semantics_termination.
+  replace n with (k + (n - k)) by lia.
+  eapply transitive_eval; eauto.
+Qed.
+
+Corollary step_term_term_plus :
+  forall k k2 Γ fs e Γ' fs' e',
+    ⟨ Γ, fs, e ⟩ -[k]-> ⟨ Γ', fs', e' ⟩ ->
+    | Γ', fs', e' | k2 ↓ ->
+    | Γ, fs, e | k + k2 ↓.
+Proof.
+  intros k k2 Γ fs e Γ' fs' e' Hrt Hterm.
+  destruct (termination_semantics _ _ _ _ Hterm) as [Γ'' [v Hrt']].
+  eapply semantics_termination.
+  eapply transitive_eval; eauto.
+Qed.
+
+Theorem terminates_step_2 :
+  forall n Γ fs e,
+    | Γ, fs, e | n ↓ ->
+    forall Γ' fs' e',
+      ⟨ Γ, fs, e ⟩ --> ⟨ Γ', fs', e' ⟩ ->
+      | Γ', fs', e' | n - 1 ↓.
+Proof.
+  intros n Γ fs e Hterm Γ' fs' e' Hstep.
+  destruct n as [|n].
+  - inversion Hterm; subst. exfalso. eapply value_nostep. exact Hstep.
+  - destruct (termination_semantics _ _ _ _ Hterm) as [Γf [v Hfull]].
+    inversion Hfull; subst.
+    match goal with
+    | Hs : ⟨ _, _, _ ⟩ --> ⟨ _, _, _ ⟩,
+      Htail : ⟨ _, _, _ ⟩ -[ _ ]-> ⟨ _, _, _ ⟩ |- _ =>
+        pose proof (step_determinism _ _ _ _ _ _ Hstep _ _ _ Hs) as [-> [-> ->]];
+        replace (S n - 1) with n by lia;
+        eapply semantics_termination;
+        exact Htail
+    end.
+Qed.
+
+
+
+Theorem term_eval_empty :
+  forall x Γ Fs e,
+    AEXP length Γ ⊢ e ->
+    FSCLOSED Fs ->
+    ENVCLOSED Γ ->
+    | Γ, Fs, e | x ↓ ->
+    exists v k Γ',
+      VALCLOSED v /\
+      ⟨ Γ, [], e ⟩ -[k]-> ⟨ Γ', [], ˝v ⟩.
+Proof.
+  
+Admitted.
+
 Corollary terminates_step_any :
   forall Γ fs e,
     | Γ, fs, e | ↓ ->
@@ -263,6 +327,26 @@ Proof.
   - exact Hterm.
   - eapply IHHpre.
     eapply Hstep_term; eauto.
+Qed.
+
+Corollary terminates_step_any_2 :
+  forall k n Γ fs e,
+    | Γ, fs, e | n ↓ ->
+    forall Γ' fs' e',
+      ⟨ Γ, fs, e ⟩ -[k]-> ⟨ Γ', fs', e' ⟩ ->
+      | Γ', fs', e' | n - k ↓.
+Proof.
+  induction k; intros n Γ fs e Hterm Γ' fs' e' Hrt; inversion Hrt; subst.
+  - rewrite Nat.sub_0_r. exact Hterm.
+  - match goal with
+      | Hs : ⟨ _, _, _ ⟩ --> ⟨ _, _, _ ⟩,
+        Htail : ⟨ _, _, _ ⟩ -[ k ]-> ⟨ _, _, _ ⟩ |- _ =>
+          apply terminates_step_2 with (n := n) in Hs;
+          [| exact Hterm];
+          eapply IHk in Htail; [| exact Hs];
+          replace (n - S k) with ((n - 1) - k) by lia;
+          exact Htail
+    end.
 Qed.
 
 (**
