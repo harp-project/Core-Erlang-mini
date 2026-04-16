@@ -153,9 +153,9 @@ Inductive Scoped : ScopeSig -> Prop :=
   Scoped (sig_exp (S vl + length Γ_env) e) ->
   Scoped (sig_val (VClos Γ_env vl e)).
 
-Notation "'EXP' Γ ⊢ e" := (Scoped (sig_exp Γ e)) (at level 69, no associativity).
-Notation "'NVAL' Γ ⊢ e" := (Scoped (sig_nonval Γ e)) (at level 69, no associativity).
-Notation "'VALCLOSED' v" := (Scoped (sig_val v)) (at level 69, no associativity).
+Notation "'EXP' Γ ⊢ e" := (Scoped (sig_exp Γ e)) (at level 69, no associativity) : env_scope.
+Notation "'NVAL' Γ ⊢ e" := (Scoped (sig_nonval Γ e)) (at level 69, no associativity) : env_scope.
+Notation "'VALCLOSED' v" := (Scoped (sig_val v)) (at level 5, no associativity) : env_scope.
 
 Definition AnyExpScoped (Γ : nat) (e : Exp) : Prop :=
   match e with
@@ -163,7 +163,7 @@ Definition AnyExpScoped (Γ : nat) (e : Exp) : Prop :=
   | EExp nv => NVAL Γ ⊢ nv
   end.
 
-Notation "'AEXP' Γ ⊢ e" := (AnyExpScoped Γ e) (at level 69, no associativity).
+Notation "'AEXP' Γ ⊢ e" := (AnyExpScoped Γ e) (at level 69, no associativity) : env_scope.
 
 Notation "'EXPCLOSED' e"  := (EXP 0 ⊢ e)  (at level 5) : env_scope.
 Notation "'NVALCLOSED' v" := (NVAL 0 ⊢ v) (at level 5) : env_scope.
@@ -537,7 +537,7 @@ end.
 Definition conf_scope (n : nat) (fs : FrameStack) (e : Exp) :=
   AEXP n ⊢ e /\ Forall (fun f => frame_scope f <= n) fs.
 
-Notation "'CONFSCOPE' n ⊢ ⟨ fs , e ⟩" := (conf_scope n fs e) (at level 5).
+Notation "'CONFSCOPE' n ⊢ ⟨ fs , e ⟩" := (conf_scope n fs e) (at level 5) : env_scope.
 
 Lemma scope_preservation Γ fs e Γ' fs' e' :
   ⟨Γ, fs, e⟩ --> ⟨Γ', fs', e'⟩ ->

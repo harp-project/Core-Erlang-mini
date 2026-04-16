@@ -1,4 +1,4 @@
-From CoreErlang.Env Require Import Scoping.
+From CoreErlang.Env Require Import ClosedScoping.
 From CoreErlang Require Import SubstSemantics.
 
 (** Module aliases to disambiguate between environment-based and
@@ -195,63 +195,100 @@ Qed.
 
 (** Conversion respects Sub scoping: Env scoping of an expression implies
     Sub scoping of its conversion. *)
-Lemma convert_scoped : forall Γ,
-  (forall e,  (EXP Γ ⊢ e)%env  → EXP Γ ⊢ convert_exp e) /\
-  (forall nv, (NVAL Γ ⊢ nv)%env → EXP Γ ⊢ convert_nv nv) /\
-  (forall v,  (VAL Γ ⊢ v)%env  → VAL Γ ⊢ convert_val v).
+Lemma convert_aexp_scoped : forall sig,
+  Scoped sig ->
+    match sig with
+    | sig_exp Γ e => EXP Γ ⊢ convert_exp e
+    | sig_nonval Γ e => EXP Γ ⊢ convert_nv e
+    | sig_val e => VALCLOSED (convert_val e)
+    end.
 Proof.
-  apply Env.Scoping.scoped_ind; cbn.
-  (* scoped_val *)
-  - intros. constructor; auto.
-  (* scoped_nonval *)
-  - intros. auto.
-  (* scoped_fun *)
-  - intros. constructor; constructor; auto.
-  (* scoped_app *)
-  - intros ? ? ? ? IH_f ? IH_args.
-    constructor; constructor; [auto|].
-    intros i Hi.
-    pose proof (length_map convert_exp exps) as Hlen.
-    rewrite nth_indep with (d' := convert_exp (ESyn.VVal (ESyn.VLit (Int 0)))) by lia.
-    rewrite map_nth. apply IH_args. lia.
-  (* scoped_let *)
-  - intros. constructor; constructor; auto.
-  (* scoped_case *)
-  - intros. constructor; constructor; auto.
-  (* scoped_cons (NonVal) *)
-  - intros. constructor; constructor; auto.
-  (* scoped_bif *)
-  - intros ? ? ? ? IH_f ? IH_args.
-    constructor; constructor; [auto|].
-    intros i Hi.
-    pose proof (length_map convert_exp exps) as Hlen.
-    rewrite nth_indep with (d' := convert_exp (ESyn.VVal (ESyn.VLit (Int 0)))) by lia.
-    rewrite map_nth. apply IH_args. lia.
-  (* scoped_var *)
-  - intros. constructor; auto.
-  (* scoped_lit *)
-  - intros. constructor.
-  (* scoped_pid *)
-  - intros. constructor.
-  (* scoped_nil *)
-  - intros. constructor.
-  (* scoped_cons_v *)
-  - intros. constructor; auto.
-  (* scoped_clos *)
-  - intros Γ Γ_env vl e Henv_orig Henv_IH Hbody_orig Hbody_IH.
-    apply scoped_fun.
-    apply (proj1 (subst_preserves_scope_exp _ _) Hbody_IH).
-    refine (upn_scope (S vl) (length Γ_env) Γ (list_subst (map convert_val Γ_env) idsubst) _).
+  intros sig Hsc. induction Hsc; simpl in *.
+  - constructor.
+    eapply (scope_ext_app_val Γ 0); [lia | exact IHHsc].
+  - exact IHHsc.
+  - constructor. constructor. exact IHHsc.
+  - constructor. constructor.
+    + exact IHHsc.
+    + intros i Hi.
+      pose proof (length_map convert_exp exps) as Hlen.
+      rewrite nth_indep with
+        (d' := convert_exp (ESyn.VVal (ESyn.VLit (Int 0)))) by lia.
+      rewrite map_nth.
+      apply H0. lia.
+  - constructor. constructor; auto.
+  - constructor. constructor; auto.
+  - constructor. constructor; auto.
+  - constructor. constructor.
+    + exact IHHsc.
+    + intros i Hi.
+      pose proof (length_map convert_exp exps) as Hlen.
+      rewrite nth_indep with
+        (d' := convert_exp (ESyn.VVal (ESyn.VLit (Int 0)))) by lia.
+      rewrite map_nth.
+      apply H0. lia.
+  - constructor. constructor. exact H.
+  - constructor.
+  - constructor.
+  - constructor.
+  - constructor; auto.
+  - apply scoped_fun.
+    apply (proj1 (subst_preserves_scope_exp _ _) IHHsc).
+    refine (upn_scope (S vl) (length Γ_env) 0
+      (list_subst (map convert_val Γ_env) idsubst) _).
     rewrite <- length_map with (f := convert_val).
     apply scoped_list_idsubst.
-    (* Prove Forall (fun v => VAL Γ ⊢ v) (map convert_val Γ_env) from pointwise IH *)
-    clear Hbody_orig Hbody_IH Henv_orig.
-    revert Henv_IH.
-    induction Γ_env as [|v rest IHl]; intro Henv_IH.
-    + constructor.
-    + simpl. constructor.
-      * exact (Henv_IH 0 ltac:(simpl; lia)).
-      * apply IHl. intros i Hi. exact (Henv_IH (S i) ltac:(simpl; lia)).
+    assert (
+      forall l,
+        (forall i, i < length l ->
+          VALCLOSED (convert_val (nth i l (ESyn.VLit (Int 0))))) ->
+        Forall (fun v => VALCLOSED v) (map convert_val l)
+    ) as Hall.
+    { intros l Hvals. induction l as [|v rest IH].
+      - constructor.
+      - simpl. constructor.
+        + exact (Hvals 0 ltac:(simpl; lia)).
+        + apply IH. intros i Hi. exact (Hvals (S i) ltac:(simpl; lia)).
+    }
+    exact (Hall Γ_env H0).
+Qed.
+
+Corollary convert_scoped_aexp :
+  forall sig,
+    Scoped sig ->
+      match sig with
+      | sig_exp Γ e => EXP Γ ⊢ convert_exp e
+      | sig_nonval Γ e => EXP Γ ⊢ convert_nv e
+      | sig_val e => VALCLOSED (convert_val e)
+      end.
+Proof.
+  exact convert_aexp_scoped.
+Qed.
+
+Corollary convert_scoped_exp :
+  forall Γ,
+  (forall e,  (EXP Γ ⊢ e)%env  → EXP Γ ⊢ convert_exp e).
+Proof.
+  intros Γ e Hsc. exact (convert_aexp_scoped _ Hsc).
+Qed.
+
+Corollary convert_scoped_nval :
+  forall Γ,
+  (forall e,  (NVAL Γ ⊢ e)%env  → EXP Γ ⊢ convert_nv e).
+Proof.
+  intros Γ e Hsc. exact (convert_aexp_scoped _ Hsc).
+Qed.
+
+Corollary convert_scoped_val :
+  forall e, (VALCLOSED e)%env → VALCLOSED (convert_val e).
+Proof.
+  intros e Hsc. exact (convert_aexp_scoped _ Hsc).
+Qed.
+
+Corollary convert_scoped :
+  forall e, (VALCLOSED e)%env → VALCLOSED (convert_val e).
+Proof.
+  exact convert_scoped_val.
 Qed.
 
 (** Applying a substitution to each [convert_val] in a list is a no-op
@@ -327,10 +364,9 @@ Definition sub_stack (σ : Substitution) (fs : FrameStack) :=
 map (sub_frame σ) fs.
 
 Lemma env_to_sub :
-  forall Γ (Fs : Semantics.FrameStack) e Γ' Fs' e',
+  forall Γ (Fs : ESem.FrameStack) e Γ' Fs' e',
   ENVCLOSED Γ →
-  Env.Scoping.FSCLOSED Fs ->
-  (forall v, e = ESyn.VVal v -> VALCLOSED v)%env →
+  ClosedScoping.FSCLOSED Fs ->
   (EXP length Γ ⊢ e)%env →
   ⟨Γ, Fs, e⟩ --> ⟨Γ', Fs', e'⟩ ->
   exists k,
@@ -338,7 +374,7 @@ Lemma env_to_sub :
     -[k]->
   ⟨convert_framestack Fs', (convert_exp e').[convert_env Γ']⟩ /\ k <= 1.
 Proof.
-  intros * HwfΓ HwfFs Hwf_val Hscoped D. inv D; cbn.
+  intros * HwfΓ HwfFs Hscoped D. inv D; cbn.
   * destruct v; simpl in *; try congruence.
     destruct l. 2: congruence.
     case_match. congruence.
@@ -346,13 +382,13 @@ Proof.
   * exists 1. split. 2: lia.
     econstructor. constructor.
     rewrite 2! (closed_ignores_sub_val (convert_val v)).
-    2-3: by apply convert_scoped, Hwf_val.
+    2-3: by apply convert_scoped; inv Hscoped.
     constructor.
   * exists 1. split. 2: lia.
     econstructor. constructor.
     rewrite map_app. simpl.
     rewrite 2! (closed_ignores_sub_val (convert_val v0)).
-    2-3: by apply convert_scoped, Hwf_val.
+    2-3: by apply convert_scoped; inv Hscoped.
     constructor.
   * (* red_bif_params: eval v (vl ++ [v0]) = Some res *)
     inv HwfFs.
@@ -367,7 +403,7 @@ Proof.
   * (* red_app0: beta_reduce v [] = Some (Γ', res) *)
     inv HwfFs.
     rewrite (closed_ignores_sub_val _ _). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     destruct v; cbn in H; try discriminate.
     destruct vl; try congruence.
@@ -380,13 +416,13 @@ Proof.
   * (* red_app: start evaluating first argument *)
     inv HwfFs.
     rewrite (closed_ignores_sub_val). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     cbn.
     exists 1. split. 2: lia.
     econstructor. constructor.
     rewrite (closed_ignores_sub_val). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     constructor.
   * (* step_app_params: accumulate evaluated argument *)
@@ -394,7 +430,7 @@ Proof.
     econstructor. constructor.
     rewrite map_app. simpl.
     rewrite 2! (closed_ignores_sub_val (convert_val v0)).
-    2-3: by apply convert_scoped, Hwf_val.
+    2-3: by apply convert_scoped; inv Hscoped.
     constructor.
   * (* red_app_params: beta_reduce v (vl ++ [v0]) = Some (Γ', res) *)
     inv HwfFs.
@@ -405,7 +441,7 @@ Proof.
       apply convert_scoped. by inv H2.
     }
     rewrite (closed_ignores_sub_val). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     rewrite (map_wf_val_subst_id).
     2: { by inv H2. }
@@ -425,7 +461,7 @@ Proof.
   * (* red_let: pop let frame and extend environment *)
     inv HwfFs.
     rewrite (closed_ignores_sub_val). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     cbn.
     exists 1. split. 2: lia.
@@ -435,7 +471,7 @@ Proof.
   * (* red_case_true: pattern matches, extend env with bindings *)
     inv HwfFs.
     rewrite (closed_ignores_sub_val). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     pose proof (ESyn.match_pattern_length _ _ _ H) as Hlen.
     apply match_pattern_convert in H.
@@ -454,7 +490,7 @@ Proof.
   * (* red_case_false: pattern fails, fall through *)
     inv HwfFs.
     rewrite (closed_ignores_sub_val). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     apply match_pattern_convert_none in H.
     cbn.
@@ -464,26 +500,26 @@ Proof.
   * (* red_cons1: push second element frame *)
     inv HwfFs.
     rewrite (closed_ignores_sub_val). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     cbn.
     exists 1. split. 2: lia.
     econstructor. constructor.
     rewrite (closed_ignores_sub_val). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     constructor.
   * (* red_cons2: build the cons cell *)
     inv HwfFs. inv H1.
     rewrite (closed_ignores_sub_val). 2: by apply convert_scoped.
     rewrite (closed_ignores_sub_val). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     cbn.
     exists 1. split. 2: lia.
     econstructor. constructor.
     rewrite (closed_ignores_sub_val). 2: {
-      by apply convert_scoped, Hwf_val.
+      by apply convert_scoped; inv Hscoped.
     }
     constructor.
   * (* step_let: push let frame *)
@@ -512,7 +548,7 @@ Proof.
     - exists 0. split. constructor. lia.
     - apply -> subst_preserves_scope_val.
       + constructor. inv Hscoped. inv H0.
-        apply convert_scoped. eassumption.
+        apply convert_scoped_exp. eassumption.
       + apply ENVCLOSED_scoped_list. assumption.
   * (* red_var: look up variable in environment *)
     apply lookup_lt_Some in H as Hlt.
@@ -713,6 +749,12 @@ match goal with
 | [H : (_, _) = (_, _) |- _] => inv H
 end.
 
+Ltac rewrite_cases :=
+  repeat match goal with
+  | [H : ?x = Some ?y |- context[?x]] => rewrite H
+  | [H : ?x = None |- context[?x]] => rewrite H
+  end.
+
 (** map_option distributes over append *)
 Lemma map_option_app {A B} (f : A → option B) l1 l2 l1' l2' :
   map_option f l1 = Some l1' →
@@ -780,7 +822,7 @@ Proof.
     + apply ESem.red_app.
     + cbn [inv_convert_framestack map_option inv_convert_frame
            inv_convert_val map_option].
-      rewrite He0. rewrite He1. rewrite He2. rewrite He3. rewrite He4.
+      rewrite_cases.
       split; reflexivity.
 
   (* Case 2: red_app_fin *)
@@ -788,15 +830,18 @@ Proof.
     + apply ESem.red_app0. cbn. reflexivity.
     + split.
       * assumption.
-      * rewrite (inv_convert_exp_subst_id _ _ _ He). assumption.
+      * match goal with
+        | [Hinv : inv_convert_exp _ = Some _ |- _] =>
+            rewrite (inv_convert_exp_subst_id _ _ _ Hinv); assumption
+        end.
 
   (* Case 3: app2_step *)
   - do 3 eexists. split.
     + apply ESem.step_app_params.
     + cbn [inv_convert_framestack map_option inv_convert_frame
            inv_convert_val].
-      erewrite map_option_app; [| eassumption | cbn; rewrite He1; reflexivity].
-      cbn. rewrite He0. rewrite He2. rewrite He3. rewrite He4. rewrite He5.
+      erewrite map_option_app; [| eassumption | cbn; rewrite_cases; reflexivity].
+      cbn. rewrite_cases.
       split; reflexivity.
 
   (* Case 4: red_app2 *)
@@ -809,14 +854,17 @@ Proof.
       lia.
     + split.
       * assumption.
-      * rewrite (inv_convert_exp_subst_id _ _ _ He). assumption.
+      * match goal with
+        | [Hinv : inv_convert_exp _ = Some _ |- _] =>
+            rewrite (inv_convert_exp_subst_id _ _ _ Hinv); assumption
+        end.
 
   (* Case 5: red_bif_start *)
   - do 3 eexists. split.
     + apply ESem.red_bif.
     + cbn [inv_convert_framestack map_option inv_convert_frame
            inv_convert_val map_option].
-      rewrite He0. rewrite He1. rewrite He2. rewrite He3.
+      rewrite_cases.
       split; reflexivity.
 
   (* Case 6: red_bif_step *)
@@ -824,8 +872,8 @@ Proof.
     + apply ESem.step_bif_params.
     + cbn [inv_convert_framestack map_option inv_convert_frame
            inv_convert_val].
-      erewrite map_option_app; [| eassumption | cbn; rewrite He1; reflexivity].
-      cbn. rewrite He0. rewrite He2. rewrite He3. rewrite He4. rewrite He5.
+      erewrite map_option_app; [| eassumption | cbn; rewrite_cases; reflexivity].
+      cbn. rewrite_cases.
       split; reflexivity.
 
   (* Case 7: red_let *)
@@ -833,18 +881,30 @@ Proof.
     + apply ESem.red_let.
     + split.
       * assumption.
-      * rewrite (inv_convert_exp_subst_id _ _ _ He0). assumption.
+      * match goal with
+        | [Hinv : inv_convert_exp _ = Some _ |- _] =>
+            rewrite (inv_convert_exp_subst_id _ _ _ Hinv); assumption
+        end.
 
   (* Case 8: red_case_true *)
-  - pose proof (match_pattern_inv_some _ _ _ _ He1 He2) as [l_s Hls].
+  - match goal with
+    | [Hinv : inv_convert_val _ = Some _, Hmatch : match_pattern _ _ = Some _ |- _] =>
+        pose proof (match_pattern_inv_some _ _ _ _ Hinv Hmatch) as [l_s Hls]
+    end.
     do 3 eexists. split.
     + apply ESem.red_case_true. exact Hls.
     + split.
       * cbn [inv_convert_framestack map_option]. assumption.
-      * rewrite (inv_convert_exp_subst_id _ _ _ He0). assumption.
+      * match goal with
+        | [Hinv : inv_convert_exp _ = Some _ |- _] =>
+            rewrite (inv_convert_exp_subst_id _ _ _ Hinv); assumption
+        end.
 
   (* Case 9: red_case_false *)
-  - pose proof (match_pattern_inv_none _ _ _ He1 He2) as Hno.
+  - match goal with
+    | [Hinv : inv_convert_val _ = Some _, Hmatch : match_pattern _ _ = None |- _] =>
+        pose proof (match_pattern_inv_none _ _ _ Hinv Hmatch) as Hno
+    end.
     do 3 eexists. split.
     + apply ESem.red_case_false. exact Hno.
     + split.
@@ -856,7 +916,7 @@ Proof.
     + apply ESem.red_cons1.
     + cbn [inv_convert_framestack map_option inv_convert_frame
            inv_convert_val].
-      rewrite He0. rewrite He1. rewrite He2.
+      rewrite_cases.
       split; reflexivity.
 
   (* Case 11: red_cons2 *)
@@ -864,7 +924,7 @@ Proof.
     + apply ESem.red_cons2.
     + split.
       * assumption.
-      * cbn. rewrite He0. rewrite He1. reflexivity.
+      * cbn. rewrite_cases. reflexivity.
 
   (* Case 12: red_plus *)
   - do 3 eexists. split.
@@ -878,38 +938,34 @@ Proof.
   - do 3 eexists. split.
     + apply ESem.step_let.
     + cbn [inv_convert_framestack map_option inv_convert_frame].
-      rewrite He0. rewrite He1. rewrite He2.
+      rewrite_cases.
       split; reflexivity.
 
   (* Case 14: step_app *)
   - do 3 eexists. split.
     + apply ESem.step_app.
     + cbn [inv_convert_framestack map_option inv_convert_frame].
-      rewrite He0. rewrite He1. rewrite He2.
+      rewrite_cases.
       split; reflexivity.
 
   (* Case 15: step_bif *)
   - do 3 eexists. split.
     + apply ESem.step_bif.
     + cbn [inv_convert_framestack map_option inv_convert_frame].
-      rewrite He0. rewrite He1. rewrite He2.
+      rewrite_cases.
       split; reflexivity.
 
   (* Case 16: step_case *)
   - do 3 eexists. split.
     + apply ESem.step_case.
     + cbn [inv_convert_framestack map_option inv_convert_frame].
-      rewrite He0. rewrite He1. rewrite He2. rewrite He3.
+      rewrite_cases.
       split; reflexivity.
 
   (* Case 17: step_cons *)
   - do 3 eexists. split.
     + apply ESem.step_cons.
     + cbn [inv_convert_framestack map_option inv_convert_frame].
-      rewrite He0. rewrite He1. rewrite He2.
+      rewrite_cases.
       split; reflexivity.
 Qed.
-
-
-
-
