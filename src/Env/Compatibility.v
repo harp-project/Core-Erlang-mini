@@ -370,6 +370,18 @@ Proof.
   * auto.
 Qed.
 
+Corollary terminates_step_one :
+  forall Γ fs e Γ' fs' e',
+    | Γ, fs, e | ↓ ->
+      ⟨ Γ, fs, e ⟩ --> ⟨ Γ', fs', e' ⟩ ->
+      | Γ', fs', e' | ↓.
+Proof.
+  intros * HT H1.
+  Check terminates_step_any.
+  eapply terminates_step_any with (k := 1).
+  eauto. econstructor. eauto. constructor.
+Qed.
+
 Theorem CIU_App_compat_closed :
   forall Γ f1 f2 vals1 vals2,
     CIU Γ f1 f2 ->
@@ -658,32 +670,136 @@ Qed.
 
 Theorem CIU_BIF_compat_closed :
   forall Γ f1 f2 vals1 vals2,
-    Forall (fun e => EXP length Γ ⊢ e) vals1 ->
-    Forall (fun e => EXP length Γ ⊢ e) vals2 ->
     CIU Γ f1 f2 ->
     list_biforall (CIU Γ) vals1 vals2 ->
     CIU Γ (EBIF f1 vals1) (EBIF f2 vals2).
 Proof.
-Admitted.
+  intros * [HΓ [Hlf1 [Hlf2 HD]]] Hlbfa.
+  apply CIU_list_biforall_scope in Hlbfa as Hl.
+  destruct Hl as [Hlv1 Hlv2].
+  repeat split.
+  * auto.
+  * do 2 constructor. auto.
+    intros * Hi.
+    apply indexed_to_forall with (def := ˝ VLit 0%Z) (i := i) in Hlv1.
+    all:auto.
+  * do 2 constructor. auto.
+    intros * Hi.
+    apply indexed_to_forall with (def := ˝ VLit 0%Z) (i := i) in Hlv2.
+    all:auto.
+  * intros * HF D.
+    eapply terminates_step_one in D. 2:constructor.
+    eapply step_terminates_one. constructor.
+    apply HD in D.
+    2: { constructor; auto. constructor; auto. }
+    destruct D as [k D].
+    eapply term_eval_empty in D as D'; auto.
+    2: by apply exp_to_any.
+    2: { constructor; auto. constructor; auto. }
+    destruct D' as [v [k' [Γ' [HV D']]]].
+    eapply frame_indep_core in D' as D''.
+    eapply frame_indep_core in D'.
+    simpl in D', D''.
+    apply ex_intro with (x := k) in D.
+    eapply terminates_step_any in D. 2: exact D''. clear D''.
+    eapply step_terminates_any. 1: exact D'. clear D'. clear k'.
+    clear k. clear Hlf1 Hlf2 HD.
+    apply indexed_to_biforall with (d1 := ˝ VLit 0%Z) (d2 := ˝ VLit 0%Z) in Hlbfa.
+    destruct Hlbfa as [Hlbfa1 Hlbfa2].
+    
+    destruct vals1.
+    + destruct vals2; try discriminate.
+      auto.
+    + destruct vals2; try discriminate.
+      pose proof (Hlbfa1 0 (Nat.lt_0_succ _)) as Hee0.
+      simpl in Hee0.
+      eapply terminates_step_one in D. 2:constructor.
+      eapply step_terminates_one. constructor.
+      apply Forall_cons_1 in Hlv1. destruct Hlv1 as [He Hlv1].
+      apply Forall_cons_1 in Hlv2. destruct Hlv2 as [He0 Hlv2].
+      destruct Hee0 as [_ [_ [_ HD]]].
+      apply HD in D.
+      2: { constructor; auto. constructor; auto. }
+      clear HD.
+      destruct D as [k D].
+      eapply term_eval_empty in D as D'; auto.
+      2: by apply exp_to_any.
+      2: { constructor; auto. constructor; auto. }
+      destruct D' as [v' [k' [Γ'' [HV' D']]]].
+      eapply frame_indep_core in D' as D''.
+      eapply frame_indep_core in D'.
+      simpl in D', D''.
+      apply ex_intro with (x := k) in D.
+      eapply terminates_step_any in D. 2: exact D''. clear D''.
+      eapply step_terminates_any. exact D'. clear D'.
+      clear k k' Γ'.
+      
+      remember [] as evd.
+      assert (Forall (fun v => VALCLOSED v) evd) as Hevd.
+      { subst. auto. }
+      clear Heqevd.
+      generalize dependent vals2.
+      generalize dependent evd.
+      generalize dependent v'.
+      revert Γ'' v HV.
+      induction vals1; intros Γ'' v HV v' HV' evd D Hevd vals2 HD Hl Hlv2.
+      - destruct vals2; try discriminate.
+        auto.
+      - destruct vals2; try discriminate.
+        eapply terminates_step_one in D. 2:constructor.
+        eapply step_terminates_one. constructor.
+        remember HD as HD'. clear HeqHD'.
+        specialize (HD' 1).
+        assert (1 < length (e :: a :: vals1)) as Hl'. simpl. lia.
+        specialize (HD' Hl'). clear Hl'.
+        simpl in HD'.
+        destruct HD' as [_ [_ [_ HD']]].
+        apply HD' in D.
+        2: { constructor; auto. constructor; auto.
+             apply Forall_app; auto.
+             apply Forall_inv_tail in Hlv1; auto. }
+        clear HD'.
+        destruct D as [k D].
+        eapply term_eval_empty in D as D'; auto.
+        2: { apply exp_to_any. apply Forall_inv in Hlv2. auto. }
+        2: { constructor; auto. constructor; auto.
+             apply Forall_app; auto.
+             apply Forall_inv_tail in Hlv1. auto. }
+        destruct D' as [v'' [k' [Γ' [HV'' D']]]].
+        eapply frame_indep_core in D' as D''.
+        eapply frame_indep_core in D'.
+        simpl in D', D''.
+        apply ex_intro with (x := k) in D.
+        eapply terminates_step_any in D. 2: exact D''. clear D''.
+        eapply step_terminates_any. exact D'. clear D'.
+        apply IHvals1; auto.
+        ** apply Forall_inv_tail in Hlv1. auto.
+        ** apply Forall_app. auto.
+        ** intros i Hi.
+           destruct i.
+           ++ simpl. specialize (HD 0 (Nat.lt_0_succ _)).
+              simpl in HD. auto.
+           ++ specialize (HD (S (S i))).
+              assert (S (S i) < length (e :: a :: vals1)). simpl. simpl in Hi. lia.
+              specialize (HD H). simpl in HD.
+              simpl. auto.
+        ** apply Forall_inv_tail in Hlv2. auto.
+Qed.
 
 Theorem CIU_BIF_compat :
   forall Γ f1 f2 vals1 vals2,
-    Forall (fun e => EXP Γ ⊢ e) vals1 ->
-    Forall (fun e => EXP Γ ⊢ e) vals2 ->
     CIU_open Γ f1 f2 ->
     list_biforall (CIU_open Γ) vals1 vals2 ->
     CIU_open Γ (EBIF f1 vals1) (EBIF f2 vals2).
 Proof.
-  intros * Hfvals1 Hfvals2 Ho Hlbfa Γ0 Hlen HΓ0.
+  intros * Ho Hlbfa Γ0 Hlen HΓ0.
   apply CIU_BIF_compat_closed; auto.
-  * rewrite Hlen. auto.
-  * rewrite Hlen. auto.
-  * eapply indexed_to_biforall with (d1 := ˝VLit 0%Z) (d2 := ˝VLit 0%Z) in Hlbfa.
-    eapply indexed_to_biforall with (d1 := ˝VLit 0%Z) (d2 := ˝VLit 0%Z).
-    destruct Hlbfa.
-    split; auto.
-    intros i Hl.
-    specialize (H i Hl).
-    unfold CIU_open in H.
-    specialize (H Γ0 Hlen HΓ0). auto.
+  eapply indexed_to_biforall with (d1 := ˝VLit 0%Z) (d2 := ˝VLit 0%Z) in Hlbfa.
+  eapply indexed_to_biforall with (d1 := ˝VLit 0%Z) (d2 := ˝VLit 0%Z).
+  destruct Hlbfa.
+  split; auto.
+  intros i Hl.
+  specialize (H i Hl).
+  unfold CIU_open in H.
+  specialize (H Γ0 Hlen HΓ0). auto.
 Qed.
