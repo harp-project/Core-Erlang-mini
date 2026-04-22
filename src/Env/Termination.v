@@ -281,21 +281,6 @@ Proof.
     end.
 Qed.
 
-
-
-Theorem term_eval_empty :
-  forall x Γ Fs e,
-    AEXP length Γ ⊢ e ->
-    FSCLOSED Fs ->
-    ENVCLOSED Γ ->
-    | Γ, Fs, e | x ↓ ->
-    exists v k Γ',
-      VALCLOSED v /\
-      ⟨ Γ, [], e ⟩ -[k]-> ⟨ Γ', [], ˝v ⟩.
-Proof.
-  
-Admitted.
-
 Corollary terminates_step_any :
   forall Γ fs e,
     | Γ, fs, e | ↓ ->
@@ -348,6 +333,393 @@ Proof.
           exact Htail
     end.
 Qed.
+
+Lemma term_eval_helper_app :
+  forall hds' hds e' k vals v Γ Γapp Fs v1,
+  (∀ m : nat,
+    m < S k
+    → ∀ (Γ : list Val) (Fs : FrameStack) (e : Exp),
+        AEXP length Γ ⊢ e
+        → FSCLOSED Fs
+          → ENVCLOSED Γ
+            → | Γ, Fs, e | m ↓
+              → ∃ (v : Val) (k : nat) (Γ' : Env),
+                  VALCLOSED v
+                  ∧ ⟨ Γ, [], e ⟩ -[ k ]-> ⟨ Γ', [], ˝ v ⟩
+                    ∧ k ≤ m) ->
+  Forall (fun e => EXP length Γapp ⊢ e) hds' ->
+  Forall (fun e => EXP length Γapp ⊢ e) hds ->
+  Forall (fun v => VALCLOSED v) vals ->
+  ENVCLOSED Γapp ->
+  EXP length Γapp ⊢ e' ->
+  VALCLOSED v ->
+  VALCLOSED v1 ->
+  FSCLOSED Fs ->
+  | Γ, FApp2 v vals (hds' ++ e' :: hds) Γapp :: Fs, ˝v1 | k ↓ ->
+  exists k0 hds'' (* Γ' *),
+  Forall (fun v => VALCLOSED v) hds'' /\
+  ⟨ Γ, [FApp2 v vals (hds' ++ e' :: hds) Γapp], ˝v1 ⟩ -[k0]-> 
+  ⟨ Γapp, [FApp2 v (vals ++ v1 :: hds'') hds Γapp] , e'⟩ /\ k0 <= k.
+Proof.
+  induction hds'; intros; simpl.
+  * inv H8. do 2 eexists. repeat split.
+    2: {
+      econstructor. constructor. constructor.
+    }
+    by auto.
+    lia.
+  * inv H8. inv H0.
+    eapply H in H18 as D'; auto. 2: {
+      by apply exp_to_any.
+    }
+    2: {
+      constructor. constructor. all: try by auto.
+      apply Forall_app; split; try assumption. by auto.
+      apply Forall_app. split; try assumption.
+      by constructor.
+    }
+    destruct D' as [v' [k' [Γ' [Hv' [HD' Hlt']]]]].
+    eapply terminates_step_any_2 in H18. 2: {
+      eapply frame_indep_core in HD'. exact HD'.
+    }
+    simpl in H18.
+    apply (IHhds' hds e' (k0 - k') (vals ++ [v1])
+                v Γ' Γapp Fs v') in H18 as D''; try by auto.
+    2: {
+      intros. eapply H; try eassumption. lia.
+    }
+    2: apply Forall_app; split; by auto.
+    destruct D'' as [v'' [k'' [Hv'' [HD'' Hlt'']]]].
+    eapply terminates_step_any_2 in H18. 2: {
+      eapply frame_indep_core in HD''. exact HD''.
+    }
+    do 2 eexists. repeat split.
+    2: {
+      econstructor. constructor.
+      eapply transitive_eval. eapply frame_indep_core in HD'. exact HD'.
+      simpl. rewrite <- app_assoc in HD''. simpl in HD''.
+      exact HD''.
+    }
+    by constructor.
+    lia.
+Qed.
+
+Lemma term_eval_helper_bif :
+  forall hds' hds e' k vals v Γ Γapp Fs v1,
+  (∀ m : nat,
+    m < S k
+    → ∀ (Γ : list Val) (Fs : FrameStack) (e : Exp),
+        AEXP length Γ ⊢ e
+        → FSCLOSED Fs
+          → ENVCLOSED Γ
+            → | Γ, Fs, e | m ↓
+              → ∃ (v : Val) (k : nat) (Γ' : Env),
+                  VALCLOSED v
+                  ∧ ⟨ Γ, [], e ⟩ -[ k ]-> ⟨ Γ', [], ˝ v ⟩
+                    ∧ k ≤ m) ->
+  Forall (fun e => EXP length Γapp ⊢ e) hds' ->
+  Forall (fun e => EXP length Γapp ⊢ e) hds ->
+  Forall (fun v => VALCLOSED v) vals ->
+  ENVCLOSED Γapp ->
+  EXP length Γapp ⊢ e' ->
+  VALCLOSED v ->
+  VALCLOSED v1 ->
+  FSCLOSED Fs ->
+  | Γ, FBIF2 v vals (hds' ++ e' :: hds) Γapp :: Fs, ˝v1 | k ↓ ->
+  exists k0 hds'' (* Γ' *),
+  Forall (fun v => VALCLOSED v) hds'' /\
+  ⟨ Γ, [FBIF2 v vals (hds' ++ e' :: hds) Γapp], ˝v1 ⟩ -[k0]-> 
+  ⟨ Γapp, [FBIF2 v (vals ++ v1 :: hds'') hds Γapp] , e'⟩ /\ k0 <= k.
+Proof.
+  induction hds'; intros; simpl.
+  * inv H8. do 2 eexists. repeat split.
+    2: {
+      econstructor. constructor. constructor.
+    }
+    by auto.
+    lia.
+  * inv H8. inv H0.
+    eapply H in H18 as D'; auto. 2: {
+      by apply exp_to_any.
+    }
+    2: {
+      constructor. constructor. all: try by auto.
+      apply Forall_app; split; try assumption. by auto.
+      apply Forall_app. split; try assumption.
+      by constructor.
+    }
+    destruct D' as [v' [k' [Γ' [Hv' [HD' Hlt']]]]].
+    eapply terminates_step_any_2 in H18. 2: {
+      eapply frame_indep_core in HD'. exact HD'.
+    }
+    simpl in H18.
+    apply (IHhds' hds e' (k0 - k') (vals ++ [v1])
+                v Γ' Γapp Fs v') in H18 as D''; try by auto.
+    2: {
+      intros. eapply H; try eassumption. lia.
+    }
+    2: apply Forall_app; split; by auto.
+    destruct D'' as [v'' [k'' [Hv'' [HD'' Hlt'']]]].
+    eapply terminates_step_any_2 in H18. 2: {
+      eapply frame_indep_core in HD''. exact HD''.
+    }
+    do 2 eexists. repeat split.
+    2: {
+      econstructor. constructor.
+      eapply transitive_eval. eapply frame_indep_core in HD'. exact HD'.
+      simpl. rewrite <- app_assoc in HD''. simpl in HD''.
+      exact HD''.
+    }
+    by constructor.
+    lia.
+Qed.
+
+
+Theorem term_eval_empty :
+  forall x Γ Fs e,
+    AEXP length Γ ⊢ e ->
+    FSCLOSED Fs ->
+    ENVCLOSED Γ ->
+    | Γ, Fs, e | x ↓ ->
+    exists v k Γ',
+      VALCLOSED v /\
+      ⟨ Γ, [], e ⟩ -[k]-> ⟨ Γ', [], ˝v ⟩ /\ k <= x.
+Proof.
+  induction x using lt_wf_ind; intros * He HFs HΓ D; inv D.
+  all: try by exists v, 0, Γ; repeat split; auto; try constructor; try lia.
+  * exists v0, 0, Γ. repeat split; auto; constructor; lia.
+  * exists v0, 0, Γ. repeat split; auto; constructor; lia.
+  * exists v0, 0, Γ. repeat split; auto; constructor; lia.
+  * exists v0, 0, Γ. repeat split; auto; constructor; lia.
+  * exists val, 0, Γ. repeat split; auto; constructor; lia.
+  * exists v2, 0, Γ. repeat split; auto; constructor; lia.
+  * exists v1, 0, Γ. repeat split; auto; constructor; lia.
+  * inv He.
+    eapply H in H0 as D'; auto. 2: {
+      by apply exp_to_any.
+    }
+    2: {
+      constructor. constructor. all: by auto.
+    }
+    destruct D' as [v1 [k1 [Γ1 [Hv1 [HD1 Hlt1]]]]].
+    eapply terminates_step_any_2 in H0. 2: {
+      eapply frame_indep_core in HD1. exact HD1.
+    }
+    inv H0.
+    eapply H in H4 as D''; auto. 2: lia. 2: {
+      by apply exp_to_any.
+    }
+    2: {
+      constructor; auto.
+    }
+    destruct D'' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
+    do 3 eexists. repeat split.
+    2: {
+      econstructor. constructor.
+      eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+      econstructor. constructor.
+      eapply frame_indep_core in HD2. exact HD2.
+    }
+    assumption.
+    lia.
+  * inv He.
+    eapply H in H0 as D'; auto. 2: {
+      by apply exp_to_any.
+    }
+    2: {
+      constructor. constructor. all: try by auto.
+      by rewrite indexed_to_forall.
+    }
+    destruct D' as [v1 [k1 [Γ1 [Hv1 [HD1 Hlt1]]]]].
+    eapply terminates_step_any_2 in H0. 2: {
+      eapply frame_indep_core in HD1. exact HD1.
+    }
+    inv H0.
+    {
+      eapply H in H10 as D'; auto. 2: {
+        lia.
+      }
+      2: {
+        apply beta_reduce_scoped in H6 as [].
+        by apply exp_to_any.
+        assumption.
+        constructor.
+      }
+      2: {
+        apply beta_reduce_scoped in H6 as []; auto.
+        constructor.
+      }
+      destruct D' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
+      eapply terminates_step_any_2 in H10. 2: {
+        eapply frame_indep_core in HD2. exact HD2.
+      }
+      do 3 eexists. repeat split.
+      2: {
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+        econstructor. constructor. eassumption.
+        eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+        constructor.
+      }
+      assumption.
+      lia.
+    }
+    { (* inductive case *)
+      eapply H in H4 as D'. 2: {
+        lia.
+      }
+      2: {
+        apply exp_to_any.
+        by apply (H5 0 ltac:(simpl; lia)).
+      }
+      2: {
+        constructor; auto.
+        constructor; auto.
+        rewrite indexed_to_forall. intros.
+        by apply (H5 (S i) ltac:(simpl; lia)).
+      }
+      destruct D' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
+      eapply terminates_step_any_2 in H4. 2: {
+        eapply frame_indep_core in HD2. exact HD2.
+      }
+      simpl in H4. destruct (length l) eqn:L.
+      * admit.
+      * apply eq_sym, last_element_exists in L as [l' [x ?]].
+        subst.
+        eapply (term_eval_helper_app l' []) in H4 as X; try eassumption.
+        all: try by constructor.
+        3: {
+          rewrite indexed_to_forall.
+          intros. specialize (H5 (S i) ltac:(simpl;rewrite length_app;lia)).
+          simpl in H5.
+          rewrite app_nth1 in H5. 2: lia. eassumption.
+        }
+        2: {
+          intros. eapply H. lia. all: eassumption.
+        }
+        2: {
+          specialize (H5 (S (length l')) ltac:(simpl;rewrite length_app;simpl;lia)).
+          simpl in H5.
+          rewrite app_nth2 in H5. 2: lia.
+          rewrite Nat.sub_diag in H5. eassumption.
+        }
+        destruct X as [k3 [v3 [Hv3 [HD3 Hlt3]]]].
+        (* TODO: combine H4 and X *)
+        
+        
+        do 3 eexists. repeat split.
+        2: {
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+          eapply transitive_eval. eapply frame_indep_core in HD3. exact HD3.
+          
+        }
+        
+    }
+  * admit.
+  * inv He.
+    eapply H in H0 as D'; auto. 2: {
+      by apply exp_to_any.
+    }
+    2: {
+      constructor. constructor. all: by auto.
+    }
+    destruct D' as [v1 [k1 [Γ1 [Hv1 [HD1 Hlt1]]]]].
+    eapply terminates_step_any_2 in H0. 2: {
+      eapply frame_indep_core in HD1. exact HD1.
+    }
+    inv H0.
+    {
+      eapply H in H13 as D''; auto. 2: lia. 2: {
+        apply exp_to_any.
+        rewrite length_app.
+        apply match_pattern_length in H5. by rewrite <- H5.
+      }
+      2: {
+        apply ENVCLOSED_app. 2: assumption.
+        by eapply match_pattern_scoped.
+      }
+      destruct D'' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
+      do 3 eexists. repeat split.
+      2: {
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+        econstructor. apply red_case_true.
+        eapply frame_indep_core in HD2.
+        eassumption. exact HD2.
+      }
+      assumption.
+      lia.
+    }
+    {
+      eapply H in H13 as D''; auto. 2: lia. 2: {
+        by apply exp_to_any.
+      }
+      destruct D'' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
+      do 3 eexists. repeat split.
+      2: {
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+        econstructor. apply red_case_false. assumption.
+        eapply frame_indep_core in HD2.
+        exact HD2.
+      }
+      assumption.
+      lia.
+    }
+  * inv He.
+    eapply H in H0 as D'; auto. 2: {
+      by apply exp_to_any.
+    }
+    2: {
+      constructor. constructor. all: by auto.
+    }
+    destruct D' as [v1 [k1 [Γ1 [Hv1 [HD1 Hlt1]]]]].
+    eapply terminates_step_any_2 in H0. 2: {
+      eapply frame_indep_core in HD1. exact HD1.
+    }
+    inv H0.
+    eapply H in H4 as D''; auto. 2: lia. 2: {
+      by apply exp_to_any.
+    }
+    2: {
+      constructor; auto.
+      constructor; auto.
+    }
+    destruct D'' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
+    do 3 eexists. repeat split.
+    2: {
+      econstructor. constructor.
+      eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+      econstructor. constructor.
+      eapply transitive_eval.
+      eapply frame_indep_core in HD2. exact HD2.
+      econstructor. constructor.
+      constructor.
+    }
+    by constructor.
+    eapply terminates_step_any_2 in H4. 2: eapply frame_indep_core in HD2; exact HD2. inv H4.
+    lia.
+  * do 3 eexists. repeat split.
+    2: {
+      econstructor. constructor. constructor.
+    }
+    - inv He. constructor.
+      + intros. by apply ENVCLOSED_nth.
+      + assumption.
+    - lia.
+  * do 3 eexists. repeat split.
+    2: {
+      econstructor. constructor. eassumption. constructor.
+    }
+    by eapply ENVCLOSED_lookup.
+    lia.
+Unshelve.
+  exact [].
+Admitted.
+
 
 (**
   For a value plugged into a frame stack, termination is independent of the
