@@ -161,90 +161,99 @@ Proof.
   * apply He2; auto.
 Qed.
 
-Theorem CIU_Fun_compat_closed' :
-  forall Γ vl b b',
-    ENVCLOSED Γ ->
-    CIU_open (S vl + length Γ) b b' ->
-    CIU Γ (EFun vl b) (EFun vl b').
+Corollary step_terminates_any :
+  forall Γ fs e k Γ' fs' e',
+    ⟨ Γ, fs, e ⟩ -[k]-> ⟨ Γ', fs', e' ⟩ ->
+      | Γ', fs', e' | ↓ ->
+      | Γ, fs, e | ↓.
 Proof.
-  intros * HΓ Ho. unfold CIU_open in Ho.
-  assert (EXP S vl + length Γ ⊢ b /\ EXP S vl + length Γ ⊢ b').
-  { specialize (Ho ((repeat VNil (S vl)) ++ Γ)).
-    rewrite length_app in Ho.
-    rewrite repeat_length in Ho.
-    specialize (Ho eq_refl).
-    assert (ENVCLOSED (repeat VNil (S vl) ++ Γ)).
-    { apply ENVCLOSED_app; try assumption.
-      simpl. apply ENVCLOSED_cons; try constructor.
-      Search ENVCLOSED.
-      clear. induction vl.
-      * constructor.
-      * simpl. apply ENVCLOSED_cons; auto.
-    }
-    apply Ho in H. destruct H as [_ [Hb [Hb' _]]].
-    rewrite length_app in Hb, Hb'.
-    rewrite repeat_length in Hb, Hb'.
-    split; assumption.
-  }
-  destruct H.
-  repeat split.
-  * assumption.
-  * do 2 constructor. assumption.
-  * do 2 constructor. assumption.
-  * intros * Hf D.
-    destruct D as [k D].
-    inv D. unfold CIU in Ho.
-    
-    destruct Fs.
-    + eexists. do 2 constructor.
-    + destruct f.
-      - inv H6.
-        ** simpl in H8.
-           destruct vl; try discriminate.
-           inv H8.
-           econstructor. constructor. econstructor.
-           simpl. reflexivity.
-           specialize (Ho (VClos Γ 0 res :: Γ) eq_refl).
-           assert (ENVCLOSED (VClos Γ 0 res :: Γ)) as He.
-           { apply ENVCLOSED_cons; auto.
-             apply red_fun_scoped; auto.
-             constructor. simpl. admit.
-           }
-           specialize (Ho He).
-           destruct Ho as [_ [_ [_ Ho]]].
-           apply ex_intro with (x := k) in H9.
-           eapply (Ho _ _) in H9. admit. (* There are many problems here,
-                                            I'll give up for now... *)
-        ** admit.
-      - inv H6.
-        admit.
-      - admit.
-      - admit.
-      - admit.
-      - admit.
-      - admit.
-Admitted.
+  intros * H H'.
+  destruct H'. exists (k + x).
+  eapply step_term_term.
+  * eassumption.
+  * rewrite Nat.add_sub'. assumption.
+  * lia.
+Qed.
 
-Theorem CIU_Fun_compat_closed :
-  forall Γ vl b b',
-    CIU_open (S vl + length Γ) b b' ->
-    CIU Γ (EFun vl b) (EFun vl b').
+Corollary step_terminates_one :
+  forall Γ fs e Γ' fs' e',
+    ⟨ Γ, fs, e ⟩ --> ⟨ Γ', fs', e' ⟩ ->
+      | Γ', fs', e' | ↓ ->
+      | Γ, fs, e | ↓.
 Proof.
-  intros * Hopen. unfold CIU_open in Hopen.
-  repeat split.
-  * unfold CIU in Hopen. admit.
-  * admit.
-Admitted.
+  intros * H H'.
+  eapply step_terminates_any with (k := 1).
+  * eapply step_trans.
+    + eauto.
+    + apply step_refl.
+  * auto.
+Qed.
+
+Corollary terminates_step_one :
+  forall Γ fs e Γ' fs' e',
+    | Γ, fs, e | ↓ ->
+      ⟨ Γ, fs, e ⟩ --> ⟨ Γ', fs', e' ⟩ ->
+      | Γ', fs', e' | ↓.
+Proof.
+  intros * HT H1.
+  Check terminates_step_any.
+  eapply terminates_step_any with (k := 1).
+  eauto. econstructor. eauto. constructor.
+Qed.
+
+Require Import Stdlib.Program.Equality.
 
 Theorem CIU_Fun_compat :
   forall Γ vl b b',
     CIU_open (S vl + Γ) b b' ->
     CIU_open Γ (EFun vl b) (EFun vl b').
 Proof.
-  intros * Hb HΓ Hlen Hclosed.
-  apply CIU_Fun_compat_closed.
-  rewrite Hlen. auto.
-Qed.
+  intros * Ho Γ' Hl Hc.
+  unfold CIU_open in Ho.
+  repeat split.
+  * auto.
+  * rewrite Hl. constructor. constructor.
+    specialize (Ho (repeat VNil (S vl) ++ Γ')).
+    rewrite length_app in Ho.
+    rewrite repeat_length in Ho.
+    rewrite Hl in Ho.
+    specialize (Ho eq_refl).
+    assert (ENVCLOSED (repeat VNil (S vl) ++ Γ')).
+    { apply ENVCLOSED_app; auto.
+      clear. simpl. apply ENVCLOSED_cons; auto.
+      induction vl.
+      * simpl. constructor.
+      * simpl. apply ENVCLOSED_cons; auto.
+    }
+    specialize (Ho H).
+    destruct Ho as [_ [Hb _]].
+    rewrite length_app in Hb.
+    rewrite repeat_length in Hb.
+    rewrite Hl in Hb. auto.
+  * rewrite Hl. constructor. constructor.
+    specialize (Ho (repeat VNil (S vl) ++ Γ')).
+    rewrite length_app in Ho.
+    rewrite repeat_length in Ho.
+    rewrite Hl in Ho.
+    specialize (Ho eq_refl).
+    assert (ENVCLOSED (repeat VNil (S vl) ++ Γ')).
+    { apply ENVCLOSED_app; auto.
+      simpl. apply ENVCLOSED_cons; auto.
+      clear. induction vl.
+      * constructor.
+      * simpl. constructor; auto. }
+    specialize (Ho H).
+    destruct Ho as [_ [_ [Hb _]]].
+    rewrite length_app in Hb.
+    rewrite repeat_length in Hb.
+    rewrite Hl in Hb. auto.
+  * intros * Hf D.
+    eapply terminates_step_one in D. 2:constructor.
+    eapply step_terminates_one. constructor.
+    
+    
+    
+Admitted.
 
 Theorem CIU_Let_compat_closed :
   forall Γ e1 e1' e2 e2',
@@ -340,46 +349,6 @@ Proof.
     specialize (H n Hl).
     rewrite Hnth in H.
     destruct H as [_ [_ [HL _]]]. assumption.
-Qed.
-
-Corollary step_terminates_any :
-  forall Γ fs e k Γ' fs' e',
-    ⟨ Γ, fs, e ⟩ -[k]-> ⟨ Γ', fs', e' ⟩ ->
-      | Γ', fs', e' | ↓ ->
-      | Γ, fs, e | ↓.
-Proof.
-  intros * H H'.
-  destruct H'. exists (k + x).
-  eapply step_term_term.
-  * eassumption.
-  * rewrite Nat.add_sub'. assumption.
-  * lia.
-Qed.
-
-Corollary step_terminates_one :
-  forall Γ fs e Γ' fs' e',
-    ⟨ Γ, fs, e ⟩ --> ⟨ Γ', fs', e' ⟩ ->
-      | Γ', fs', e' | ↓ ->
-      | Γ, fs, e | ↓.
-Proof.
-  intros * H H'.
-  eapply step_terminates_any with (k := 1).
-  * eapply step_trans.
-    + eauto.
-    + apply step_refl.
-  * auto.
-Qed.
-
-Corollary terminates_step_one :
-  forall Γ fs e Γ' fs' e',
-    | Γ, fs, e | ↓ ->
-      ⟨ Γ, fs, e ⟩ --> ⟨ Γ', fs', e' ⟩ ->
-      | Γ', fs', e' | ↓.
-Proof.
-  intros * HT H1.
-  Check terminates_step_any.
-  eapply terminates_step_any with (k := 1).
-  eauto. econstructor. eauto. constructor.
 Qed.
 
 Theorem CIU_App_compat_closed :
@@ -486,7 +455,7 @@ Proof.
         destruct HD as [_ [_ [He1 HD]]].
         
         eapply step_terminates_one. constructor.
-        inv D. inv H. apply ex_intro with (x := k1) in H9. Search e0.
+        inv D. inv H. apply ex_intro with (x := k1) in H9.
         apply HD in H9.
         2: { constructor; auto. constructor; auto.
              apply Forall_app; auto.
@@ -606,7 +575,6 @@ Proof.
       specialize (Ho eq_refl).
       assert (ENVCLOSED (l ++ Γ)) as Hlcl.
       { apply ENVCLOSED_app; auto.
-        Search match_pattern.
         pose proof (match_pattern_scoped _ _ _ HV H2).
         clear -H.
         induction l.
@@ -652,8 +620,7 @@ Proof.
       eapply step_term_term_plus.
       eapply frame_indep_core in D'''. eassumption.
       simpl. exact D.
-      Unshelve. auto. (* Where was list Frame put on the shelf? *)
-                      (* I genuinly can't find it... *)
+      Unshelve. auto.
 Qed.
 
 Theorem CIU_Case_compat :
