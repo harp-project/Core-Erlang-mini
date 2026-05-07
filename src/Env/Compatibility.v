@@ -65,17 +65,26 @@ Proof.
   exact Hclosed.
 Qed.
 
-(* Theorem CIU_Pid_compat_closed :
+Theorem CIU_Pid_compat_closed :
   forall Γ p,
+    ENVCLOSED Γ ->
     CIU Γ (˝ (VPid p)) (˝ (VPid p)).
 Proof.
-Admitted.
+  intros *. repeat split.
+  * auto.
+  * do 2 constructor.
+  * do 2 constructor.
+  * intros. assumption.
+Qed.
 
 Theorem CIU_Pid_compat :
   forall Γ p,
     CIU_open Γ (˝ (VPid p)) (˝ (VPid p)).
 Proof.
-Admitted. *)
+  intros * HΓ Hlen Hclosed.
+  apply CIU_Pid_compat_closed.
+  auto.
+Qed.
 
 Theorem CIU_Nil_compat_closed :
   forall Γ,
@@ -203,6 +212,175 @@ Qed.
 
 Require Import Stdlib.Program.Equality.
 
+Lemma VCons_term_forwards : 
+  forall Γ Fs v1 v2,
+    | Γ, Fs, ECons (˝v1) (˝v2) | ↓ ->
+    | Γ, Fs, VCons v1 v2 | ↓.
+Proof.
+  intros * D.
+  eapply terminates_step_one in D. 2:constructor.
+  eapply terminates_step_one in D. 2:constructor.
+  eapply terminates_step_one in D. 2:constructor.
+  auto.
+Qed.
+
+Lemma VCons_term_backwards :
+  forall Γ Fs v1 v2,
+    | Γ, Fs, VCons v1 v2 | ↓ ->
+    | Γ, Fs, ECons (˝v1) (˝v2) | ↓.
+Proof.
+  intros * D.
+  eapply step_terminates_one. 1:constructor.
+  eapply step_terminates_one. 1:constructor.
+  eapply step_terminates_one. 1:constructor.
+  auto.
+Qed.
+
+Theorem CIU_VCons_compat_closed :
+  forall Γ v1 v1' v2 v2',
+    CIU Γ (˝v1) (˝v1') ->
+    CIU Γ (˝v2) (˝v2') ->
+    CIU Γ (VCons v1 v2) (VCons v1' v2').
+Proof.
+  intros * HCIU1 HCIU2.
+  repeat split.
+  * destruct HCIU1 as [HΓ _]. auto.
+  * destruct HCIU1 as [_ [Hlv1 _]].
+    destruct HCIU2 as [_ [Hlv2 _]].
+    do 2 constructor.
+    + inv Hlv1; auto.
+    + inv Hlv2; auto.
+  * destruct HCIU1 as [_ [_ [Hlv1' _]]].
+    destruct HCIU2 as [_ [_ [Hlv2' _]]].
+    do 2 constructor.
+    + inv Hlv1'; auto.
+    + inv Hlv2'; auto.
+  * intros * HFs D.
+    apply VCons_term_forwards.
+    apply VCons_term_backwards in D.
+    revert Fs HFs D.
+    apply proj2 with (A := EXP length Γ ⊢ ECons (˝v1') (˝v2')).
+    apply proj2 with (A := EXP length Γ ⊢ ECons (˝v1) (˝v2)).
+    apply proj2 with (A := ENVCLOSED Γ).
+    (* fold (CIU Γ (ECons (˝ v1) (˝ v2)) (ECons (˝ v1') (˝ v2'))). *)
+    apply CIU_Cons_compat_closed.
+    all: auto.
+Qed.
+
+Theorem CIU_VCons_compat :
+  forall Γ v1 v2 v1' v2',
+  CIU_open Γ (˝v1) (˝v1') ->
+  CIU_open Γ (˝v2) (˝v2') ->
+  CIU_open Γ (VCons v1 v2) (VCons v1' v2').
+Proof.
+  intros * Ho1 Ho2 Γ Hlen Hclosed.
+  apply CIU_VCons_compat_closed.
+  + apply Ho1; auto.
+  + apply Ho2; auto.
+Qed.
+
+Theorem CIU_Clos_compat :
+  forall Γ Γ' vl b1 b2,
+  CIU_open (S vl + length Γ) b1 b2 ->
+  ENVCLOSED Γ ->
+  CIU_open Γ' (VClos Γ vl b1) (VClos Γ vl b2).
+Proof.
+  intros * Ho.
+  unfold CIU_open in *.
+  repeat split.
+  * auto.
+  * apply CIU_open_scope_l in Ho as Ho'.
+    do 2 constructor.
+    2: auto.
+    intros * Hi.
+    apply ENVCLOSED_nth; auto.
+  * apply CIU_open_scope_r in Ho as Ho'.
+    do 2 constructor.
+    2: auto.
+    intros * Hi.
+    apply ENVCLOSED_nth; auto.
+  * intros * HFs D.
+    unfold CIU in Ho.
+    destruct Fs.
+    + exists 0. constructor.
+    + destruct f.
+      - destruct l.
+        ** inv D. inv H2. simpl in H6.
+           destruct vl; try discriminate. inv H6.
+           eapply step_terminates_one. 1:constructor; reflexivity.
+           simpl.
+           apply Ho; auto.
+           ++ constructor; auto. constructor.
+              -- intros Hl. apply ENVCLOSED_nth. auto.
+              -- apply CIU_open_scope_r in Ho as Hl. auto.
+           ++ inv HFs. auto.
+           ++ admit.
+        ** admit.
+      - destruct l.
+        ** inv D. inv H2.
+        ** eapply terminates_step_one in D. 2: constructor.
+           eapply step_terminates_one. 1: constructor.
+           destruct D as [k D].
+           eapply term_eval_empty in D as D'.
+           2: { inv HFs. inv H4. inv H6. apply exp_to_any. auto. }
+           2: { inv HFs. constructor; auto. inv H4. constructor; auto.
+                2: { inv H6. auto. }
+                constructor.
+                * intros *. apply ENVCLOSED_nth. auto.
+                * apply CIU_open_scope_l in Ho. auto. }
+           2: { inv HFs. inv H4. auto. }
+           destruct D' as [v [k' [Γ'' [Hv D']]]].
+           eapply frame_indep_core in D' as D''.
+           eapply frame_indep_core in D'. simpl in D', D''.
+           apply ex_intro with (x := k) in D.
+           eapply terminates_step_any in D. 2: exact D'. clear D'.
+           eapply step_terminates_any. 1: exact D''. clear D''.
+           assert (ENVCLOSED []) by constructor.
+           remember [] as Vldone.
+           clear HeqVldone.
+           generalize dependent Vldone.
+           generalize dependent v.
+           generalize dependent Γ''.
+           induction l; intros.
+           ++ inv D. inv H3.
+           ++ eapply terminates_step_one in D. 2:constructor.
+              eapply step_terminates_one. 1: constructor.
+              destruct D as [k'' D].
+              eapply term_eval_empty in D as D'.
+              2: { inv HFs. inv H5. inv H7. inv H8. apply exp_to_any. auto. }
+              2: { inv HFs. constructor; auto. inv H5. constructor; auto.
+                   1: { constructor. intros. eapply ENVCLOSED_nth; auto.
+                        apply CIU_open_scope_l in Ho. auto. }
+                   1: { apply Forall_app. split; auto. }
+                   1: { inv H7. inv H8. auto. } }
+              2: { inv HFs. inv H5. auto. }
+              destruct D' as [v' [k''' [Γ''' [Hv' D']]]].
+              eapply frame_indep_core in D' as D''.
+              eapply frame_indep_core in D'. simpl in D', D''.
+              apply ex_intro with (x := k'') in D.
+              eapply terminates_step_any in D. 2: exact D''. clear D''.
+              eapply step_terminates_any. 1: exact D'. clear D'.
+              eapply IHl; auto.
+              -- inv HFs. constructor; auto. inv H5. inv H7. inv H8.
+                 constructor; auto.
+              -- apply ENVCLOSED_app; auto. constructor; auto.
+      - admit.
+      - destruct p.
+        all:eapply terminates_step_one in D.
+        6: apply red_case_true; reflexivity.
+        2,4,7,9: apply red_case_false; reflexivity.
+        all: eapply step_terminates_one.
+        5: apply red_case_true; reflexivity.
+        1,3,6,8: apply red_case_false; reflexivity.
+        all: try auto.
+        simpl in *. admit.
+      - admit.
+      - eapply terminates_step_one in D. 2:constructor.
+        eapply step_terminates_one. 1:constructor. admit.
+      - admit.
+      - 
+Admitted.
+
 Theorem CIU_Fun_compat :
   forall Γ vl b b',
     CIU_open (S vl + Γ) b b' ->
@@ -251,7 +429,7 @@ Proof.
     eapply terminates_step_one in D. 2:constructor.
     eapply step_terminates_one. constructor.
     
-    
+    unfold CIU in Ho.
     
 Admitted.
 
