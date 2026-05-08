@@ -614,9 +614,10 @@ Proof.
           econstructor. constructor.
           eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
           eapply transitive_eval. eapply frame_indep_core in HD3. exact HD3.
-          
+          admit.
         }
-        
+        admit. admit.
+      * admit.
     }
   * admit.
   * inv He.
@@ -717,7 +718,8 @@ Proof.
     by eapply ENVCLOSED_lookup.
     lia.
 Unshelve.
-  exact [].
+  admit. admit. admit. admit.
+  (*exact [].*)
 Admitted.
 
 
