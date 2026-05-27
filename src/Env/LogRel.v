@@ -95,25 +95,9 @@ Definition Vrel : nat -> Val -> Val -> Prop :=
   Fix Wf_nat.lt_wf _ Vrel_rec.
 
 Definition Grel (n : nat) (Γ : nat) (Γ1 Γ2 : Env) : Prop :=
-  ENVCLOSED Γ1 /\ ENVCLOSED Γ2 /\
-  length Γ1 = length Γ2 /\
-  (*        ^ This is needed, otherwise envs like [VNil] and [VNil;VNil] would be related!!!
-              nth_error would also work, but that would result in pattern matches,
-              I think this should work better. *)
-  length Γ1 >= Γ /\
-  (*        ^ But if we want to avoid nth_error, this is also needed. This is essentially that
-              False branch in the match expression of Grel in src/LogRel.v. Without this, all
-              related environments would be related in all gammas. This ensures that the nth-s
-              are actually picking values from Γ1 and Γ2.
-              
-              I guess there is a way to circumvent this, which is using different default values
-              for the nth-s in the Vrel_fix (like VLit 1%Z and VLit 2%Z), but that looks very ugly
-              to me and we'd probably end up needing a helper lemma for length Γ1 < Γ anyway. *)
-    forall x, x < Γ ->
-        Vrel n (nth x Γ1 VNil) (nth x Γ2 VNil).
-        (* ^ Vrel does not need environments, because values don't depend on the environment.
-             This is because variables are now expressions. This fact simplifies LogRels quite
-             a bit, so these relations aren't that different to the subst semantics' LogRels. *)
+  (*ENVCLOSED Γ1 /\ ENVCLOSED Γ2 /\*)
+  length Γ1 = Γ /\
+    list_biforall (Vrel n) Γ1 Γ2.
 
 (* So, in this style of semantics, it only makes sense to have a closed Vrel and an open Erel. *)
 
@@ -218,6 +202,19 @@ Proof.
     apply H2; auto. lia.
 Qed.
 
+Corollary Vrel_biforall_downclosed :
+  forall {n m : nat} {Hmn : m <= n} {l1 l2 : list Val},
+    list_biforall (Vrel n) l1 l2 ->
+    list_biforall (Vrel m) l1 l2.
+Proof.
+  intros m n Hmn l1.
+  induction l1; intros l2 HV.
+  * destruct l2; inv HV. constructor.
+  * destruct l2; inv HV. constructor; auto.
+    eapply Vrel_downclosed. eauto.
+    Unshelve. lia.
+Qed.
+
 Lemma Vrel_closed :
   forall m v1 v2,
     Vrel m v1 v2 ->
@@ -251,31 +248,21 @@ Proof.
   unfold exp_rel in HE.
   unfold Grel in HE.
   specialize (HE Γ (repeat VNil Γ) (repeat VNil Γ)).
-  assert (ENVCLOSED (repeat VNil Γ)) as Hec.
-  { clear. induction Γ.
-    + simpl. constructor.
-    + simpl. apply ENVCLOSED_cons; auto.
+  rewrite repeat_length in HE.
+  assert (list_biforall (Vrel Γ) (repeat VNil Γ) (repeat VNil Γ)).
+  { clear. 
+    remember Γ as k.
+    rewrite Heqk at 2 3. clear Heqk.
+    induction Γ.
+    * simpl. constructor.
+    * simpl. apply biforall_cons; auto.
+      rewrite Vrel_Fix_eq. simpl. auto.
   }
-  assert 
-  ((∀ x : nat, x < Γ → 
-    Vrel Γ (nth x (repeat VNil Γ) VNil) (nth x (repeat VNil Γ) VNil))) as Hnth.
-  { clear. intros x Hx.
-    apply nth_repeat_lt with (a := VNil) (d := VNil) in Hx.
-    rewrite Hx.
-    rewrite Vrel_Fix_eq. simpl. auto.
-  }
-  assert (ENVCLOSED (repeat VNil Γ)
-  ∧ ENVCLOSED (repeat VNil Γ)
-    ∧ length (repeat VNil Γ) = length (repeat VNil Γ)
-      ∧ length (repeat VNil Γ) ≥ Γ
-        ∧ (∀ x : nat,
-             x < Γ → Vrel Γ (nth x (repeat VNil Γ) VNil) (nth x (repeat VNil Γ) VNil))) as HE'.
-  { repeat split; auto.
-    rewrite repeat_length. lia.
-  }
-  specialize (HE HE'). clear -HE.
-  destruct HE as [E1 [E2 _]].
-  rewrite repeat_length in *. auto.
+  assert (Γ = Γ /\ list_biforall (Vrel Γ) (repeat VNil Γ) (repeat VNil Γ))
+    as HE' by (split;[lia|auto]).
+  specialize (HE HE').
+  destruct HE as [HE1 [HE2 _]].
+  auto.
 Qed.
 
 Corollary Erel_open_scope_l :
@@ -290,13 +277,39 @@ Corollary Erel_open_scope_r :
       EXP Γ ⊢ e2.
 Proof. apply Erel_open_scope. Qed.
 
+Lemma Grel_length_eq :
+  forall m Γ Γ1 Γ2,
+    Grel m Γ Γ1 Γ2 ->
+      length Γ1 = length Γ2.
+Proof.
+  intros m Γ Γ1 Γ2 [_ Hbfa].
+  apply biforall_length in Hbfa. auto.
+Qed.
+
 Lemma Grel_closed :
   forall m Γ Γ1 Γ2,
     Grel m Γ Γ1 Γ2 ->
       ENVCLOSED Γ1 /\ ENVCLOSED Γ2.
 Proof.
-  intros m Γ Γ1 Γ2 HG.
-  destruct HG as [E1 [E2 _]]. auto.
+  intros m Γ.
+  induction Γ; intros Γ1 Γ2 HG.
+  * apply Grel_length_eq in HG as Hle.
+    destruct HG as [Hl Hbfa].
+    apply nil_length_inv in Hl. subst.
+    simpl in Hle. symmetry in Hle.
+    apply nil_length_inv in Hle. subst.
+    split; constructor.
+  * apply Grel_length_eq in HG as Hle.
+    destruct HG as [Hl Hbfa].
+    destruct Γ1; try discriminate.
+    destruct Γ2; try discriminate.
+    Search list_biforall cons.
+    inv Hbfa.
+    simpl in Hl. inversion Hl.
+    assert (Grel m Γ Γ1 Γ2) as HG. { split; auto. }
+    apply IHΓ in HG. destruct HG as [HG1 HG2].
+    apply Vrel_closed in H2 as [Hvc1 Hvc2].
+    split; constructor; auto.
 Qed.
 
 Corollary Grel_closed_l :
@@ -311,36 +324,72 @@ Corollary Grel_closed_r :
       ENVCLOSED Γ2.
 Proof. apply Grel_closed. Qed.
 
-Lemma Grel_length_eq :
-  forall m Γ Γ1 Γ2,
+Lemma Grel_cons :
+  forall m Γ v1 v2 Γ1 Γ2,
+    Vrel m v1 v2 ->
     Grel m Γ Γ1 Γ2 ->
-      length Γ1 = length Γ2.
+    Grel m (S Γ) (v1 :: Γ1) (v2 :: Γ2).
 Proof.
-  intros m Γ Γ1 Γ2 HG.
-  destruct HG as [_ [_ [Hl _]]]. auto.
+  intros m Γ v1 v2 Γ1 Γ2 HV HG.
+  unfold Grel in *. destruct HG as [Hl Hbfa].
+  split.
+  * simpl. rewrite Hl. reflexivity.
+  * constructor; auto.
 Qed.
 
-Lemma Grel_length_ge :
-  forall m Γ Γ1 Γ2,
-    Grel m Γ Γ1 Γ2 ->
-      length Γ1 >= Γ /\ length Γ2 >= Γ.
+Lemma Grel_take_drop :
+  forall m Γ Γ' Γ1 Γ2,
+    Grel m Γ (take Γ Γ1) (take Γ Γ2) ->
+    Grel m Γ' (drop Γ Γ1) (drop Γ Γ2) ->
+    Grel m (Γ + Γ') Γ1 Γ2.
 Proof.
-  intros m Γ Γ1 Γ2 HG.
-  destruct HG as [_ [_ [Hl [Hle _]]]].
-  lia.
+  intros m Γ Γ' Γ1 Γ2 HGt HGd.
+  apply Grel_length_eq in HGt as Hlt'.
+  apply Grel_length_eq in HGd as Hld'.
+  unfold Grel in *.
+  destruct HGt as [Hlt Hbfat].
+  destruct HGd as [Hld Hbfad].
+  Search take drop.
+  pose proof (take_drop Γ Γ1) as HΓ1.
+  pose proof (take_drop Γ Γ2) as HΓ2.
+  assert (length (take Γ Γ1 ++ drop Γ Γ1) = length Γ1) as Hl1 by (f_equal; auto).
+  assert (length (take Γ Γ2 ++ drop Γ Γ2) = length Γ2) as Hl2 by (f_equal; auto).
+  rewrite length_app in Hl1, Hl2.
+  rewrite Hlt, Hld in Hl1.
+  rewrite <- Hlt', <- Hld', Hlt, Hld in Hl2.
+  split;[lia|].
+  assert (length Γ1 = length Γ2) as Hl by lia.
+  clear Hl1 Hl2.
+  
+  generalize dependent Γ2.
+  generalize dependent Γ1.
+  induction Γ; intros Γ1 Hlt Hld HΓ1 Γ2 Hbfat Hbfad Hlt' Hld' HΓ2 Hl.
+  * simpl in *. rewrite HΓ1 in Hbfad. rewrite HΓ2 in Hbfad. exact Hbfad.
+  * destruct Γ1; try discriminate.
+    destruct Γ2; try discriminate.
+    simpl in *.
+    specialize (IHΓ Γ1).
+    inv Hlt. specialize (IHΓ H0 eq_refl HΓ1). clear H0.
+    specialize (IHΓ Γ2).
+    inv Hbfat. specialize (IHΓ H4 Hbfad Hlt' Hld' HΓ2 Hl).
+    constructor; auto.
 Qed.
 
-Corollary Grel_length_ge_l :
-  forall m Γ Γ1 Γ2,
+Lemma Grel_app :
+  forall m Γ Γ' Γ1 Γ1' Γ2 Γ2',
+    length Γ1 = Γ ->
+    length Γ2 = Γ ->
     Grel m Γ Γ1 Γ2 ->
-      length Γ1 >= Γ.
-Proof. apply Grel_length_ge. Qed.
-
-Corollary Grel_length_ge_r :
-  forall m Γ Γ1 Γ2,
-    Grel m Γ Γ1 Γ2 ->
-      length Γ2 >= Γ.
-Proof. apply Grel_length_ge. Qed.
+    Grel m Γ' Γ1' Γ2' ->
+    Grel m (Γ + Γ') (Γ1 ++ Γ1') (Γ2 ++ Γ2').
+Proof.
+  intros m Γ Γ' Γ1 Γ1' Γ2 Γ2' HΓ1 HΓ2 HG1 HG2.
+  pose proof (Grel_take_drop m Γ Γ' (Γ1 ++ Γ1') (Γ2 ++ Γ2')) as HG.
+  subst.
+  rewrite <- HΓ2 in HG at 3. do 2 rewrite take_app_length in HG.
+  rewrite <- HΓ2 in HG at 3. do 2 rewrite drop_app_length in HG.
+  specialize (HG HG1 HG2). exact HG.
+Qed.
 
 Lemma Grel_downclosed :
   forall {m n : nat} {Hmn : m <= n} {Γ : nat} {Γ1 Γ2 : Env},
@@ -348,8 +397,7 @@ Lemma Grel_downclosed :
     Grel m Γ Γ1 Γ2.
 Proof.
   unfold Grel; intros. intuition.
-  eapply Vrel_downclosed.
-  apply H4. lia.
+  eapply Vrel_biforall_downclosed. eauto.
   Unshelve. lia.
 Qed.
 
@@ -415,6 +463,44 @@ Proof.
   unfold Vrel_open. intros. apply Vrel_VCons_compat_closed; auto.
 Qed.
 
+Theorem Vrel_VClos_compat_closed' :
+  forall Γ1 Γ2 vl1 vl2 b1 b2,
+    vl1 = vl2 ->
+    Erel_open (S vl1 + min (length Γ1) (length Γ2)) b1 b2 ->
+    ENVCLOSED Γ1 -> ENVCLOSED Γ2 ->
+    (*Grel m (length Γ1) Γ1 Γ2 ->*)
+    Vrel_open (VClos Γ1 vl1 b1) (VClos Γ2 vl2 b2).
+Proof.
+  unfold Vrel_open. intros Γ1 Γ2 vl1 vl2 b1 b2 Hvl HE HEc1 HEc2 n. subst.
+  revert Γ1 Γ2 vl2 b1 b2 HE HEc1 HEc2.
+  induction n using Wf_nat.lt_wf_ind.
+  intros Γ1 Γ2 vl2 b1 b2 HE HEc1 HEc2.
+  rewrite Vrel_Fix_eq. simpl.
+  split. 2:split.
+  * constructor.
+    + intros i Hi. apply ENVCLOSED_nth; auto.
+    + apply Erel_open_scope_l in HE.
+      eapply scope_ext_app. 2: eauto. lia.
+  * constructor.
+    + intros i Hi. apply ENVCLOSED_nth; auto.
+    + apply Erel_open_scope_r in HE.
+      eapply scope_ext_app. 2: eauto. lia.
+  * rewrite Nat.eqb_refl.
+  intros m Hm vals1 vals2 Hl1 Hl2 Hlbfa.
+  epose proof (nH0 := HE m _ _ _).
+  destruct nH0 as [nCl1 [nCl2 nH0]].
+  split. exact nCl1.
+  split. exact nCl2.
+  intros m0 Hm0 F1 F2 HF D.
+  eapply nH0. 3: exact D. lia. assumption.
+Unshelve.
+  simpl. apply Grel_cons.
+  1: apply H; auto.
+  apply Grel_app; auto.
+  + unfold Grel. auto.
+  + unfold Grel. split;[auto|].
+Admitted.
+
 Theorem Vrel_VClos_compat_closed :
   forall m Γ1 Γ2 vl1 vl2 b1 b2,
     vl1 = vl2 ->
@@ -445,68 +531,12 @@ Proof.
     eapply nH0. 3: exact D. lia.
     assumption.
   Unshelve.
-    subst.
-    assert (Forall (fun v => VALCLOSED v) vals1 /\ Forall (fun v => VALCLOSED v) vals2) as HFvals.
-    { clear -Hlbfa.
-      generalize dependent vals2.
-      induction vals1; intros vals2 Hlbfa.
-      * destruct vals2; inv Hlbfa. auto.
-      * destruct vals2; inv Hlbfa.
-        apply IHvals1 in H4 as [HFvals1 HFvals2].
-        apply Vrel_closed in H2 as [HCa HCv]. auto.
-    }
-    destruct HFvals as [HFvals1 HFvals2].
-    apply Erel_open_scope in HE as HE'.
-    destruct HE' as [HEb1 HEb2].
-    apply Grel_length_eq in HG as HGl.
-    apply Grel_closed in HG as HGc.
-    destruct HGc as [HGcΓ1 HGcΓ2].
-    split. 2: split.
-    1-2: rewrite app_comm_cons.
-    1-2: apply ENVCLOSED_app.
-    2,4: auto.
-    1-2: constructor.
-    2,4: auto.
-    1-2: constructor.
-    4: rewrite <- HGl.
-    2,4: auto.
-    1-2: intros i Hi; apply ENVCLOSED_nth; auto.
-    split.
-    do 2 rewrite length_cons.
-    do 2 rewrite length_app.
-    rewrite Hl2, HGl. reflexivity.
-    split.
-    rewrite length_cons.
-    rewrite length_app. lia.
-    intros x Hx. simpl in Hx.
-    destruct x.
-    { simpl. eapply Vrel_downclosed.
-      apply H; eauto.
-      eapply Grel_downclosed. eauto.
-    }
-    simpl. apply Nat.succ_lt_mono in Hx.
-    clear H b1 b2 HE HEb1 HEb2.
-    assert (x < length vals2 + length Γ2) as Hx' by lia.
-    rewrite <- length_app in Hx, Hx'.
-    apply nth_possibilities_alt with (def := VNil) in Hx, Hx'.
-    
-    destruct Hx as [Hx|Hx]; destruct Hx' as [Hx'|Hx']; try lia.
-    + destruct Hx as [Hnth Hx].
-      destruct Hx' as [Hnth' Hx'].
-      rewrite Hnth, Hnth'.
-      apply indexed_to_biforall with (d1 := VNil) (d2 := VNil) in Hlbfa.
-      destruct Hlbfa as [Hlbfa _].
-      auto.
-    + destruct Hx as [Hnth [Hx Hx0]].
-      destruct Hx' as [Hnth' [Hx' Hx0']].
-      rewrite Hnth, Hnth'.
-      rewrite Hl2.
-      remember (x - length vals1) as y.
-      unfold Grel in HG.
-      destruct HG as [_ [_ [_ [_ HG]]]].
-      eapply Vrel_downclosed; eauto.
-  Unshelve.
-    lia. lia. lia.
+    simpl. apply Grel_cons.
+    apply H; auto. eapply Grel_downclosed; eauto.
+    apply Grel_app; auto.
+    unfold Grel; auto.
+    eapply Grel_downclosed; eauto.
+  Unshelve. lia. lia.
 Qed.
 
 Theorem Vrel_VClos_compat :
@@ -514,7 +544,7 @@ Theorem Vrel_VClos_compat :
     vl1 = vl2 ->
     Erel_open (S vl1 + length Γ1) b1 b2 ->
     (forall m, Grel m (length Γ1) Γ1 Γ2) ->
-    (* ^^ is this correct? Would it make sense to define a Grel_open??? *)
+    (* ^^ is this correct??? *)
     Vrel_open (VClos Γ1 vl1 b1) (VClos Γ2 vl2 b2).
 Proof.
   unfold Vrel_open. intros. apply Vrel_VClos_compat_closed; auto.
@@ -576,27 +606,28 @@ Proof.
   intros Γ n H.
   unfold Erel_open.
   intros n0 Γ1 Γ2 HG.
-  destruct HG as [ECΓ1 [ECΓ2 [HLeq [HLlt HG]]]].
-  specialize (HG n H).
-  unfold exp_rel. split. 2:split.
+  apply Grel_length_eq in HG as HLeq.
+  destruct HG as [Hl Hbfa].
+  unfold exp_rel. split. 2: split.
   1,2: do 2 constructor; lia.
   intros m Hm F1 F2 HFR D.
   destruct HFR as [HF1 [HF2 HFR]].
-  destruct m; inv D.
-  apply nth_lookup_Some with (d := VNil) in H4.
-  rewrite H4 in HG.
-  eapply step_terminates_one. 1:constructor.
+  inv D.
+  apply nth_lookup_Some with (d := VNil) in H1.
+  apply indexed_to_biforall with (d1 := VNil) (d2 := VNil) in Hbfa.
+  destruct Hbfa as [HG Hl].
+  specialize (HG n H).
+  rewrite H1 in HG.
+  eapply step_terminates_one. constructor.
   2: eapply HFR.
-  4: exact H5.
+  4: exact H4.
   2: lia.
-  2: eapply Vrel_downclosed. 2: exact HG.
-  assert (n < length Γ2) as Hl by lia.
-  (* Is this the easiest way to do this? *)
+  2: eapply Vrel_downclosed; exact HG.
   pose proof (nth_lookup_or_length Γ2 n VNil).
   destruct H0.
   * auto.
   * lia.
-  Unshelve. lia.
+Unshelve. lia.
 Qed.
 
 Lemma Erel_ECons_compat :
@@ -608,8 +639,11 @@ Proof.
   unfold Erel_open in *.
   intros n Γ1 Γ2 HG.
   unfold exp_rel.
-  apply Grel_length_ge in HG as HG'.
-  destruct HG' as [HG1 HG2].
+  (*apply Grel_length_ge in HG as HG'.
+  destruct HG' as [HG1 HG2].*)
+  apply Grel_length_eq in HG as HG'.
+  assert (length Γ1 = Γ) as HG1 by (destruct HG; lia).
+  assert (length Γ2 = Γ) as HG2 by (destruct HG; lia).
   apply Erel_open_scope in He1 as He1sc.
   destruct He1sc as [He1sc He1'sc].
   apply Erel_open_scope in He2 as He2sc.
@@ -618,7 +652,8 @@ Proof.
   destruct HC as [HCΓ1 HCΓ2].
   split. 2: split.
   1-2: do 2 constructor.
-  1-4: eapply scope_ext_app; eauto.
+  1-2: rewrite HG'.
+  1-4: rewrite HG2; auto.
   intros m Hmn F1 F2 HF D.
   destruct HF as [HF1 [HF2 HF]].
   destruct m; inv D.
@@ -627,7 +662,7 @@ Proof.
   eexists. constructor. exact D. lia.
   split. 2: split.
   1-2: constructor; auto; constructor; auto.
-  1-2: eapply scope_ext_app; eauto.
+  1: rewrite HG2; auto.
   intros m0 Hm0m v1 v2 Γ0 Γ3 HV D.
   apply Vrel_closed in HV as HV'.
   destruct HV' as [Hv1 Hv2].
@@ -652,45 +687,25 @@ Lemma Erel_Fun_compat :
 Proof.
   intros Γ vl vl' b b' Hvl He. subst.
   unfold Erel_open. intros n Γ1 Γ2 HG.
-  apply Grel_length_ge in HG as Hge.
-  destruct Hge as [HgeΓ1 HgeΓ2].
   apply Grel_length_eq in HG as Heq.
+  assert (length Γ1 = Γ) as HGeΓ1 by (destruct HG; lia).
+  assert (length Γ2 = Γ) as HGeΓ2 by (destruct HG; lia).
   apply Grel_closed in HG as Hcl.
   destruct Hcl as [HclΓ1 HclΓ2].
   apply Erel_open_scope in He as Hesc.
   destruct Hesc as [Hbsc Hbsc'].
   split. 2: split.
   1-2: do 2 constructor.
-  1-2: eapply scope_ext_app.
-  2,4: eauto.
-  1-2: lia.
+  1: rewrite Heq.
+  1-2: rewrite HGeΓ2; auto.
   intros m Hmn F1 F2 HF D.
   unfold frame_rel in HF.
   destruct m; inv D.
   eapply HF in H2 as [i D]; eauto.
   eexists. constructor. exact D.
-  
-  
-  
-  
-  rewrite Vrel_Fix_eq. simpl.
-  split. 2:split.
-  1-2: constructor.
-  1,3: intros i Hi.
-  1-2: apply ENVCLOSED_nth; auto.
-  1-2: eapply scope_ext_app.
-  2,4: eauto.
-  1-2: lia.
-  rewrite Nat.eqb_refl.
-  intros m0 Hm0n vals1 vals2 Hvals1 Hvals2 Hlbfa.
-  unfold Erel_open in He.
-  apply He.
-  unfold Grel.
-  repeat split.
-  5: { intros. destruct x.
-       * simpl. apply Vrel_VClos_compat_closed; eauto.
-         Search b. Print Erel_open. Search Erel_open.
-       
+  apply Vrel_VClos_compat_closed; auto.
+  eapply Grel_downclosed. eauto.
+  Unshelve. lia.
 Qed.
 
 
