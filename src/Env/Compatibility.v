@@ -378,7 +378,89 @@ Proof.
       - eapply terminates_step_one in D. 2:constructor.
         eapply step_terminates_one. 1:constructor. admit.
       - admit.
-      - 
+      - destruct el.
+        ** inv D. inv H2.
+           destruct v; try discriminate.
+           destruct l0; try discriminate.
+           destruct s; try discriminate.
+           destruct a; try discriminate.
+           destruct b, b0, b3, b4, b5, b6, b7, b8; try discriminate.
+           destruct s; try discriminate.
+           destruct l; try discriminate.
+           destruct v; try discriminate.
+           destruct l0; try discriminate.
+           destruct l; try discriminate.
+           destruct v; try discriminate.
+           destruct l0; try discriminate.
+           destruct l; try discriminate.
+        ** eapply terminates_step_one in D. 2:constructor.
+           destruct D as [k D].
+           eapply term_eval_empty in D as D'.
+           2: { apply exp_to_any. inv HFs. inv H4. inv H10. auto.  }
+           2: { inv HFs. inv H4. constructor; auto. inv H10.
+                constructor; auto. apply Forall_app; split; auto.
+                constructor; auto. constructor.
+                * intros i. apply ENVCLOSED_nth; auto.
+                * apply CIU_open_scope_l in Ho. auto. }
+           2: { inv HFs. inv H4. auto. }
+           destruct D' as [v' [k0 [Γ'' [HV [D' _]]]]].
+           eapply frame_indep_core in D'.
+           apply ex_intro with (x := k) in D.
+           eapply terminates_step_any in D. 2:exact D'.
+           clear D'.
+           simpl in D.
+           
+           exfalso.
+           assert (In (VClos Γ vl b1) (l ++ [VClos Γ vl b1])) as Hldone.
+           { apply in_or_app. right. constructor. reflexivity. }
+           assert (Forall (fun w => VALCLOSED w) (l ++ [VClos Γ vl b1])) as Hlclosed.
+           { apply Forall_app. split.
+             * inv HFs. inv H4. auto.
+             * constructor; auto. constructor.
+               + intro i. apply ENVCLOSED_nth. auto.
+               + apply CIU_open_scope_l in Ho. auto. }
+           
+           remember (l ++ [VClos Γ vl b1]) as ldone.
+           clear Heqldone.
+           generalize dependent ldone.
+           generalize dependent Γ''.
+           generalize dependent v'.
+           induction el; intros v' HV Γ'' ldone D Hldone Hlclosed.
+           ++ inv D. inv H2.
+              destruct ldone.
+              -- inv Hldone.
+              -- destruct v; try discriminate.
+                 destruct l0; try discriminate.
+                 destruct s; try discriminate.
+                 destruct a.
+                 destruct b, b0, b3, b4, b5, b6, b7, b8; try discriminate.
+                 destruct s; try discriminate.
+                 destruct v0; try discriminate.
+                 destruct l0; try discriminate.
+                 destruct ldone. 1: inv Hldone; inv H0.
+                 destruct v; try discriminate.
+                 destruct l0; try discriminate.
+                 destruct ldone; discriminate.
+           ++ eapply terminates_step_one in D. 2: constructor.
+              destruct D as [k' D].
+              eapply term_eval_empty in D as D'.
+              2: { apply exp_to_any. inv HFs. inv H4. inv H10.
+                   inv H4. auto. }
+              2: { inv HFs. constructor; auto. inv H4. inv H10.
+                   inv H4. constructor; auto. apply Forall_app.
+                   split.
+                   2: { constructor; auto. }
+                   auto. }
+              2: { inv HFs. inv H4. auto. }
+              destruct D' as [v'' [k'' [Γ''' [HV' [D' _]]]]].
+              eapply frame_indep_core in D'.
+              apply ex_intro with (x := k') in D.
+              eapply terminates_step_any in D. 2: exact D'. clear D'.
+              simpl in D. eapply IHel; eauto.
+              -- inv HFs. inv H4. inv H10. inv H4.
+                 constructor; auto. constructor; auto.
+              -- apply in_or_app. left. auto.
+              -- apply Forall_app. split; auto.
 Admitted.
 
 Theorem CIU_Fun_compat :
