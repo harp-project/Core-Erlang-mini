@@ -286,6 +286,28 @@ Proof.
   apply biforall_length in Hbfa. auto.
 Qed.
 
+Lemma Grel_length :
+  forall m Γ Γ1 Γ2,
+    Grel m Γ Γ1 Γ2 ->
+      length Γ1 = Γ /\ length Γ2 = Γ.
+Proof.
+  intros m Γ Γ1 Γ2 HG.
+  apply Grel_length_eq in HG as HGl.
+  unfold Grel in HG. lia.
+Qed.
+
+Lemma Grel_length_l :
+  forall m Γ Γ1 Γ2,
+    Grel m Γ Γ1 Γ2 ->
+      length Γ1 = Γ.
+Proof. apply Grel_length. Qed.
+
+Lemma Grel_length_r :
+  forall m Γ Γ1 Γ2,
+    Grel m Γ Γ1 Γ2 ->
+      length Γ2 = Γ.
+Proof. apply Grel_length. Qed.
+
 Lemma Grel_closed :
   forall m Γ Γ1 Γ2,
     Grel m Γ Γ1 Γ2 ->
@@ -679,7 +701,7 @@ Proof.
   Unshelve. lia. lia.
 Qed.
 
-Lemma Erel_Fun_compat :
+Lemma Erel_EFun_compat :
   forall Γ (vl vl' : nat) b b',
     vl = vl' ->
     Erel_open (S vl + Γ) b b' ->
@@ -706,6 +728,156 @@ Proof.
   apply Vrel_VClos_compat_closed; auto.
   eapply Grel_downclosed. eauto.
   Unshelve. lia.
+Qed.
+
+Lemma Erel_ELet_compat :
+  forall Γ e1 e1' e2 e2',
+    Erel_open Γ e1 e1' ->
+    Erel_open (S Γ) e2 e2' ->
+    Erel_open Γ (ELet e1 e2) (ELet e1' e2').
+Proof.
+  intros Γ e1 e1' e2 e2' He1 He2.
+  unfold Erel_open, exp_rel. intros n Γ1 Γ2 HG.
+  apply Erel_open_scope in He1 as Hsc.
+  destruct Hsc as [Hsce1 Hsce1'].
+  apply Erel_open_scope in He2 as Hsc.
+  destruct Hsc as [Hsce2 Hsce2'].
+  apply Grel_length in HG as HGl.
+  destruct HGl as [HGlΓ1 HGlΓ2].
+  apply Grel_closed in HG as HC.
+  destruct HC as [HCΓ1 HCΓ2].
+  split. 2: split.
+  1-2: try rewrite HGlΓ1; try rewrite HGlΓ2; do 2 constructor; auto.
+  intros m Hmn F1 F2 [HF1 [HF2 HF]] D.
+  inv D. eapply He1 in H4 as [i D]; eauto.
+  exists (S i). constructor. exact D. lia.
+  split. 2: split.
+  1-2: constructor; auto.
+  1-2: constructor.
+  4: rewrite HGlΓ2.
+  1-4: auto.
+  intros m Hmk v1 v2 Γ0 Γ3 HV D.
+  inv D. eapply He2 in H8 as [i D]; eauto.
+  exists (S i). constructor. exact D.
+  apply Grel_cons. eapply Vrel_downclosed; eauto. eapply Grel_downclosed; eauto.
+  split. 2: split. 1-2: auto.
+  intros m Hmk0 v0 v3 Γ4 Γ5 HV' D.
+  eapply HF in D as [i D]; eauto.
+  exists i. exact D. lia.
+  Unshelve. lia. lia.
+Qed.
+
+Lemma match_pattern_Vrel : forall p v1 v2 n,
+  Vrel n v1 v2 ->
+  (forall l1, 
+        (match_pattern p v1 = Some l1 ->
+         exists l2, match_pattern p v2 = Some l2 /\ list_biforall (Vrel n) l1 l2)).
+Proof.
+  intros p v1 v2 n HV.
+  apply Vrel_closed in HV as HVc. 
+  destruct HVc as [HVc1 HVc2].
+  generalize dependent v2. revert n. generalize dependent v1.
+  induction p; intros v1 HVc1 n v2 HV HVc2 l1 Hm.
+  1-5: destruct v1, v2; rewrite Vrel_Fix_eq in HV; simpl in HV; destruct HV as [Cl1 [Cl2 HV]];
+       try contradiction; simpl in Hm; try discriminate; subst.
+  * destruct (lit_eqb l2 l) eqn:Hl; try discriminate. inv Hm. exists []. simpl.
+    apply lit_eqb_eq in Hl. subst. rewrite lit_eqb_refl. split. auto. constructor.
+  * destruct (p1 =? p) eqn:Hp; try discriminate. inv Hm. rewrite Nat.eqb_eq in Hp. subst.
+    exists []. simpl. rewrite Nat.eqb_refl. split. auto. constructor.
+  * inv Hm. exists [VLit l0]. simpl. split. auto. constructor.
+    apply Vrel_VLit_compat_closed. constructor.
+  * inv Hm. exists [VPid p0]. split. auto. constructor. apply Vrel_VPid_compat_closed. constructor.
+  * inv Hm. exists [VNil]. split. auto. constructor. apply Vrel_VNil_compat_closed. constructor.
+  * destruct HV as [HV1 HV2]. rewrite <- Vrel_Fix_eq in HV1. rewrite <- Vrel_Fix_eq in HV2.
+    inv Hm. eexists. split. auto. constructor. apply Vrel_VCons_compat_closed; auto. constructor.
+  * inv Hm. eexists. split. auto. constructor. 2: constructor.
+    rewrite Vrel_Fix_eq. simpl. auto.
+  * inv Hm. exists []. split. auto. constructor.
+  * destruct HV as [HV1 HV2]. rewrite <- Vrel_Fix_eq in HV1. rewrite <- Vrel_Fix_eq in HV2.
+    inv Cl1. inv Cl2.
+    destruct (match_pattern p1 v1_1) eqn:Hp1; try discriminate.
+    destruct (match_pattern p2 v1_2) eqn:Hp2; try discriminate.
+    eapply IHp1 in Hp1; eauto.
+    eapply IHp2 in Hp2; eauto.
+    destruct Hp1 as [l2 [Hmpl2 Hbfal2]].
+    destruct Hp2 as [l2' [Hmpl2' Hbfal2']].
+    eexists. split. simpl. rewrite Hmpl2. rewrite Hmpl2'. reflexivity.
+    inv Hm. apply biforall_app; auto.
+Qed.
+
+Lemma nomatch_pattern_Vrel : forall p v1 v2 n,
+  Vrel n v1 v2 ->
+  match_pattern p v1 = None -> match_pattern p v2 = None.
+Proof.
+  intros p v1 v2 n HV.
+  apply Vrel_closed in HV as HVc.
+  destruct HVc as [HVc1 HVc2].
+  generalize dependent v2. revert n. generalize dependent v1.
+  induction p; intros v1 HVc1 n v2 HV HVc2 Hm.
+  all: destruct v1, v2; try reflexivity; simpl in Hm; try discriminate; rewrite Vrel_Fix_eq in HV;
+       destruct HV as [CL1 [CL2 HV]]; try contradiction.
+  * break_match_hyp; try discriminate. subst. simpl. rewrite Heqb. reflexivity.
+  * break_match_hyp; try discriminate. subst. simpl. rewrite Heqb. reflexivity.
+  * destruct HV as [HV1 HV2].
+    rewrite <- Vrel_Fix_eq in HV1. rewrite <- Vrel_Fix_eq in HV2.
+    inv CL1. inv CL2.
+    destruct (match_pattern p1 v1_1) eqn:Hp1.
+    + destruct (match_pattern p2 v1_2) eqn:Hp2; try discriminate.
+      simpl. eapply IHp2 in Hp2; eauto. rewrite Hp2.
+      destruct (match_pattern p1 v2_1); reflexivity.
+    + simpl. eapply IHp1 in Hp1; eauto. rewrite Hp1. reflexivity.
+Qed.
+
+Lemma Erel_ECase_compat :
+  forall Γ e1 e1' e2 e2' e3 e3' p,
+    Erel_open Γ e1 e1' ->
+    Erel_open (pat_vars p + Γ) e2 e2' ->
+    Erel_open Γ e3 e3' ->
+    Erel_open Γ (ECase e1 p e2 e3) (ECase e1' p e2' e3').
+Proof.
+  intros Γ e1 e1' e2 e2' e3 e3' p He1 He2 He3.
+  unfold Erel_open, exp_rel. intros m Γ1 Γ2 HG.
+  apply Grel_length in HG as Hl.
+  destruct Hl as [HlΓ1 HlΓ2].
+  apply Grel_closed in HG as Hc.
+  destruct Hc as [HcΓ1 HcΓ2].
+  apply Erel_open_scope in He1 as Hsce1.
+  destruct Hsce1 as [Hsce1 Hsce1'].
+  apply Erel_open_scope in He2 as Hsce2.
+  destruct Hsce2 as [Hsce2 Hsce2'].
+  apply Erel_open_scope in He3 as Hsce3.
+  destruct Hsce3 as [Hsce3 Hsce3'].
+  split. 2:split.
+  1-2: try rewrite HlΓ1; try rewrite HlΓ2; do 2 constructor; auto.
+  intros m0 Hm0n F1 F2 [HF1 [HF2 HF]] D.
+  inv D. eapply He1 in H6 as [i D]; eauto.
+  exists (S i). constructor. exact D. lia.
+  split. 2: split.
+  1-2: constructor; auto; constructor; auto.
+  1-2: rewrite HlΓ2; auto.
+  intros m0 Hm0k v1 v2 Γ0 Γ3 HV D.
+  inv D.
+  * apply match_pattern_Vrel with (p := p) (l1 := l) in HV as Hmp; auto.
+    destruct Hmp as [l2 [Hmp Hmpbfa]].
+    eapply He2 in H11 as [i D]; eauto.
+    exists (S i). eapply term_case_true; eauto.
+    apply match_pattern_length in H10.
+    apply match_pattern_length in Hmp.
+    apply Grel_app; auto.
+    unfold Grel. split. auto. eapply Vrel_biforall_downclosed. eauto.
+    eapply Grel_downclosed. eauto.
+    split. 2: split. 1-2: auto.
+    intros m0 Hm0k0 v0 v3 Γ4 Γ5 HV' D.
+    eapply HF in D as [i D]; eauto.
+    exists i. exact D. lia.
+    Unshelve. lia. lia.
+  * apply nomatch_pattern_Vrel with (p := p) in HV as Hmp; auto.
+    eapply He3 in H11 as [i D]; eauto.
+    exists (S i). eapply term_case_false; eauto. lia.
+    split. 2: split. 1-2: auto.
+    intros m0 Hm0k0 v0 v3 Γ4 Γ5 HV' D.
+    eapply HF in D as [i D]; eauto.
+    exists i. exact D. lia.
 Qed.
 
 
