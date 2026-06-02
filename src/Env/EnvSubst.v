@@ -583,16 +583,6 @@ Qed.
   and cannot be recovered.
 *)
 
-(** Helper: lift [map f] into [option], failing as soon as [f] fails. *)
-Fixpoint map_option {A B} (f : A → option B) (l : list A) : option (list B) :=
-  match l with
-  | []      => Some []
-  | x :: xs =>
-      match f x, map_option f xs with
-      | Some y, Some ys => Some (y :: ys)
-      | _,      _       => None
-      end
-  end.
 
 Fixpoint inv_convert_val (v : Val) : option ESyn.Val :=
   match v with
@@ -619,7 +609,7 @@ with inv_convert_exp (e : Exp) : option ESyn.Exp :=
 with inv_convert_nv (nv : NonVal) : option ESyn.NonVal :=
   match nv with
   | EApp f args =>
-      match inv_convert_exp f, map_option inv_convert_exp args with
+      match inv_convert_exp f, mapM inv_convert_exp args with
       | Some f', Some args' => Some (ESyn.EApp f' args')
       | _,       _          => None
       end
@@ -639,7 +629,7 @@ with inv_convert_nv (nv : NonVal) : option ESyn.NonVal :=
       | _,        _        => None
       end
   | EBIF f args =>
-      match inv_convert_exp f, map_option inv_convert_exp args with
+      match inv_convert_exp f, mapM inv_convert_exp args with
       | Some f', Some args' => Some (ESyn.EBIF f' args')
       | _,       _          => None
       end
@@ -661,14 +651,14 @@ with inv_convert_nv (nv : NonVal) : option ESyn.NonVal :=
 Definition inv_convert_frame (f : Frame) : option ESem.Frame :=
   match f with
   | FApp1 args =>
-      match map_option inv_convert_exp args with
+      match mapM inv_convert_exp args with
       | Some args' => Some (ESem.FApp1 args' [])
       | None       => None
       end
   | FApp2 v vl args =>
       match inv_convert_val v,
-            map_option inv_convert_val vl,
-            map_option inv_convert_exp args with
+            mapM inv_convert_val vl,
+            mapM inv_convert_exp args with
       | Some v', Some vl', Some args' =>
           Some (ESem.FApp2 v' vl' args' [])
       | _, _, _ => None
@@ -694,14 +684,14 @@ Definition inv_convert_frame (f : Frame) : option ESem.Frame :=
       | None     => None
       end
   | FBIF1 args =>
-      match map_option inv_convert_exp args with
+      match mapM inv_convert_exp args with
       | Some args' => Some (ESem.FBIF1 args' [])
       | None       => None
       end
   | FBIF2 v vl args =>
       match inv_convert_val v,
-            map_option inv_convert_val vl,
-            map_option inv_convert_exp args with
+            mapM inv_convert_val vl,
+            mapM inv_convert_exp args with
       | Some v', Some vl', Some args' =>
           Some (ESem.FBIF2 v' vl' args' [])
       | _, _, _ => None
@@ -710,7 +700,7 @@ Definition inv_convert_frame (f : Frame) : option ESem.Frame :=
 
 (** Lift [inv_convert_frame] pointwise over a full frame stack. *)
 Definition inv_convert_framestack (Fs : FrameStack) : option ESem.FrameStack :=
-  map_option inv_convert_frame Fs.
+  mapM inv_convert_frame Fs.
 (* 
 Open Scope env_scope.
 Lemma inv_correct :
@@ -754,32 +744,147 @@ Ltac rewrite_cases :=
   | [H : ?x = Some ?y |- context[?x]] => rewrite H
   | [H : ?x = None |- context[?x]] => rewrite H
   end.
-
-(** map_option distributes over append *)
-Lemma map_option_app {A B} (f : A → option B) l1 l2 l1' l2' :
-  map_option f l1 = Some l1' →
-  map_option f l2 = Some l2' →
-  map_option f (l1 ++ l2) = Some (l1' ++ l2').
+ 
+(** [mapM] distributes over append for the [option] monad. *)
+Lemma mapM_app {A B} (f : A → option B) l1 l2 l1' l2' :
+  mapM f l1 = Some l1' →
+  mapM f l2 = Some l2' →
+  mapM f (l1 ++ l2) = Some (l1' ++ l2').
 Proof.
   revert l1'. induction l1; intros; cbn in *.
   - inv H. assumption.
   - destruct (f a); [| discriminate].
-    destruct (map_option f l1); [| discriminate].
+    destruct (mapM f l1); [| discriminate].
     inv H.
     specialize (IHl1 _ eq_refl H0).
     rewrite IHl1. reflexivity.
 Qed.
 
-(** map_option preserves list length *)
-Lemma map_option_length {A B} (f : A → option B) l l' :
-  map_option f l = Some l' → length l = length l'.
+(*
+Lemma inv_convert_exp_val_inv v e' :
+  inv_convert_exp (VVal v) = Some e' ->
+  ∃ v', inv_convert_val v = Some v' /\ e' = ESyn.VVal v'.
 Proof.
-  revert l'. induction l; intros; cbn in *.
-  - inv H. reflexivity.
-  - destruct (f a); [| discriminate].
-    destruct (map_option f l); [| discriminate].
-    inv H. cbn. f_equal. apply IHl. reflexivity.
+  cbn. destruct (inv_convert_val v) eqn:Hv; cbn; try congruence.
+  intros H. inv H. eauto.
 Qed.
+
+Lemma inv_convert_exp_nv_inv nv e' :
+  inv_convert_exp (EExp nv) = Some e' ->
+  ∃ nv', inv_convert_nv nv = Some nv' /\ e' = ESyn.EExp nv'.
+Proof.
+  cbn. destruct (inv_convert_nv nv) eqn:Hnv; cbn; try congruence.
+  intros H. inv H. eauto.
+Qed.
+
+Lemma inv_convert_framestack_cons_inv f Fs Fs' :
+  inv_convert_framestack (f :: Fs) = Some Fs' ->
+  ∃ f' Fs'', inv_convert_frame f = Some f' /\ inv_convert_framestack Fs = Some Fs'' /\ Fs' = f' :: Fs''.
+Proof.
+  cbn [inv_convert_framestack].
+  destruct (inv_convert_frame f) eqn:Hf; [| discriminate].
+  destruct (mapM inv_convert_frame Fs) eqn:HFs; [| discriminate].
+  intros H. inv H. eauto.
+Qed.
+
+Lemma inv_convert_frame_app1_inv args f :
+  inv_convert_frame (FApp1 args) = Some f ->
+  ∃ args', mapM inv_convert_exp args = Some args' /\ f = ESem.FApp1 args' [].
+Proof.
+  cbn [inv_convert_frame].
+  destruct (mapM inv_convert_exp args) eqn:Hargs; cbn; try congruence.
+  intros H. inv H. eauto.
+Qed.
+
+Lemma inv_convert_frame_app2_inv v vl args f :
+  inv_convert_frame (FApp2 v vl args) = Some f ->
+  ∃ v' vl' args',
+    inv_convert_val v = Some v' /\
+    mapM inv_convert_val vl = Some vl' /\
+    mapM inv_convert_exp args = Some args' /\
+    f = ESem.FApp2 v' vl' args' [].
+Proof.
+  cbn [inv_convert_frame].
+  destruct (inv_convert_val v) eqn:Hv; [| discriminate].
+  destruct (mapM inv_convert_val vl) eqn:Hvl; [| discriminate].
+  destruct (mapM inv_convert_exp args) eqn:Hargs; cbn; try congruence.
+  intros H. inv H. eauto 10.
+Qed.
+
+Lemma inv_convert_frame_bif1_inv args f :
+  inv_convert_frame (FBIF1 args) = Some f ->
+  ∃ args', mapM inv_convert_exp args = Some args' /\ f = ESem.FBIF1 args' [].
+Proof.
+  cbn [inv_convert_frame].
+  destruct (mapM inv_convert_exp args) eqn:Hargs; cbn; try congruence.
+  intros H. inv H. eauto.
+Qed.
+
+Lemma inv_convert_frame_bif2_inv v vl args f :
+  inv_convert_frame (FBIF2 v vl args) = Some f ->
+  ∃ v' vl' args',
+    inv_convert_val v = Some v' /\
+    mapM inv_convert_val vl = Some vl' /\
+    mapM inv_convert_exp args = Some args' /\
+    f = ESem.FBIF2 v' vl' args' [].
+Proof.
+  cbn [inv_convert_frame].
+  destruct (inv_convert_val v) eqn:Hv; [| discriminate].
+  destruct (mapM inv_convert_val vl) eqn:Hvl; [| discriminate].
+  destruct (mapM inv_convert_exp args) eqn:Hargs; cbn; try congruence.
+  intros H. inv H. eauto 10.
+Qed.
+
+Lemma inv_convert_frame_let_inv e2 f :
+  inv_convert_frame (FLet e2) = Some f ->
+  ∃ e2', inv_convert_exp e2 = Some e2' /\ f = ESem.FLet e2' [].
+Proof.
+  cbn [inv_convert_frame].
+  destruct (inv_convert_exp e2) eqn:He2; cbn; try congruence.
+  intros H. inv H. eauto.
+Qed.
+
+Lemma inv_convert_frame_case_inv p e2 e3 f :
+  inv_convert_frame (FCase p e2 e3) = Some f ->
+  ∃ e2' e3',
+    inv_convert_exp e2 = Some e2' /\
+    inv_convert_exp e3 = Some e3' /\
+    f = ESem.FCase p e2' e3' [].
+Proof.
+  cbn [inv_convert_frame].
+  destruct (inv_convert_exp e2) eqn:He2; [| discriminate].
+  destruct (inv_convert_exp e3) eqn:He3; cbn; try congruence.
+  intros H. inv H. eauto 10.
+Qed.
+
+Lemma inv_convert_frame_cons1_inv e1 f :
+  inv_convert_frame (FCons1 e1) = Some f ->
+  ∃ e1', inv_convert_exp e1 = Some e1' /\ f = ESem.FCons1 e1' [].
+Proof.
+  cbn [inv_convert_frame].
+  destruct (inv_convert_exp e1) eqn:He1; cbn; try congruence.
+  intros H. inv H. eauto.
+Qed.
+
+Lemma inv_convert_frame_cons2_inv v2 f :
+  inv_convert_frame (FCons2 v2) = Some f ->
+  ∃ v2', inv_convert_val v2 = Some v2' /\ f = ESem.FCons2 v2' [].
+Proof.
+  cbn [inv_convert_frame].
+  destruct (inv_convert_val v2) eqn:Hv2; cbn; try congruence.
+  intros H. inv H. eauto.
+Qed.
+
+Lemma mapM_cons_inv {A B} (f : A → option B) x xs ys :
+  mapM f (x :: xs) = Some ys ->
+  ∃ y ys', f x = Some y /\ mapM f xs = Some ys' /\ ys = y :: ys'.
+Proof.
+  cbn [mapM].
+  destruct (f x) eqn:Hx; [| discriminate].
+  destruct (mapM f xs) eqn:Hxs; cbn; try congruence.
+  intros H. inv H. eauto.
+Qed. *)
+
 
 Lemma inv_convert_exp_subst_id e e' σ :
   inv_convert_exp e = Some e' → e.[σ] = e.
@@ -813,159 +918,143 @@ Lemma sub_to_env Fs Fs' e e' Fs_start e_start :
 Proof.
   intros Hstep HFs He Γ HΓ. subst Γ.
   inv Hstep;
-  cbn [inv_convert_framestack map_option inv_convert_frame
+  cbn [inv_convert_framestack inv_convert_frame
        inv_convert_exp inv_convert_nv inv_convert_val] in *;
   repeat case_match; cbn in *; try congruence; repeat invSome.
 
   (* Case 1: red_app_start *)
-  - do 3 eexists. split.
+  - destruct (inv_convert_exp e') eqn:P1; simpl in *; try congruence.
+    destruct (mapM inv_convert_exp tl) eqn:P2; simpl in *; try congruence.
+    destruct (inv_convert_val v) eqn:P3; simpl in *; try congruence.
+    destruct (mapM inv_convert_frame xs) eqn:P4; simpl in *; try congruence.
+    unfold mret, option_ret in HFs.
+    invSome.
+    do 3 eexists. split.
     + apply ESem.red_app.
-    + cbn [inv_convert_framestack map_option inv_convert_frame
-           inv_convert_val map_option].
-      rewrite_cases.
-      split; reflexivity.
+    + split; reflexivity.
 
   (* Case 2: red_app_fin *)
-  - do 3 eexists. split.
+  - destruct (inv_convert_exp e0) eqn:P1; simpl in *; try congruence.
+    destruct (mapM inv_convert_frame Fs') eqn:P2; simpl in *; try congruence.
+    unfold mret, option_ret in HFs.
+    invSome.
+    do 3 eexists. split.
     + apply ESem.red_app0. cbn. reflexivity.
     + split.
-      * assumption.
-      * match goal with
-        | [Hinv : inv_convert_exp _ = Some _ |- _] =>
-            rewrite (inv_convert_exp_subst_id _ _ _ Hinv); assumption
-        end.
+      * exact P2.
+      * rewrite (inv_convert_exp_subst_id _ _ _ P1). exact P1.
 
   (* Case 3: app2_step *)
-  - do 3 eexists. split.
+  - destruct (inv_convert_val v') eqn:P1; simpl in *; try congruence.
+    destruct (inv_convert_val v) eqn:P2; simpl in *; try congruence.
+    destruct (mapM inv_convert_val vs) eqn:P3; simpl in *; try congruence.
+    destruct (inv_convert_exp e') eqn:P4; simpl in *; try congruence.
+    destruct (mapM inv_convert_exp tl) eqn:P5; simpl in *; try congruence.
+    destruct (mapM inv_convert_frame xs) eqn:P6; simpl in *; try congruence.
+    unfold mret, option_ret in *.
+    invSome.
+    assert (mapM inv_convert_val [v'] = Some [v0]) as R0. {
+      cbn. by rewrite P1.
+    }
+    epose proof (R := mapM_app _ _ _ _ _ P3 R0).
+    do 3 eexists. setoid_rewrite R. split.
     + apply ESem.step_app_params.
-    + cbn [inv_convert_framestack map_option inv_convert_frame
-           inv_convert_val].
-      erewrite map_option_app; [| eassumption | cbn; rewrite_cases; reflexivity].
-      cbn. rewrite_cases.
-      split; reflexivity.
+    + split; reflexivity.
 
   (* Case 4: red_app2 *)
-  - do 3 eexists. split.
+  - destruct (inv_convert_exp e0) eqn:P1; simpl in *; try congruence.
+    destruct (mapM inv_convert_val vs) eqn:P2; simpl in *; try congruence.
+    destruct (mapM inv_convert_frame Fs') eqn:P3; simpl in *; try congruence.
+    destruct (inv_convert_val v) eqn:P4; simpl in *; try congruence.
+    unfold mret, option_ret in *.
+    invSome.
+    do 3 eexists. split.
     + apply ESem.red_app_params.
       cbn.
-      apply PeanoNat.Nat.eqb_eq.
-      rewrite app_length. cbn.
-      pose proof (map_option_length _ _ _ He1) as Hlen.
-      lia.
+      rewrite length_app. rewrite Nat.add_comm. cbn.
+      pose proof (length_mapM _ _ _ P2) as Hlen.
+      rewrite Hlen. rewrite Nat.eqb_refl. reflexivity.
     + split.
-      * assumption.
-      * match goal with
-        | [Hinv : inv_convert_exp _ = Some _ |- _] =>
-            rewrite (inv_convert_exp_subst_id _ _ _ Hinv); assumption
-        end.
+      * exact P3.
+      * rewrite (inv_convert_exp_subst_id _ _ _ P1). exact P1.
 
   (* Case 5: red_bif_start *)
-  - do 3 eexists. split.
+  - destruct (inv_convert_exp e') eqn:P1; simpl in *; try congruence.
+    destruct (mapM inv_convert_exp params) eqn:P2; simpl in *; try congruence.
+    destruct (mapM inv_convert_frame fs) eqn:P3; simpl in *; try congruence.
+    destruct (inv_convert_val v) eqn:P4; simpl in *; try congruence.
+    unfold mret, option_ret in *.
+    invSome.
+    do 3 eexists. split.
     + apply ESem.red_bif.
-    + cbn [inv_convert_framestack map_option inv_convert_frame
-           inv_convert_val map_option].
-      rewrite_cases.
-      split; reflexivity.
+    + split; reflexivity.
 
   (* Case 6: red_bif_step *)
-  - do 3 eexists. split.
-    + apply ESem.step_bif_params.
-    + cbn [inv_convert_framestack map_option inv_convert_frame
-           inv_convert_val].
-      erewrite map_option_app; [| eassumption | cbn; rewrite_cases; reflexivity].
-      cbn. rewrite_cases.
-      split; reflexivity.
+  - destruct (inv_convert_val v) eqn:P1; simpl in *; try congruence.
+    destruct (mapM inv_convert_val vals) eqn:P2; simpl in *; try congruence.
+    destruct (inv_convert_exp e') eqn:P3; simpl in *; try congruence.
+    destruct (mapM inv_convert_exp params) eqn:P4; simpl in *; try congruence.
+    destruct (mapM inv_convert_frame fs) eqn:P5; simpl in *; try congruence.
+    destruct (inv_convert_val v') eqn:P6; simpl in *; try congruence.
+    unfold mret, option_ret in *.
+    invSome.
+    do 3 eexists. split.
+    + constructor.
+    + split; try reflexivity.
+      assert (mapM inv_convert_val [v'] = Some [v1]) as R0. {
+      cbn. by rewrite P6.
+    }
+    epose proof (R := mapM_app _ _ _ _ _ P2 R0).
+    setoid_rewrite R. reflexivity.
 
   (* Case 7: red_let *)
-  - do 3 eexists. split.
-    + apply ESem.red_let.
+  - destruct (inv_convert_exp e2) eqn:P1; simpl in *; try congruence.
+    destruct (mapM inv_convert_frame Fs') eqn:P2; simpl in *; try congruence.
+    destruct (inv_convert_val val) eqn:P3; simpl in *; try congruence.
+    unfold mret, option_ret in *.
+    invSome.
+    do 3 eexists. split.
+    + constructor.
     + split.
-      * assumption.
-      * match goal with
-        | [Hinv : inv_convert_exp _ = Some _ |- _] =>
-            rewrite (inv_convert_exp_subst_id _ _ _ Hinv); assumption
-        end.
+      ** assumption.
+      ** rewrite (inv_convert_exp_subst_id _ _ _ P1). exact P1. 
 
   (* Case 8: red_case_true *)
-  - match goal with
-    | [Hinv : inv_convert_val _ = Some _, Hmatch : match_pattern _ _ = Some _ |- _] =>
-        pose proof (match_pattern_inv_some _ _ _ _ Hinv Hmatch) as [l_s Hls]
-    end.
+  - destruct (inv_convert_exp e2) eqn:P1; simpl in *; try congruence.
+    destruct (inv_convert_exp e3) eqn:P2; simpl in *; try congruence.
+    destruct (mapM inv_convert_frame Fs') eqn:P3; simpl in *; try congruence.
+    destruct (inv_convert_val v) eqn:P4; simpl in *; try congruence.
+    unfold mret, option_ret in *.
+    invSome.
     do 3 eexists. split.
-    + apply ESem.red_case_true. exact Hls.
+    + constructor. Search match_pattern.
+      (* TODO: stronger lemma is needed than match_pattern_inv_some *)
     + split.
-      * cbn [inv_convert_framestack map_option]. assumption.
-      * match goal with
-        | [Hinv : inv_convert_exp _ = Some _ |- _] =>
-            rewrite (inv_convert_exp_subst_id _ _ _ Hinv); assumption
-        end.
 
   (* Case 9: red_case_false *)
-  - match goal with
-    | [Hinv : inv_convert_val _ = Some _, Hmatch : match_pattern _ _ = None |- _] =>
-        pose proof (match_pattern_inv_none _ _ _ Hinv Hmatch) as Hno
-    end.
-    do 3 eexists. split.
-    + apply ESem.red_case_false. exact Hno.
-    + split.
-      * cbn [inv_convert_framestack map_option]. assumption.
-      * assumption.
+  - 
 
   (* Case 10: red_cons1 *)
-  - do 3 eexists. split.
-    + apply ESem.red_cons1.
-    + cbn [inv_convert_framestack map_option inv_convert_frame
-           inv_convert_val].
-      rewrite_cases.
-      split; reflexivity.
+  - 
 
   (* Case 11: red_cons2 *)
-  - do 3 eexists. split.
-    + apply ESem.red_cons2.
-    + split.
-      * assumption.
-      * cbn. rewrite_cases. reflexivity.
+  - 
 
   (* Case 12: red_plus *)
-  - do 3 eexists. split.
-    + apply ESem.red_bif_params.
-      cbn. reflexivity.
-    + split.
-      * assumption.
-      * cbn. reflexivity.
+  - 
 
   (* Case 13: step_let *)
-  - do 3 eexists. split.
-    + apply ESem.step_let.
-    + cbn [inv_convert_framestack map_option inv_convert_frame].
-      rewrite_cases.
-      split; reflexivity.
+  - 
 
   (* Case 14: step_app *)
-  - do 3 eexists. split.
-    + apply ESem.step_app.
-    + cbn [inv_convert_framestack map_option inv_convert_frame].
-      rewrite_cases.
-      split; reflexivity.
+  - 
 
   (* Case 15: step_bif *)
-  - do 3 eexists. split.
-    + apply ESem.step_bif.
-    + cbn [inv_convert_framestack map_option inv_convert_frame].
-      rewrite_cases.
-      split; reflexivity.
+  - 
 
   (* Case 16: step_case *)
-  - do 3 eexists. split.
-    + apply ESem.step_case.
-    + cbn [inv_convert_framestack map_option inv_convert_frame].
-      rewrite_cases.
-      split; reflexivity.
+  - 
 
   (* Case 17: step_cons *)
-  - do 3 eexists. split.
-    + apply ESem.step_cons.
-    + cbn [inv_convert_framestack map_option inv_convert_frame].
-      rewrite_cases.
-      split; reflexivity.
+  - 
 Qed.

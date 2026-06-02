@@ -910,7 +910,6 @@ Unshelve.
   exact [].
 Qed.
 
-
 (**
   For a value plugged into a frame stack, termination is independent of the
   current ambient environment.
