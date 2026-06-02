@@ -583,7 +583,32 @@ Proof.
         eapply frame_indep_core in HD2. exact HD2.
       }
       simpl in H4. destruct (length l) eqn:L.
-      * admit.
+      * (* single parameter: *)
+        apply length_zero_iff_nil in L. subst.
+        inv H4.
+        eapply H in H12 as X; try eassumption. 2: lia.
+        2: {
+          apply exp_to_any. apply beta_reduce_scoped in H6; try assumption.
+          apply H6. apply Forall_app; split; try constructor; auto.
+        }
+        2: {
+          apply beta_reduce_scoped in H6; try assumption.
+          apply H6. apply Forall_app; split; try constructor; auto.
+        }
+        destruct X as [v5 [k5' [Γ5 [Hv5 [HD5 Hlt5]]]]].
+        do 3 eexists. repeat split.
+        2: {
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+          simpl. econstructor. constructor. cbn. eassumption.
+          exact HD5.
+        }
+        assumption.
+        lia.
+
+        (* more parameters: *)
       * apply eq_sym, last_element_exists in L as [l' [x ?]].
         subst.
         eapply (term_eval_helper_app l' []) in H4 as X; try eassumption.
@@ -604,8 +629,32 @@ Proof.
           rewrite Nat.sub_diag in H5. eassumption.
         }
         destruct X as [k3 [v3 [Hv3 [HD3 Hlt3]]]].
-        (* TODO: combine H4 and X *)
+        eapply terminates_step_any_2 in H4. 2: eapply frame_indep_core in HD3; exact HD3.
+        eapply H in H4 as X; try eassumption. 2: { lia. }
+        2: {
+          apply exp_to_any. specialize (H5 (S (length l')) ltac:(simpl; rewrite length_app; simpl; lia)).
+          simpl in H5. rewrite app_nth2 in H5. rewrite Nat.sub_diag in H5. assumption. lia.
+        }
+        2: {
+          apply Forall_app. split; try assumption.
+          do 2 constructor; try assumption. 2: constructor.
+          simpl. by constructor.
+        }
+        destruct X as [v4 [k4 [Γ4 [Hv4 [HD4 Hlt4]]]]].
+        simpl in H4.
+        eapply terminates_step_any_2 in H4. 2: eapply frame_indep_core in HD4; exact HD4.
+        simpl in H4. inv H4.
         
+        eapply H in H12 as X; try eassumption. 2: lia.
+        2: {
+          apply exp_to_any. apply beta_reduce_scoped in H6; try assumption.
+          apply H6. apply Forall_app; split; try constructor; auto.
+        }
+        2: {
+          apply beta_reduce_scoped in H6; try assumption.
+          apply H6. apply Forall_app; split; try constructor; auto.
+        }
+        destruct X as [v5 [k5' [Γ5 [Hv5 [HD5 Hlt5]]]]].
         
         do 3 eexists. repeat split.
         2: {
@@ -614,12 +663,152 @@ Proof.
           econstructor. constructor.
           eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
           eapply transitive_eval. eapply frame_indep_core in HD3. exact HD3.
-          admit.
+          simpl.
+          eapply transitive_eval. eapply frame_indep_core in HD4. exact HD4.
+          simpl. econstructor. constructor. cbn. eassumption.
+          exact HD5.
         }
-        admit. admit.
-      * admit.
+        assumption.
+        lia.
+      * assumption.
     }
-  * admit.
+  * inv He.
+    eapply H in H0 as D'; auto. 2: {
+      by apply exp_to_any.
+    }
+    2: {
+      constructor. constructor. all: try by auto.
+      by rewrite indexed_to_forall.
+    }
+    destruct D' as [v1 [k1 [Γ1 [Hv1 [HD1 Hlt1]]]]].
+    eapply terminates_step_any_2 in H0. 2: {
+      eapply frame_indep_core in HD1. exact HD1.
+    }
+    inv H0.
+    {
+      eapply H in H10 as D'; auto. 2: {
+        lia.
+      }
+      2: {
+        apply eval_val_scoped in H6.
+        by cbn.
+      }
+      destruct D' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
+      eapply terminates_step_any_2 in H10. 2: {
+        eapply frame_indep_core in HD2. exact HD2.
+      }
+      do 3 eexists. repeat split.
+      2: {
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+        econstructor. constructor. eassumption.
+        eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+        constructor.
+      }
+      assumption.
+      lia.
+    }
+    { (* inductive case *)
+      eapply H in H4 as D'. 2: {
+        lia.
+      }
+      2: {
+        apply exp_to_any.
+        by apply (H5 0 ltac:(simpl; lia)).
+      }
+      2: {
+        constructor; auto.
+        constructor; auto.
+        rewrite indexed_to_forall. intros.
+        by apply (H5 (S i) ltac:(simpl; lia)).
+      }
+      destruct D' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
+      eapply terminates_step_any_2 in H4. 2: {
+        eapply frame_indep_core in HD2. exact HD2.
+      }
+      simpl in H4. destruct (length l) eqn:L.
+      * (* single parameter: *)
+        apply length_zero_iff_nil in L. subst.
+        inv H4.
+        eapply H in H12 as X; try eassumption. 2: lia.
+        2: {
+          apply exp_to_any. apply eval_val_scoped in H6; try assumption.
+          by constructor.
+        }
+        destruct X as [v5 [k5' [Γ5 [Hv5 [HD5 Hlt5]]]]].
+        do 3 eexists. repeat split.
+        2: {
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+          simpl. econstructor. constructor. cbn. eassumption.
+          exact HD5.
+        }
+        assumption.
+        lia.
+
+        (* more parameters: *)
+      * apply eq_sym, last_element_exists in L as [l' [x ?]].
+        subst.
+        eapply (term_eval_helper_bif l' []) in H4 as X; try eassumption.
+        all: try by constructor.
+        3: {
+          rewrite indexed_to_forall.
+          intros. specialize (H5 (S i) ltac:(simpl;rewrite length_app;lia)).
+          simpl in H5.
+          rewrite app_nth1 in H5. 2: lia. eassumption.
+        }
+        2: {
+          intros. eapply H. lia. all: eassumption.
+        }
+        2: {
+          specialize (H5 (S (length l')) ltac:(simpl;rewrite length_app;simpl;lia)).
+          simpl in H5.
+          rewrite app_nth2 in H5. 2: lia.
+          rewrite Nat.sub_diag in H5. eassumption.
+        }
+        destruct X as [k3 [v3 [Hv3 [HD3 Hlt3]]]].
+        eapply terminates_step_any_2 in H4. 2: eapply frame_indep_core in HD3; exact HD3.
+        eapply H in H4 as X; try eassumption. 2: { lia. }
+        2: {
+          apply exp_to_any. specialize (H5 (S (length l')) ltac:(simpl; rewrite length_app; simpl; lia)).
+          simpl in H5. rewrite app_nth2 in H5. rewrite Nat.sub_diag in H5. assumption. lia.
+        }
+        2: {
+          apply Forall_app. split; try assumption.
+          do 2 constructor; try assumption. 2: constructor.
+          simpl. by constructor.
+        }
+        destruct X as [v4 [k4 [Γ4 [Hv4 [HD4 Hlt4]]]]].
+        simpl in H4.
+        eapply terminates_step_any_2 in H4. 2: eapply frame_indep_core in HD4; exact HD4.
+        simpl in H4. inv H4.
+        
+        eapply H in H12 as X; try eassumption. 2: lia.
+        2: {
+          apply exp_to_any. apply eval_val_scoped in H6; try assumption.
+          by constructor.
+        }
+
+        destruct X as [v5 [k5' [Γ5 [Hv5 [HD5 Hlt5]]]]].
+        
+        do 3 eexists. repeat split.
+        2: {
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+          eapply transitive_eval. eapply frame_indep_core in HD3. exact HD3.
+          simpl.
+          eapply transitive_eval. eapply frame_indep_core in HD4. exact HD4.
+          simpl. econstructor. constructor. cbn. eassumption.
+          exact HD5.
+        }
+        assumption.
+        lia.
+      * assumption.
+    }
   * inv He.
     eapply H in H0 as D'; auto. 2: {
       by apply exp_to_any.
@@ -718,9 +907,8 @@ Proof.
     by eapply ENVCLOSED_lookup.
     lia.
 Unshelve.
-  admit. admit. admit. admit.
-  (*exact [].*)
-Admitted.
+  exact [].
+Qed.
 
 
 (**

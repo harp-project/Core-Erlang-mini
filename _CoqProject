@@ -22,6 +22,14 @@ src/SubstSemantics.v
 src/SemanticProperties.v
 
 src/Env/EnvSubst.v
+src/EnvSimple/Syntax.v
+src/EnvSimple/Semantics.v
+src/EnvSimple/ClosedScoping.v
+src/EnvSimple/Scoping.v
+src/EnvSimple/Termination.v
+src/EnvSimple/CIU.v
+src/EnvSimple/Compatibility.v
+src/EnvSimple/EnvSubst.v
 
 
 
@@ -35,4 +43,3 @@ src/Compatibility.v
 src/CIU.v
 src/CTX.v
 src/Equivs.v
-
