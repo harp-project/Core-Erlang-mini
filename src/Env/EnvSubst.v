@@ -891,19 +891,74 @@ Lemma inv_convert_exp_subst_id e e' σ :
 Proof.
 Admitted.
 
-Lemma match_pattern_inv_some p v v_s l :
+(* TODO Basics.v *)
+Lemma mapM_app_eq {A B} :
+  forall (f : A -> option B) (l1 l2 : list A),
+    mapM f (l1 ++ l2) = match mapM f l1 with
+                        | Some l1' => match mapM f l2 with
+                                      | Some l2' => Some (l1' ++ l2')
+                                      | None => None
+                                      end
+                        | None => None
+                        end.
+Proof.
+  induction l1; intros; simpl.
+  by case_match.
+  unfold mbind, option_bind.
+  destruct (f a) eqn:P. 2: reflexivity.
+  rewrite IHl1. clear IHl1.
+  destruct mapM; try destruct mapM; simpl.
+  all: reflexivity.
+Qed.
+
+Lemma match_pattern_inv_convert_Some p v v_s l :
   inv_convert_val v = Some v_s →
   match_pattern p v = Some l →
-  ∃ l_s, ESyn.match_pattern p v_s = Some l_s.
+  ESyn.match_pattern p v_s = mapM inv_convert_val l /\ is_Some (mapM inv_convert_val l).
 Proof.
-Admitted.
+  revert l v_s v. induction p; intros * Hinv Hmatch.
+  all: destruct v; simpl in *; try invSome; (try split; [try reflexivity | try by eexists]).
+  * case_match; by invSome.
+  * case_match; by invSome.
+  * case_match; by invSome.
+  * case_match; by invSome.
+  * case_match; invSome.
+    cbn. rewrite H. reflexivity.
+  * case_match; invSome. cbn. by rewrite H.
+  * case_match; try invSome. case_match; try invSome.
+    cbn. by rewrite H, H0.
+  * case_match; try invSome. case_match; try invSome. cbn.
+    by rewrite H, H0.
+  * case_match; try invSome. case_match; try invSome.
+    case_match; try invSome. case_match; try invSome.
+    specialize (IHp1 _ _ _ H1 H) as [IHp1 IHS1].
+    specialize (IHp2 _ _ _ H2 H0) as [IHp2 IHS2].
+    rewrite IHp1, IHp2.
+    by rewrite mapM_app_eq.
+  * case_match; try invSome. case_match; try invSome.
+    case_match; try invSome. case_match; try invSome.
+    specialize (IHp1 _ _ _ H1 H) as [IHp1 IHS1].
+    specialize (IHp2 _ _ _ H2 H0) as [IHp2 IHS2].
+    destruct IHS1, IHS2; subst.
+    rewrite mapM_app_eq. rewrite H3, H4. by eexists.
+Qed.
 
-Lemma match_pattern_inv_none p v v_s :
+Lemma match_pattern_inv_convert_None p v v_s :
   inv_convert_val v = Some v_s →
   match_pattern p v = None →
   ESyn.match_pattern p v_s = None.
 Proof.
-Admitted.
+  revert v_s v. induction p; intros * Hinv Hmatch.
+  all: destruct v; simpl in *; try invSome; try reflexivity.
+  all: case_match; try invSome; try reflexivity.
+  * case_match; by invSome.
+  * case_match; by invSome.
+  * case_match; by invSome.
+  * case_match; try invSome. case_match; try invSome. case_match; try invSome.
+    erewrite IHp2; try eassumption. by case_match.
+  * case_match; try invSome. case_match; try invSome.
+    erewrite IHp1; try eassumption. reflexivity.
+Qed.
 
 Lemma sub_to_env Fs Fs' e e' Fs_start e_start :
   ⟨Fs, e⟩ --> ⟨Fs', e'⟩ →
@@ -951,7 +1006,8 @@ Proof.
     destruct (inv_convert_exp e') eqn:P4; simpl in *; try congruence.
     destruct (mapM inv_convert_exp tl) eqn:P5; simpl in *; try congruence.
     destruct (mapM inv_convert_frame xs) eqn:P6; simpl in *; try congruence.
-    unfold mret, option_ret in *.
+    unfold mret, option_ret, mbind, option_bind in *.
+    cbn in *; try congruence.
     invSome.
     assert (mapM inv_convert_val [v'] = Some [v0]) as R0. {
       cbn. by rewrite P1.
@@ -966,7 +1022,8 @@ Proof.
     destruct (mapM inv_convert_val vs) eqn:P2; simpl in *; try congruence.
     destruct (mapM inv_convert_frame Fs') eqn:P3; simpl in *; try congruence.
     destruct (inv_convert_val v) eqn:P4; simpl in *; try congruence.
-    unfold mret, option_ret in *.
+    unfold mret, option_ret, mbind, option_bind in *.
+    cbn in *; try congruence.
     invSome.
     do 3 eexists. split.
     + apply ESem.red_app_params.
@@ -1026,35 +1083,116 @@ Proof.
     destruct (inv_convert_val v) eqn:P4; simpl in *; try congruence.
     unfold mret, option_ret in *.
     invSome.
+    pose proof match_pattern_inv_convert_Some _ _ _ _ P4 H as [MP [ll S]].
+    rewrite S in MP.
     do 3 eexists. split.
-    + constructor. Search match_pattern.
-      (* TODO: stronger lemma is needed than match_pattern_inv_some *)
+    + constructor.
+      exact MP.
     + split.
+      ** assumption.
+      ** rewrite (inv_convert_exp_subst_id _ _ _ P1). exact P1.
 
   (* Case 9: red_case_false *)
-  - 
+  - destruct (inv_convert_exp e2) eqn:P1; simpl in *; try congruence.
+    destruct (inv_convert_exp e') eqn:P2; simpl in *; try congruence.
+    destruct (mapM inv_convert_frame Fs') eqn:P3; simpl in *; try congruence.
+    destruct (inv_convert_val v) eqn:P4; simpl in *; try congruence.
+    unfold mret, option_ret in *.
+    invSome.
+    pose proof (match_pattern_inv_convert_None _ _ _ P4 H) as MP.
+    do 3 eexists. split.
+    + eapply ESem.red_case_false.
+      exact MP.
+    + split; [ eassumption | reflexivity ].
 
   (* Case 10: red_cons1 *)
-  - 
+  - destruct (inv_convert_exp e') eqn:P1; simpl in *; try congruence.
+    destruct (mapM inv_convert_frame xs) eqn:P2; simpl in *; try congruence.
+    destruct (inv_convert_val v2) eqn:P3; simpl in *; try congruence.
+    unfold mret, option_ret in *.
+    invSome.
+    do 3 eexists. split.
+    + apply ESem.red_cons1.
+    + split; reflexivity.
 
   (* Case 11: red_cons2 *)
-  - 
+  - destruct (inv_convert_val v2) eqn:P1; try congruence.
+    destruct (mapM inv_convert_frame Fs') eqn:P2; simpl in *; try congruence.
+    unfold mret, option_ret in *.
+    invSome.
+    do 3 eexists. split.
+    + apply ESem.red_cons2.
+    + split.
+      * exact P2.
+      * reflexivity.
 
   (* Case 12: red_plus *)
-  - 
+  - destruct (inv_convert_val v2) eqn:P1; try congruence.
+    destruct (mapM inv_convert_frame Fs') eqn:P2; simpl in *; try congruence.
+  - destruct (mapM inv_convert_frame Fs') eqn:P2; simpl in *; try congruence.
+    unfold mret, option_ret in *.
+    invSome.
+    do 3 eexists. split.
+    + constructor. reflexivity.
+    + split.
+      * exact P2.
+      * reflexivity.
 
   (* Case 13: step_let *)
-  - 
+  - destruct (inv_convert_exp e2) eqn:P1; simpl in *; try congruence.
+    unfold mret, option_ret, mbind, option_bind in *.
+    cbn in *; try congruence.
+    invSome.
+    do 3 eexists. split.
+    + apply ESem.step_let.
+    + split.
+      * cbn. by setoid_rewrite HFs.
+      * reflexivity.
 
   (* Case 14: step_app *)
-  - 
+  - destruct (mapM inv_convert_exp el) eqn:P2; simpl in *; try congruence.
+    unfold mret, option_ret, mbind, option_bind in *.
+    cbn in *; try congruence.
+    invSome.
+    do 3 eexists. split.
+    + apply ESem.step_app.
+    + split.
+      * cbn. by setoid_rewrite HFs.
+      * reflexivity.
 
   (* Case 15: step_bif *)
-  - 
+  - destruct (mapM inv_convert_exp params) eqn:P2; simpl in *; try congruence.
+    unfold mret, option_ret, mbind, option_bind in *.
+    cbn in *; try congruence.
+    invSome.
+    do 3 eexists. split.
+    + apply ESem.step_bif.
+    + split.
+      * cbn. by setoid_rewrite HFs.
+      * reflexivity.
 
   (* Case 16: step_case *)
-  - 
+  - destruct (inv_convert_exp e') eqn:P1; simpl in *; try congruence.
+    destruct (inv_convert_exp e2) eqn:P2; simpl in *; try congruence.
+    destruct (inv_convert_exp e3) eqn:P3; simpl in *; try congruence.
+    unfold mret, option_ret, mbind, option_bind in *.
+    cbn in *; try congruence.
+    invSome.
+    do 3 eexists. split.
+    + apply ESem.step_case.
+    + split.
+      * cbn. by setoid_rewrite HFs.
+      * reflexivity.
 
   (* Case 17: step_cons *)
-  - 
+  - destruct (inv_convert_exp e1) eqn:P1; simpl in *; try congruence.
+    destruct (inv_convert_exp e') eqn:P2; simpl in *; try congruence.
+    unfold mret, option_ret, mbind, option_bind in *.
+    cbn in *; try congruence.
+    invSome.
+    do 3 eexists. split.
+    + apply ESem.step_cons.
+    + split.
+      * cbn. by setoid_rewrite HFs.
+      * reflexivity.
 Qed.
