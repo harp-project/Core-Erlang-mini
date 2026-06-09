@@ -1,17 +1,19 @@
+From CoreErlang Require Import SubstSemantics.
+
 
 (** Example, simple evaluations *)
 Open Scope Z_scope.
-Goal ⟨ [], inc 1 ⟩ -->* ELit 2.
+Goal ⟨ [], inc 1 ⟩ -->* VLit 2.
 Proof.
   repeat (econstructor;cbn).
 Qed.
 
-Local Goal ⟨ [], simplefun 10 ⟩ -->* ELit 10.
+Local Goal ⟨ [], simplefun 10 ⟩ -->* VLit 10.
 Proof.
   repeat econstructor.
 Qed.
 
-Local Goal ⟨ [], simplefun2 10 10 ⟩ -->* ELit 20.
+Local Goal ⟨ [], simplefun2 10 10 ⟩ -->* VLit 20.
 Proof.
   unfold simplefun2.
   repeat econstructor.
@@ -19,31 +21,17 @@ Proof.
   all: inversion H1; subst; cbn in *; auto; lia.
 Qed.
 
-Local Goal ⟨ [], sum 1 ⟩ -->* ELit 1%Z.
+Local Goal ⟨ [], sum 1 ⟩ -->* VLit 1%Z.
 Proof.
-  assert (VALCLOSED (EFun [XVar]
-             (ECase (EVar 1) (PLit 0) (EVar 1)
-                (EBIF (ELit "+"%string) [EVar 1; EApp (EFunId 0) [EBIF (ELit "+"%string) [EVar 1; ELit (-1)]]])))). {
-    do 3 constructor; auto.
-    intros. inversion H; subst; cbn. 2: inversion H1.
-    all: auto.
-    constructor; auto.
-    intros. inversion H0. 2: inversion H2.
-    constructor; auto.
-    intros. inversion H1. 2: inversion H4. 3: inversion H6.
-    all: cbn; auto.
-    lia.
-  }
   unfold sum.
   simpl.
-  constructor. constructor. econstructor.
+  econstructor. econstructor. econstructor.
+  econstructor. simpl.
   econstructor.
-  econstructor.
-  econstructor. constructor. cbn. econstructor. constructor. auto.
+  econstructor. econstructor. cbn. econstructor. constructor. auto.
   econstructor.
   eapply red_app2. constructor.
-  simpl. econstructor. econstructor. econstructor. cbn. eapply step_case.
-  econstructor. eapply red_case_false. constructor. constructor. cbn. congruence.
+  simpl. econstructor. econstructor. econstructor. cbn. eapply red_case_false. constructor.
   econstructor. eapply step_bif.
   econstructor. eapply red_bif_start; auto.
   econstructor. eapply red_bif_step; auto.
@@ -56,53 +44,36 @@ Proof.
   econstructor. eapply red_bif_step; auto. simpl.
   econstructor. eapply red_plus; auto. simpl.
   econstructor. eapply red_app2. constructor.
-  simpl. econstructor. econstructor. econstructor. cbn. eapply step_case.
-  econstructor. eapply red_case_true. constructor. reflexivity.
+  simpl. econstructor. econstructor. econstructor. cbn.
+  eapply red_case_true. constructor.
   econstructor. eapply red_plus.
   econstructor.
 Qed.
 
-Local Goal ⟨[], ECons (EBIF (ELit "+"%string) [ELit 1; ELit 1]) (ECons (ELit 1) (ECons (ELit 0) ENil))⟩ -->* VCons (ELit 2) (VCons (ELit 1) (VCons (ELit 0) ENil)).
+Local Goal ⟨[], ECons (EBIF (VLit "+"%string) [˝VLit 1; ˝VLit 1]) (ECons (VLit 1) (ECons (VLit 0) VNil))⟩ -->* VCons (VLit 2) (VCons (VLit 1) (VCons (VLit 0) VNil)).
 Proof.
-  split. repeat constructor. exists 13%nat.
+  exists 13%nat.
   econstructor. constructor.
   econstructor. apply step_cons.
-  econstructor. apply step_cons. econstructor. constructor. constructor.
+  econstructor. apply step_cons. econstructor. constructor.
   econstructor. constructor; constructor.
   econstructor. constructor. repeat constructor.
   econstructor. constructor; repeat constructor.
   econstructor. constructor. repeat constructor.
   econstructor. apply step_bif.
-  econstructor. constructor. constructor.
   econstructor. constructor.
-  econstructor. constructor. 1-2: repeat constructor.
+  econstructor. constructor.
+  econstructor. constructor.
   repeat econstructor.
 Qed.
 
 (** Complex example for map *)
 Local Goal
-   ⟨[], obj_map (EFun [YVar] (EBIF (ELit "+"%string) [EVar 1; ELit 1]))
-                (ECons (ELit 0) (ECons (ELit 1) (ECons (ELit 2) ENil)))⟩ -->*
-   VCons (ELit 1) (VCons (ELit 2) (VCons (ELit 3) ENil)).
+   ⟨[], obj_map (VFun 1 (EBIF (VLit "+"%string) [˝VVar 1; ˝VLit 1]))
+                (ECons (VLit 0) (ECons (VLit 1) (ECons (VLit 2) VNil)))⟩ -->*
+   VCons (VLit 1) (VCons (VLit 2) (VCons (VLit 3) VNil)).
 Proof.
-  (** closedness assertions for the occuring functions *)
-  assert (VALCLOSED (EFun [FVar; XVar]
-             (ECase (EVar 2) (PCons PVar PVar)
-                (ECons (EApp (EVar 3) [EVar 0])
-                   (EApp (EFunId 2) [EVar 3; EVar 1])) ENil))). {
-    constructor. cbn. repeat constructor.
-                               all: destruct i.
-                               all: try destruct i. all: simpl in H; try lia.
-                               all: simpl; auto; constructor; lia.
-  }
-  assert (VALCLOSED (EFun [YVar] (EBIF (ELit "+"%string) [EVar 1; ELit 1]))). {
-    constructor. cbn. repeat constructor.
-                               all: destruct i.
-                               all: try destruct i.
-                               all: simpl; auto.
-                               simpl in H0. lia.
-  }
-  split; auto. exists 64%nat.
+  exists 65%nat.
 
   (** evaluate letrec *)
   econstructor. constructor. simpl.
@@ -112,6 +83,7 @@ Proof.
   econstructor. constructor. auto.
 
   (** function parameter *)
+  econstructor. constructor; auto; simpl.
   econstructor. constructor; auto; simpl.
 
   (** evaluate list to value list *)
@@ -129,7 +101,7 @@ Proof.
   (** process first element in the recursive call *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
-  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. constructor; auto.
   econstructor. apply step_cons. auto. cbn.
   econstructor. apply step_app.
   econstructor. constructor. auto.
@@ -138,7 +110,7 @@ Proof.
   (** process second element in the recursive call *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
-  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. constructor; auto.
   econstructor. apply step_cons. auto. cbn.
   econstructor. apply step_app.
   econstructor. constructor. auto.
@@ -147,13 +119,13 @@ Proof.
   (** process third element in the recursive call *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
-  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. constructor; auto.
   econstructor. apply step_cons. auto. cbn.
   econstructor. apply step_app.
   econstructor. constructor. auto.
   econstructor. constructor; auto. simpl.
 
-  (** stop recursion with ENil *)
+  (** stop recursion with VNil *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
   econstructor. apply red_case_false; auto.
@@ -196,34 +168,11 @@ Qed.
 (** Complex example for foldr *)
 Local Goal
    ⟨[], obj_foldr
-                (EFun [XVar;YVar] (ECons (EBIF (ELit "+"%string) [EVar 1; ELit 1]) (EVar 2)))
-                (ECons (ELit 0) (ECons (ELit 1) (ECons (ELit 2) ENil))) ENil⟩ -->*
-   VCons (ELit 1) (VCons (ELit 2) (VCons (ELit 3) ENil)).
+                (VFun 2 (ECons (EBIF (VLit "+"%string) [˝VVar 1; ˝VLit 1]) (VVar 2)))
+                (ECons (VLit 0) (ECons (VLit 1) (ECons (VLit 2) VNil))) VNil⟩ -->*
+   VCons (VLit 1) (VCons (VLit 2) (VCons (VLit 3) VNil)).
 Proof.
-  (** closedness assertions for the occuring functions *)
-  assert (VALCLOSED (EFun [FVar; DVar; XVar]
-             (ECase (EVar 3) (PCons PVar PVar)
-                (EApp (EVar 3)
-                   [EVar 0; EApp (EFunId 2) [EVar 3; EVar 4; EVar 1]])
-                (EVar 2)))). {
-    constructor. cbn. do 2 constructor; auto.
-    repeat constructor; intros.
-    all: destruct i.
-    all: try destruct i. all: simpl in *; try lia.
-    all: intros.
-    1-2: simpl; auto; repeat constructor.
-    simpl in *.
-    destruct i. 2: destruct i. 3: destruct i. all: auto.
-    constructor. all: lia.
-  }
-  assert (VALCLOSED (EFun [XVar; YVar]
-             (ECons (EBIF (ELit "+"%string) [EVar 1; ELit 1]) (EVar 2)))). {
-    constructor. cbn. repeat constructor.
-    all: destruct i; simpl in *.
-    all: try destruct i. all: simpl in H; try lia.
-    all: simpl; auto; constructor; lia.
-  }
-  split; auto. exists 71%nat.
+  exists 72%nat.
 
   (** Evaluate letrec *)
   econstructor. constructor. simpl.
@@ -232,6 +181,7 @@ Proof.
   econstructor. constructor. simpl.
   econstructor. constructor. auto.
   econstructor. constructor; auto. simpl.
+  econstructor. constructor; auto.
   econstructor. constructor; auto.
 
   (** evaluate parameter list to list of values *)
@@ -248,7 +198,7 @@ Proof.
   (** apply recursive call with the first element *)
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
-  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. constructor; auto.
   econstructor. apply step_app.
   econstructor. constructor. auto.
   econstructor. constructor; auto. cbn.
@@ -260,7 +210,7 @@ Proof.
   econstructor. constructor; auto. cbn.
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
-  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. constructor; auto.
   econstructor. apply step_app.
   econstructor. constructor. auto.
   econstructor. constructor; auto. cbn.
@@ -272,12 +222,12 @@ Proof.
   econstructor. constructor; auto. cbn.
   econstructor. constructor; auto. cbn.
   econstructor. apply step_case; auto.
-  econstructor. constructor; auto. reflexivity. cbn.
+  econstructor. constructor; auto.
   econstructor. apply step_app.
   econstructor. constructor. auto.
   econstructor. constructor; auto. cbn.
 
-  (** end of recursion with ENil *)
+  (** end of recursion with VNil *)
   econstructor. apply step_app.
   econstructor. constructor; auto. cbn.
   econstructor. constructor; auto. cbn.
@@ -317,12 +267,12 @@ Proof.
   constructor.
 Qed.
 
-Definition computes (x : string) (e : Exp) (f : Exp -> Exp) :=
-  forall v, ⟨[], EApp (EFun [x] e) [v]⟩ -->* f v.
+Definition computes (e : Exp) (f : Val -> Val) :=
+  forall v, ⟨[], EApp (VFun 1 e) [˝v]⟩ -->* f v.
 
-Fixpoint cons_to_list (e : Exp) : option (list Exp) :=
+Fixpoint cons_to_list (e : Val) : option (list Val) :=
 match e with
-| ENil => Some []
+| VNil => Some []
 | VCons e1 e2 => match cons_to_list e2 with
                  | Some e2'=> Some (e1 :: e2')
                  | _ => None
@@ -330,9 +280,9 @@ match e with
 | _ => None
 end.
 
-Fixpoint list_to_cons (l : list Exp) : Exp :=
+Fixpoint list_to_cons (l : list Val) : Val :=
 match l with
-| [] => ENil
+| [] => VNil
 | e1 :: xs => VCons e1 (list_to_cons xs)
 end.
 
@@ -348,102 +298,84 @@ Theorem step_determinism {e e' fs fs'} :
   (forall fs'' e'', ⟨fs, e⟩ --> ⟨fs'', e''⟩ -> fs'' = fs' /\ e'' = e').
 Proof.
   intro H. dependent induction H; intros.
-  * inversion H0; subst; try inversion H; try (proof_irr; auto).
-  * inversion H; subst. auto.
-  * inversion H0; subst; try inversion H'; try (proof_irr_many; auto).
-  * inversion H1; subst; try inversion H; auto.
-  * inversion H0; subst; try inversion H'; try (proof_irr_many; auto); try inversion_is_value.
-  * inversion H2; subst; try inversion_is_value; auto.
-  * inversion H0; subst; auto; try inversion H.
-  * inversion H1; subst; auto; try inversion_is_value.
-    rewrite H0 in H10. inversion H10. auto. congruence.
-  * inversion H2; subst; auto; try inversion_is_value. congruence.
-
-  * inversion H; subst; try inversion_is_value; try inversion H'; try inversion H1; try (proof_irr_many; auto).
-  * inversion H0; subst; try inversion_is_value. auto.
-  * inversion H1; subst; try inversion_is_value; auto.
-  * inversion H; subst; try inversion_is_value; try inversion H'; try inversion H1; try (proof_irr_many; auto).
-  * inversion H; subst; try congruence; try inversion_is_value; auto.
-  * inversion H; subst; try congruence; try inversion_is_value; auto.
-  * inversion H; subst; try congruence; try inversion_is_value; auto.
-  * inversion H; subst; try congruence; try inversion_is_value; auto.
-  * inversion H; subst; try congruence; try inversion_is_value; auto.
+  all: try by inv H.
+  all: try by inv H0.
 Qed.
 
-Theorem value_nostep v (H : VALCLOSED v) :
+Theorem value_nostep (v : Val) :
   forall fs' v', ⟨ [], v ⟩ --> ⟨fs' , v'⟩ -> False.
 Proof.
-  dependent induction H; intros.
-  * inversion H.
-  * inversion H.
-  * inversion H1.
+  dependent induction v; intros.
   * inversion H.
   * inversion H.
   * inversion H.
-  * inversion H0.
+  * inversion H.
+  * inversion H.
+  * inversion H.
 Qed.
 
 Theorem step_rt_determinism {e v fs fs' k} :
-  ⟨fs, e⟩ -[k]-> ⟨fs', v⟩ -> VALCLOSED v
+  ⟨fs, e⟩ -[k]-> ⟨fs', v⟩
 ->
   (forall fs'' v', ⟨fs, e⟩ -[k]-> ⟨fs'', v'⟩ -> fs' = fs'' /\ v' = v).
 Proof.
   intro. dependent induction H; intros.
-  * inversion H0; subst; auto.
-  * inversion H2; subst. apply IHstep_rt; auto. eapply step_determinism in H; eauto. destruct H. subst. auto.
+  * inversion H; subst; auto.
+  * inversion H1; subst. apply IHstep_rt; auto. eapply step_determinism in H; eauto. destruct H. subst. auto.
 Qed.
+
+
+Ltac destruct_scope :=
+match goal with
+| [H : EXP _ ⊢ VVal _ |- _] => inv H
+| [H : EXP _ ⊢ EExp _ |- _] => inv H
+| [H : VAL _ ⊢ VLit _ |- _] => inv H
+| [H : VAL _ ⊢ VPid _ |- _] => inv H
+| [H : VAL _ ⊢ VVar _ |- _] => inv H
+| [H : VAL _ ⊢ VFun _ _ |- _] => inv H
+| [H : VAL _ ⊢ VNil |- _] => inv H
+| [H : VAL _ ⊢ VCons _ _ |- _] => inv H
+| [H : NVAL _ ⊢ EApp _ _ |- _] => inv H
+| [H : NVAL _ ⊢ ELet _ _ |- _] => inv H
+| [H : NVAL _ ⊢ ECase _ _ _ _ |- _] => inv H
+| [H : NVAL _ ⊢ ECons _ _ |- _] => inv H
+| [H : NVAL _ ⊢ EReceive _ |- _] => inv H
+| [H : NVAL _ ⊢ EBIF _ _ |- _] => inv H
+| [H : FCLOSED _ |- _] => inv H
+| [H : FSCLOSED (_ :: _) |- _] => inv H
+| [H : FSCLOSED [] |- _] => inv H
+| [H : Forall _ (_ :: _) |- _] => inv H
+| [H : Forall _ [] |- _] => inv H
+end.
 
 Theorem step_closedness : forall F e F' e',
    ⟨ F, e ⟩ --> ⟨ F', e' ⟩ -> FSCLOSED F -> EXPCLOSED e
 ->
   FSCLOSED F' /\ EXPCLOSED e'.
 Proof.
-  intros F e F' e' IH. induction IH; intros; try inversion_is_value.
-  * inversion H0. subst. inversion H4. inversion H3. subst. split; auto.
-    constructor; auto. constructor; auto.
-  * inversion H. inversion H0. subst. split; auto. inversion H5. subst. cbn in H2.
-    apply -> subst_preserves_scope_exp; eauto.
-  * inversion H0. subst. inversion H5. inversion H9. subst. split; auto. constructor; auto.
-    constructor; auto.
-    apply Forall_app. split; auto.
-  * inversion H1. inversion H6. split. auto. subst. inversion H11.
-    apply -> subst_preserves_scope_exp; eauto. subst.
-    rewrite Nat.add_0_r. replace (S (length vl)) with (length (EFun vl e :: vs ++ [v])).
-    apply scoped_list_idsubst. constructor. auto. apply Forall_app. split; auto.
-    simpl. rewrite H0, app_length. simpl. lia.
-  * inversion H0. subst. inversion H4. inversion H3. subst. split; auto.
-    constructor; auto. constructor; auto.
-  * inversion H2. inversion H6. inversion H12.
-    subst. split; auto.
-    constructor; auto. constructor; auto.
-    apply Forall_app. split; auto.
-  * inversion H0. inversion H4. 
-    subst. split; auto. apply -> subst_preserves_scope_exp; eauto.
-  * inversion H1. inversion H5. subst. split; auto.
-    apply -> subst_preserves_scope_exp; eauto.
-    rewrite (match_pattern_length _ v l H0).
-    apply scoped_list_idsubst. eapply match_pattern_scoped; eauto.
-  * inversion H2. inversion H6. subst. split; auto.
-  * split; auto. inversion H0. 2: inversion H1. apply -> subst_preserves_scope_exp; eauto.
-  * inversion H0. inversion H4. subst. split; auto. repeat constructor; auto.
-  * inversion H1. inversion H5. subst. split; auto.
-  * inversion H; subst. split; auto.
-  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
-    now constructor.
-  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
-    constructor. rewrite indexed_to_forall. exact H4.
-  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
-    constructor. rewrite indexed_to_forall. exact H4.
-  * inversion H0. 2: inversion H1. subst. split; auto. constructor; auto.
-    constructor. rewrite Nat.add_0_r in H6. auto. auto.
-  * inversion H0; subst; split; auto. 1-2: constructor; auto; now constructor.
-    now inversion H1.
-Qed.
-
-Theorem result_VALCLOSED_any (fs : FrameStack) (e v : Exp) :
-  ⟨ fs, e ⟩ -->* v -> VALCLOSED v.
-Proof.
-  intros. destruct H. auto.
+  intros F e F' e' Hstep.
+  induction Hstep; intros HFs Hclosed; repeat destruct_scope.
+  all: split; repeat constructor; try by assumption.
+  * apply -> subst_preserves_scope_exp. eassumption.
+    intro. intros. destruct v. 2: lia. simpl. by constructor.
+  * apply Forall_app. split. assumption. by constructor.
+  * apply -> subst_preserves_scope_exp. eassumption.
+    pose proof scoped_list_idsubst ((VFun (S (length vs)) e :: vs ++ [v])).
+    replace (length (_ :: _)) with (S (S (length vs)) + 0)%nat in H.
+    2: simpl; rewrite length_app; simpl; lia. apply H.
+    constructor. by constructor.
+    apply Forall_app. split. assumption.
+    by constructor.
+  * apply Forall_app. split. assumption. by constructor.
+  * apply -> subst_preserves_scope_exp. eassumption.
+    intro. intros. destruct v. 2: lia. simpl. assumption.
+  * apply -> subst_preserves_scope_exp. eassumption.
+    pose proof (match_pattern_scoped _ _ _ _ H1 H) as X.
+    pose proof scoped_list_idsubst l _ X.
+    erewrite match_pattern_length; eassumption.
+  * eapply indexed_to_forall. eassumption.
+  * eapply indexed_to_forall. eassumption.
+  * by rewrite Nat.add_0_r in H5.
 Qed.
 
 Corollary step_any_closedness : forall F e v,
@@ -451,16 +383,16 @@ Corollary step_any_closedness : forall F e v,
 ->
   VALCLOSED v.
 Proof.
-  intros. destruct H, H2. induction H2.
-  * destruct e; try inversion H; now inversion H1.
-  * apply step_closedness in H2; auto.
+  intros. destruct H. dependent induction H.
+  * by inversion H1.
+  * apply step_closedness in H as []; auto.
 Qed.
 
 Definition terminates_sem (fs : FrameStack) (e : Exp) : Prop :=
   exists v, ⟨fs, e⟩ -->* v.
 
 Definition terminates_in_k_sem (fs : FrameStack) (e : Exp) (k : nat) : Prop :=
-  exists v, ⟨fs, e⟩ -[k]-> ⟨[], v⟩ /\ VALCLOSED v.
+  exists v : Val, ⟨fs, e⟩ -[k]-> ⟨[], v⟩.
 
 Open Scope nat_scope.
 
@@ -470,42 +402,41 @@ Open Scope nat_scope.
 Reserved Notation "| fs , e | k ↓" (at level 80).
 Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
 
-| term_value v : VALCLOSED v -> | [] , v | 0 ↓
+| term_value (v : Val) : | [] , v | 0 ↓
 | term_case_true fs e1 e2 k v p l :
-  VALCLOSED v ->  match_pattern p v = Some l -> | fs , e1.[list_subst l idsubst] | k ↓
+  match_pattern p v = Some l -> | fs , e1.[list_subst l idsubst] | k ↓
  ->
   | (FCase p e1 e2)::fs , v | S k ↓
 | term_case_false fs e1 e2 v k p :
-  VALCLOSED v ->  match_pattern p v = None -> | fs , e2 | k ↓ 
+  match_pattern p v = None -> | fs , e2 | k ↓ 
  -> 
   | (FCase p e1 e2)::fs , v | S k ↓
-| term_let_subst v e2 fs k x : VALCLOSED v -> | fs, e2.[v/] | k ↓ -> | (FLet x e2)::fs, v | S k ↓
-| term_letrec_subst vl b e fs f k : | fs, e.[EFun vl b/] | k ↓ -> | fs, ELetRec f vl b e | S k ↓
-| term_app_start v hd tl (H : VALCLOSED v) fs k : 
-  | (FApp2 v tl [])::fs, hd| k ↓ -> | (FApp1 (hd::tl))::fs, v | S k ↓
-| term_bif_start v hd tl (H : VALCLOSED v) fs k : 
-  | (FBIF2 v tl [])::fs, hd| k ↓ -> | (FBIF1 (hd::tl))::fs, v | S k ↓
-| term_app1 e fs k : | fs, e.[EFun [] e/] | k ↓ -> | (FApp1 [])::fs, EFun [] e | S k ↓
-| term_app_step v v' (H : VALCLOSED v) hd tl vs (H2 : Forall (fun v => VALCLOSED v) vs) (H' : VALCLOSED v') fs k :
-  | (FApp2 v tl (vs ++ [v']))::fs, hd | k ↓ -> | (FApp2 v (hd::tl) vs)::fs , v' | S k ↓
-| term_bif_step v v' (H : VALCLOSED v) hd tl vs (H2 : Forall (fun v => VALCLOSED v) vs) (H' : VALCLOSED v') fs k :
-  | (FBIF2 v tl (vs ++ [v']))::fs, hd | k ↓ -> | (FBIF2 v (hd::tl) vs)::fs , v' | S k ↓
+| term_let_subst v e2 fs k : | fs, e2.[v/] | k ↓ -> | (FLet e2)::fs, v | S k ↓
+| term_app_start v hd tl fs k : 
+  | (FApp2 v [] tl)::fs, hd| k ↓ -> | (FApp1 (hd::tl))::fs, v | S k ↓
+| term_bif_start v hd tl fs k : 
+  | (FBIF2 v [] tl)::fs, hd| k ↓ -> | (FBIF1 (hd::tl))::fs, v | S k ↓
+| term_app_fin e fs k : | fs, e.[VFun 0 e/] | k ↓ -> | (FApp1 [])::fs, VFun 0 e | S k ↓
+| term_app_step v v' hd tl vs fs k :
+  | (FApp2 v (vs ++ [v']) tl)::fs, hd | k ↓ -> | (FApp2 v vs (hd::tl))::fs , v' | S k ↓
+| term_bif_step v v' hd tl vs fs k :
+  | (FBIF2 v (vs ++ [v']) tl)::fs, hd | k ↓ -> | (FBIF2 v vs (hd::tl))::fs , v' | S k ↓
 | term_plus (i1 i2 : Z) fs k :
-  | fs, ELit (Z.add i1 i2) | k ↓ ->
-  | (FBIF2 (ELit "+"%string) [] ([ELit (Int i1)]))::fs, ELit (Int i2) | S k ↓
+  | fs, VLit (Z.add i1 i2) | k ↓ ->
+  | (FBIF2 (VLit "+"%string) [VLit (Int i1)] [])::fs, VLit (Int i2) | S k ↓
 
-| term_app2 v vl e vs fs (H2 : Forall (fun v => VALCLOSED v) vs) k :
-  length vl = S (length vs) -> VALCLOSED v -> | fs, e.[list_subst (EFun vl e  :: (vs ++ [v])) idsubst] | k ↓ 
--> | (FApp2 (EFun vl e) [] vs)::fs, v | S k ↓
-| term_cons1 e1 v2 fs k (H: VALCLOSED v2):
+| term_app2 v vl e vs fs k :
+  vl = S (length vs) -> | fs, e.[list_subst (VFun vl e  :: (vs ++ [v])) idsubst] | k ↓ 
+-> | (FApp2 (VFun vl e) vs [])::fs, v | S k ↓
+| term_cons1 e1 v2 fs k:
   | FCons2 v2::fs, e1 | k ↓ -> | FCons1 e1 :: fs, v2 | S k ↓
-| term_cons2 v1 v2 fs k (H: VALCLOSED v2) (H0 : VALCLOSED v1):
+| term_cons2 v1 v2 fs k :
   | fs, VCons v1 v2 | k ↓ -> | FCons2 v2 :: fs, v1 | S k ↓
 
 | term_case e e1 e2 fs k p : | (FCase p e1 e2)::fs, e | k ↓ -> | fs, ECase e p e1 e2 | S k ↓
 | term_app e vs fs k : | (FApp1 vs)::fs, e | k ↓ -> | fs, EApp e vs | S k ↓
 | term_bif e vs fs k : | (FBIF1 vs)::fs, e | k ↓ -> | fs, EBIF e vs | S k ↓
-| term_let v e1 e2 fs k : | (FLet v e2)::fs, e1 | k ↓ -> | fs, ELet v e1 e2 | S k ↓
+| term_let e1 e2 fs k : | (FLet e2)::fs, e1 | k ↓ -> | fs, ELet e1 e2 | S k ↓
 | term_cons fs e1 e2 k :
   | FCons1 e1 :: fs, e2 | k ↓ -> | fs, ECons e1 e2 | S k ↓
 where "| fs , e | k ↓" := (terminates_in_k fs e k).
@@ -516,60 +447,27 @@ Notation "| fs , e | ↓" := (terminates fs e) (at level 80).
 Theorem terminates_in_k_eq_terminates_in_k_sem :
   forall k e fs, terminates_in_k_sem fs e k <-> | fs, e | k ↓.
 Proof.
-  induction k; intros.
-  * split; intros.
-    - inversion H. inversion H0. inversion H1. now constructor.
-    - inversion H. subst. econstructor. split. constructor. auto.
-  * split; intros.
-    {
-      inversion H. clear H. inversion H0; inversion H; subst.
-      assert (terminates_in_k_sem fs' e' k). { econstructor. eauto. } apply IHk in H2.
-      clear H0. inversion H3; subst.
-      1-7, 10-18: try econstructor; eauto.
-      * eapply term_case_true; eauto.
-      * apply term_case_false; auto.
-    }
-    {
-      inversion H; subst; clear H.
-      3-12: try match goal with
-      | [ H1 : | _, _ | _ ↓ |- _] => 
-         apply IHk in H1; destruct H1 as [e0 [H1e H1k]]; econstructor; split; 
-           [ econstructor; [ constructor | eauto ] | auto ]
-      end.
-      all : auto.
-      * apply IHk in H5. destruct H5, H.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H5. destruct H5, H.
-        econstructor; split. econstructor. apply red_case_false. all: eauto.
-      * apply IHk in H3. destruct H3, H.
-        econstructor; split. econstructor. constructor. eauto. auto.
-      * apply IHk in H3. destruct H3, H.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H6. destruct H6, H.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H5. destruct H5, H.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H.
-        econstructor; split. econstructor. constructor. all: eauto.
-      * apply IHk in H3. destruct H3, H.
-        econstructor; split. econstructor. constructor. all: eauto.
-    }
+  split.
+  * intros [v Hrt].
+    remember [] as fs' eqn:Hfs in Hrt.
+    remember (˝ v) as e' eqn:He in Hrt.
+    induction Hrt.
+    - inversion Hfs; inversion He; subst. constructor.
+    - subst. dependent destruction H; eauto using terminates_in_k.
+  * intros Hterm. induction Hterm.
+    exists v. apply step_refl.
+    all: destruct IHHterm as [w Hrt]; exists w; econstructor; [econstructor; eauto | exact Hrt].
 Qed.
 
 Corollary terminates_eq_terminates_sem :
   forall e fs, terminates_sem fs e <-> | fs, e | ↓.
 Proof.
-  split; intros; inversion H.
-  * destruct H0, H1. econstructor. apply terminates_in_k_eq_terminates_in_k_sem.
-    econstructor. split; eauto.
-  * apply terminates_in_k_eq_terminates_in_k_sem in H0. destruct H0, H0. econstructor.
-    split. eauto. econstructor. eauto.
+  split; intros.
+  * destruct H as [v [k Hrt]]. exists k.
+    apply terminates_in_k_eq_terminates_in_k_sem. exists v. exact Hrt.
+  * destruct H as [k Hterm].
+    apply terminates_in_k_eq_terminates_in_k_sem in Hterm.
+    destruct Hterm as [v Hrt]. exists v. exists k. exact Hrt.
 Qed.
 
 Theorem terminates_step :
@@ -577,11 +475,14 @@ Theorem terminates_step :
 ->
   | fs', e' | ↓.
 Proof.
-  intros. apply terminates_eq_terminates_sem in H. destruct H, H, H1. destruct x0.
-  * inversion H1. subst. apply value_nostep in H0; intuition.
-  * inversion H1. subst. apply (step_determinism H0) in H3. destruct H3. subst.
-    assert (terminates_sem fs' e'). { eexists. split. eauto. eexists. eauto. } apply terminates_eq_terminates_sem in H2.
-    auto.
+  intros fs e Hterm fs' e' Hstep.
+  apply terminates_eq_terminates_sem in Hterm.
+  destruct Hterm as [v [k Hrt]].
+  destruct k.
+  * inversion Hrt. subst. apply value_nostep in Hstep; intuition.
+  * inversion Hrt as [| fs0 e0 fs1 e1 fs2 e2 k' Hstep' Hrt']; subst.
+    apply (step_determinism Hstep) in Hstep'. destruct Hstep'. subst.
+    apply terminates_eq_terminates_sem. exists v. eexists. exact Hrt'.
 Qed.
 
 Theorem terminates_step_2 :
@@ -589,14 +490,13 @@ Theorem terminates_step_2 :
 ->
   | fs', e' | n - 1↓.
 Proof.
-  intros. apply terminates_in_k_eq_terminates_in_k_sem in H. destruct H. destruct n.
-  * destruct H. inversion H. subst. apply value_nostep in H0; intuition.
-  * destruct H.
-    inversion H. subst. apply (step_determinism H0) in H3. destruct H3. subst.
-    assert (exists y, ⟨ fs', e' ⟩ -[ n ]-> ⟨ [], y ⟩ /\ VALCLOSED y). { 
-      eexists. eauto. }
-    apply ex_intro in H6. apply terminates_in_k_eq_terminates_in_k_sem in H2.
-    now rewrite Nat.sub_1_r.
+  intros n fs e Hterm fs' e' Hstep.
+  apply terminates_in_k_eq_terminates_in_k_sem in Hterm.
+  destruct Hterm as [v Hrt]. destruct n.
+  * inversion Hrt. subst. apply value_nostep in Hstep; intuition.
+  * inversion Hrt as [| fs0 e0 fs1 e1 fs2 e2 k' Hstep' Hrt']; subst.
+    apply (step_determinism Hstep) in Hstep'. destruct Hstep'. subst.
+    apply terminates_in_k_eq_terminates_in_k_sem. exists v. now rewrite Nat.sub_1_r.
 Qed.
 
 Corollary terminates_step_any :
@@ -634,9 +534,9 @@ Corollary term_step_term :
   | fs, e | n ↓.
 Proof.
   intros. apply terminates_in_k_eq_terminates_in_k_sem.
-  apply terminates_in_k_eq_terminates_in_k_sem in H0. destruct H0, H0.
-  pose proof (transitive_eval _ _ _ _ _ H _ _ _ H0). replace (k+(n-k)) with n in H3 by lia.
-  eexists. eauto.
+  apply terminates_in_k_eq_terminates_in_k_sem in H0. destruct H0 as [v Hrt].
+  pose proof (transitive_eval _ _ _ _ _ H _ _ _ Hrt). replace (k+(n-k)) with n in H0 by lia.
+  eexists. exact H0.
 Qed.
 
 Corollary term_step_term_plus :
@@ -646,66 +546,69 @@ Corollary term_step_term_plus :
   | fs, e | k + k2 ↓.
 Proof.
   intros. apply terminates_in_k_eq_terminates_in_k_sem.
-  apply terminates_in_k_eq_terminates_in_k_sem in H0. destruct H0, H0.
-  pose proof (transitive_eval _ _ _ _ _ H _ _ _ H0).
-  eexists. eauto.
+  apply terminates_in_k_eq_terminates_in_k_sem in H0. destruct H0 as [v Hrt].
+  pose proof (transitive_eval _ _ _ _ _ H _ _ _ Hrt).
+  eexists. exact H0.
 Qed.
 
 Lemma eval_app_partial :
-  forall vals vl e v Fs hds (P : VALCLOSED (EFun vl e)), length vl = length (hds ++ v :: vals) ->
-  Forall (fun v => VALCLOSED v) vals -> Forall (fun v => VALCLOSED v) hds -> VALCLOSED v ->
-  ⟨ FApp2 (EFun vl e) vals hds :: Fs, v ⟩ -[S (length vals)]-> ⟨ Fs , e.[list_subst (EFun vl e :: (hds ++ v :: vals)) idsubst]⟩.
+  forall vals vl e v Fs hds, vl = length (hds ++ v :: vals) ->
+  ⟨ FApp2 (VFun vl e) hds (map VVal vals) :: Fs, v ⟩ -[S (length vals)]-> ⟨ Fs , e.[list_subst (VFun vl e :: (hds ++ v :: vals)) idsubst]⟩.
 Proof.
   induction vals; intros.
-  * simpl. econstructor. constructor; auto. rewrite app_length in H. simpl in H. lia.
+  * simpl. econstructor. apply red_app2. rewrite app_length in H. simpl in H. lia.
     constructor.
-  * simpl. econstructor. constructor; auto. inversion H0. subst.
-    epose proof (IHvals vl e a _ (hds ++ [v]) _ _ H6 _ H5). rewrite <- app_assoc in H3.
-    exact H3.
-  Unshelve.
-    auto.
-    rewrite <- app_assoc. auto. apply Forall_app. split. auto. constructor; auto.
+  * simpl. econstructor. apply app2_step.
+    assert (Hlen : vl = length ((hds ++ [v]) ++ a :: vals)).
+    { rewrite <- app_assoc. exact H. }
+    epose proof (IHvals vl e a _ (hds ++ [v]) Hlen) as H'.
+    rewrite <- app_assoc in H'. exact H'.
 Qed.
 
 Lemma app1_eval :
-  forall vals Fs vl e (P : VALCLOSED (EFun vl e)), Forall (fun v => VALCLOSED v) vals -> length vl = length vals ->
+  forall vals Fs vl e, vl = length vals ->
   exists k : nat,
-  ⟨ [FApp1 vals] ++ Fs, EFun vl e ⟩ -[ k ]-> ⟨ Fs, e.[EFun vl e .: list_subst vals idsubst] ⟩.
+  ⟨ [FApp1 (map VVal vals)] ++ Fs, VFun vl e ⟩ -[ k ]-> ⟨ Fs, e.[VFun vl e .: list_subst vals idsubst] ⟩.
 Proof.
-  destruct vals; intros.
-  * apply length_zero_iff_nil in H0. subst. exists 1. econstructor.
-    simpl. constructor. cbn. constructor.
-  * exists (S (S (length vals))). simpl. econstructor. constructor. auto.
-    inversion H. subst.
-    apply eval_app_partial; auto.
+  destruct vals as [|a vals]; intros.
+  * simpl in H. subst. exists 1. econstructor.
+    simpl. apply red_app_fin. cbn. constructor.
+  * exists (S (S (length vals))). simpl.
+    eapply step_trans
+      with (fs' := FApp2 (VFun vl e) [] (map VVal vals) :: Fs)
+           (e' := a) (k := S (length vals));
+      [apply red_app_start | apply eval_app_partial; exact H].
 Qed.
 
 Lemma eval_app_partial_core :
-  forall hds' vals vl e e' v Fs hds (P : VALCLOSED (EFun vl e)),
-  Forall (fun v => VALCLOSED v) hds -> Forall (fun v => VALCLOSED v) hds' -> VALCLOSED v ->
-  ⟨ FApp2 (EFun vl e) (hds' ++ e' :: vals) hds :: Fs, v ⟩ -[S (length hds')]-> 
-  ⟨ FApp2 (EFun vl e) vals (hds ++ v :: hds') :: Fs , e'⟩.
+  forall (hds' : list Val) (vals : list Exp) vl e (e' : Exp) (v : Val) Fs hds,
+  ⟨ FApp2 (VFun vl e) hds (map VVal hds' ++ e' :: vals) :: Fs, v ⟩ -[S (length hds')]-> 
+  ⟨ FApp2 (VFun vl e) (hds ++ v :: hds') vals :: Fs , e'⟩.
 Proof.
   induction hds'; intros.
-  * simpl. econstructor. constructor; auto. constructor.
-  * simpl. econstructor. constructor; auto. inversion H0. subst.
-    epose proof (IHhds' vals vl e _ a Fs (hds ++ [v]) _ _ _ H4).
-    rewrite <- app_assoc in H2. exact H2.
-  Unshelve.
-    auto.
-    apply Forall_app. split; auto. auto.
+  * simpl. econstructor. apply app2_step.
+    constructor.
+  * simpl. econstructor. apply app2_step.
+    epose proof (IHhds' vals vl e _ a Fs (hds ++ [v])) as H'.
+    rewrite <- app_assoc in H'. exact H'.
 Qed.
 
-Lemma full_eval_app_partial : forall e vals vl Fs (P : VALCLOSED (EFun vl e)),
-  length vl = length vals -> Forall (fun v => VALCLOSED v) vals ->
-  ⟨ Fs, EApp (EFun vl e) vals ⟩ -[2 + length vals]-> ⟨ Fs, e.[EFun vl e .: list_subst vals idsubst] ⟩.
+Lemma full_eval_app_partial : forall e vals vl Fs,
+  vl = length vals ->
+  ⟨ Fs, EApp (VFun vl e) (map VVal vals) ⟩ -[2 + length vals]-> ⟨ Fs, e.[VFun vl e .: list_subst vals idsubst] ⟩.
 Proof.
-  destruct vals; intros.
-  - simpl. apply length_zero_iff_nil in H. subst. econstructor. constructor.
-    econstructor. constructor. constructor.
-  - simpl. econstructor. constructor.
-    econstructor. constructor. auto. inversion H0.
-    apply eval_app_partial; auto.
+  destruct vals as [|a vals]; intros.
+  - simpl in H. subst. econstructor. apply step_app.
+    econstructor. apply red_app_fin. constructor.
+  - simpl.
+    eapply step_trans
+      with (fs' := FApp1 (map VVal (a :: vals)) :: Fs)
+           (e' := VFun vl e) (k := S (S (length vals)));
+      [apply step_app |
+       eapply step_trans
+         with (fs' := FApp2 (VFun vl e) [] (map VVal vals) :: Fs)
+              (e' := a) (k := S (length vals));
+         [apply red_app_start | apply eval_app_partial; exact H] ].
 Qed.
 
 Theorem transitive_eval_rev : forall Fs Fs' e e' k1,
@@ -722,34 +625,32 @@ Proof.
     apply IHIH in H5. auto.
 Qed.
 
-Theorem app_term_fun : forall tl k hds e e' Fs (P : EXPCLOSED e)   (PP : Forall (fun v => EXPCLOSED v) tl),
-  | FApp2 e' tl hds :: Fs, e | k ↓ ->
-  Forall (fun v => VALCLOSED v) hds ->
+Theorem app_term_fun : forall tl k hds e e' Fs,
+  | FApp2 e' hds tl :: Fs, e | k ↓ ->
   (forall m : nat,
     m < S k ->
     forall (Fs : FrameStack) (e : Exp),
-    EXPCLOSED e -> | Fs, e | m ↓ ->
-    exists (v : Exp) (k : nat), VALCLOSED v /\ ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩)
+    | Fs, e | m ↓ ->
+    exists (v : Val) (k : nat), ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩)
 ->
-  exists vl b, e' = EFun vl b /\ length vl = S (length (hds ++ tl)).
+  exists vl b, e' = VFun vl b /\ vl = S (length hds + length tl).
 Proof.
   induction tl; intros.
-  * apply H1 in H as H'. 2: lia. destruct H', H2, H2.
-    eapply terminates_step_any_2 in H. 2: exact H3.
-    inversion H; subst; try inversion_is_value.
-    rewrite app_length, Nat.add_0_r. do 2 eexists. split. reflexivity. auto.
-    congruence.
-  * apply H1 in H as H'; auto. destruct H', H2, H2.
-    eapply terminates_step_any_2 in H. 2: exact H3.
-    inversion H; subst; try inversion_is_value.
-    apply H1 in H13 as H''. 2: lia. destruct H'', H4, H4.
-    eapply terminates_step_any_2 in H13. 2: exact H5.
-    apply IHtl in H13. destruct H13, H6, H6. subst. exists x3, x4. split; auto.
-    repeat rewrite app_length in *. simpl in *. lia.
-    3: apply Forall_app; auto.
-    2,4: inversion PP; auto.
-    constructor. auto.
-    intros. eapply H1. 3: exact H8. lia. auto.
+  * pose proof H as Hterm.
+    apply H0 in Hterm as [x [k0 Hrt]]. 2: lia.
+    eapply terminates_step_any_2 in H. 2: exact Hrt.
+    inversion H; subst; clear H; try congruence.
+    all: try solve [do 2 eexists; split; [reflexivity| rewrite Nat.add_0_r; lia] ].
+  * pose proof H as Hterm.
+    apply H0 in Hterm as [x [k0 Hrt]]. 2: lia.
+    eapply terminates_step_any_2 in H. 2: exact Hrt.
+    inversion H; subst; clear H; try congruence.
+    pose proof H2 as Hsub.
+    apply H0 in H2 as [y [k2 Hrt2]]. 2: lia.
+    eapply terminates_step_any_2 in Hsub; [| exact Hrt2 ].
+    apply IHtl in Hsub. destruct Hsub as [? [? [Eq1 Eq2]]]. subst.
+    do 2 eexists. split. reflexivity. rewrite length_app; simpl. lia.
+    intros. eapply H0. 2: eassumption. lia.
 Qed.
 
 Theorem frame_indep_step : forall e F F' Fs e',
@@ -782,7 +683,7 @@ Proof.
   induction k; intros.
   * inversion H. subst. constructor.
   * inversion H. subst. inversion H1; subst.
-    1-8, 10-18: simpl; econstructor; try constructor; auto.
+    1-8, 10-17: simpl; econstructor; try constructor; auto.
     all: try (eapply IHk in H4; simpl in H4; exact H4); auto.
     econstructor. apply red_case_false; auto. apply IHk; auto.
 Qed.
@@ -800,30 +701,29 @@ Lemma term_app_length : forall tl hds e k Fs x0,
     m < S k ->
     forall (Fs : FrameStack) (e : Exp),
     | Fs, e | m ↓ ->
-    exists (v : Exp) (k : nat), VALCLOSED v /\ ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩ /\ k <= m) ->
+    exists (v : Val) (k : nat), ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩ /\ k <= m) ->
   | FApp2 x0 tl hds :: Fs, e | k ↓ -> k > length tl.
 Proof.
   induction tl; intros.
   * inversion H0; simpl; lia.
-  * simpl. apply H in H0 as H0'. destruct H0', H1, H1, H2.
-    eapply (terminates_step_any_2 _ _ _ _ H0) in H2 as H2'.
-    inversion H2'; subst; try inversion_is_value.
-    eapply IHtl in H13. lia. intros. apply H. lia. auto. lia.
+  * simpl. apply H in H0 as H0'. 2: lia. destruct H0' as [? [? [? ?]]].
+    eapply (terminates_step_any_2 _ _ _ _ H0) in H1 as H1'.
+    
 Qed.
 
 Lemma eval_app_partial_core_2 :
-  forall hds' vals vl e e' v Fs hds k (P : VALCLOSED (EFun vl e)) (PP : Forall (fun v => EXPCLOSED v) hds'),
+  forall hds' vals vl e e' v Fs hds k (P : VALCLOSED (VFun vl e)) (PP : Forall (fun v => EXPCLOSED v) hds'),
   (forall m : nat,
     m < S k ->
     forall (Fs : FrameStack) (e : Exp),
     EXPCLOSED e -> | Fs, e | m ↓ ->
     exists (v : Exp) (k : nat), VALCLOSED v /\ ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩) ->
-  | FApp2 (EFun vl e) (hds' ++ e' :: vals) hds :: Fs, v | k ↓ ->
+  | FApp2 (VFun vl e) (hds' ++ e' :: vals) hds :: Fs, v | k ↓ ->
   VALCLOSED v ->
   Forall (fun v => VALCLOSED v) hds ->
   exists k0 hds'', k0 <= k /\ Forall (fun v => VALCLOSED v) hds'' /\
-  ⟨ FApp2 (EFun vl e) (hds' ++ e' :: vals) hds :: Fs, v ⟩ -[k0]-> 
-  ⟨ FApp2 (EFun vl e) vals (hds ++ v :: hds'') :: Fs , e'⟩.
+  ⟨ FApp2 (VFun vl e) (hds' ++ e' :: vals) hds :: Fs, v ⟩ -[k0]-> 
+  ⟨ FApp2 (VFun vl e) vals (hds ++ v :: hds'') :: Fs , e'⟩.
 Proof.
   induction hds'; intros.
   * simpl in *. inversion H0; subst; try inversion_is_value.
@@ -835,8 +735,8 @@ Proof.
     2: { destruct hds'; inversion H7. }
     destruct hds'; simpl in H6; inversion H6; subst.
     - simpl in H4.
-      assert (⟨ FApp2 (EFun vl e) (e' :: vals) (hds ++ [v]) :: Fs, x ⟩ -[1]->
-           ⟨ FApp2 (EFun vl e) vals ((hds ++ [v]) ++ [x]) :: Fs, e' ⟩).
+      assert (⟨ FApp2 (VFun vl e) (e' :: vals) (hds ++ [v]) :: Fs, x ⟩ -[1]->
+           ⟨ FApp2 (VFun vl e) vals ((hds ++ [v]) ++ [x]) :: Fs, e' ⟩).
            { do 2 econstructor; auto. }
       epose proof (transitive_eval _ _ _ _ _ H4 _ _ _ H5).
       exists (S (x0 + 1)), [x]. split. lia. split. auto.
@@ -967,10 +867,10 @@ Proof.
     inversion P. 2: inversion_is_value. apply -> subst_preserves_scope_exp; eauto.
   * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor ].
-  * exists (EFun [] e0), 0. inversion P. split; [ auto | do 2 constructor].
+  * exists (VFun [] e0), 0. inversion P. split; [ auto | do 2 constructor].
   * exists e, 0. split; [ auto | now constructor].
   * exists e, 0. split; [ auto | now constructor ].
-  * exists (ELit i2), 0. split; [ auto | now constructor ].
+  * exists (VLit i2), 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor ].
   * exists e, 0. split; [ auto | now constructor ].
@@ -1012,11 +912,11 @@ Proof.
         eapply (terminates_step_any_2 _ _ _ _ PP) in H5_1 as H5'.
         inversion H5'; subst; try inversion_is_value.
         apply H in H16. 2: lia. destruct H16, H6, H6.
-        assert (⟨ [FApp2 (EFun vl e1) [] []], x2 ⟩ -[1]-> ⟨ [], e1.[list_subst (EFun vl e1 :: [] ++ [x2]) idsubst] ⟩).
+        assert (⟨ [FApp2 (VFun vl e1) [] []], x2 ⟩ -[1]-> ⟨ [], e1.[list_subst (VFun vl e1 :: [] ++ [x2]) idsubst] ⟩).
         { repeat econstructor; auto. }
         eapply frame_indep_nil in H7.
         epose proof (transitive_eval _ _ _ _ _ H10 _ _ _ H7).
-        assert (⟨ [FApp1 [e]], EFun vl e1 ⟩ -[1]-> ⟨ [FApp2 (EFun vl e1) [] []], e ⟩). { do 2 econstructor; auto. }
+        assert (⟨ [FApp1 [e]], VFun vl e1 ⟩ -[1]-> ⟨ [FApp2 (VFun vl e1) [] []], e ⟩). { do 2 econstructor; auto. }
         eapply frame_indep_nil in H2.
         epose proof (transitive_eval _ _ _ _ _ H2 _ _ _ H16).
         eapply frame_indep_nil in H5.
@@ -1043,14 +943,14 @@ Proof.
         apply H in H21. 2: lia. destruct H21, H13, H13.
         eapply frame_indep_nil in H12.
         epose proof (transitive_eval _ _ _ _ _ H10 _ _ _ H12).
-        assert (⟨ [FApp2 (EFun vl e1) [] (x2 :: x7)], x8 ⟩ -[1]->
-              ⟨ [], e1.[list_subst (EFun vl e1 :: (x2 :: x7) ++ [x8]) idsubst] ⟩). { econstructor. constructor; auto. constructor. }
+        assert (⟨ [FApp2 (VFun vl e1) [] (x2 :: x7)], x8 ⟩ -[1]->
+              ⟨ [], e1.[list_subst (VFun vl e1 :: (x2 :: x7) ++ [x8]) idsubst] ⟩). { econstructor. constructor; auto. constructor. }
         epose proof (transitive_eval _ _ _ _ _ H15 _ _ _ H18).
         epose proof (transitive_eval _ _ _ _ _ H21 _ _ _ H14).
         eapply frame_indep_nil in H5.
         epose proof (transitive_eval _ _ _ _ _ H5 _ _ _ H22).
-        assert (⟨ [FApp1 (e :: x4 ++ [x5])], EFun vl e1 ⟩ -[1]->
-            ⟨ [FApp2 (EFun vl e1) (x4 ++ [x5]) []] , e ⟩).
+        assert (⟨ [FApp1 (e :: x4 ++ [x5])], VFun vl e1 ⟩ -[1]->
+            ⟨ [FApp2 (VFun vl e1) (x4 ++ [x5]) []] , e ⟩).
             { econstructor. constructor. auto. constructor. }
         simpl app in *.
         epose proof (transitive_eval _ _ _ _ _ H24 _ _ _ H23).
@@ -1061,7 +961,7 @@ Proof.
         econstructor. constructor. auto.
      Unshelve.
        ** inversion H1. subst. apply -> subst_preserves_scope_exp; eauto.
-          replace (S (Datatypes.length vl) + 0) with (length ((EFun vl e1 :: (x2 :: x7) ++ [x8]))). 2: { simpl. rewrite app_length. simpl in *. lia. }
+          replace (S (Datatypes.length vl) + 0) with (length ((VFun vl e1 :: (x2 :: x7) ++ [x8]))). 2: { simpl. rewrite app_length. simpl in *. lia. }
           apply scoped_list_idsubst. simpl. do 2 constructor; auto.
           apply Forall_app; auto.
         ** inversion P. 2: inversion_is_value.
@@ -1121,7 +1021,7 @@ Proof.
       eapply frame_indep_nil in Der''.
       eapply (terminates_step_any_2 _ _ _ _ Der') in Der'' as Der'''.
       inversion Der'''; subst; try inversion_is_value.
-      exists (ELit (i1 + i2)%Z). eexists.
+      exists (VLit (i1 + i2)%Z). eexists.
       split; auto.
       econstructor. constructor.
       eapply transitive_eval. exact COMP''.
@@ -1177,7 +1077,7 @@ Corollary app_term_fun_final : forall tl k hds e e' Fs,
   | FApp2 e' tl hds :: Fs, e | k ↓ -> Forall (fun v => VALCLOSED v) hds ->
   EXPCLOSED e -> Forall (fun e => EXPCLOSED e) tl
 ->
-  exists vl b, e' = EFun vl b /\ length vl = S (length (hds ++ tl)).
+  exists vl b, e' = VFun vl b /\ length vl = S (length (hds ++ tl)).
 Proof.
   intros. eapply app_term_fun; eauto.
   intros. eapply term_eval. eauto. eauto.
@@ -1193,7 +1093,7 @@ Qed.
 
 Theorem app_term_conditions : forall l1 l2 v e x Fs (P : EXPCLOSED e) (PP : Forall (fun e => EXPCLOSED e) l1), 
   | FApp2 v l1 l2 :: Fs, e | x ↓ ->
-  Forall (fun v => VALCLOSED v) l2 /\ exists vl e', v = EFun vl e'.
+  Forall (fun v => VALCLOSED v) l2 /\ exists vl e', v = VFun vl e'.
 Proof.
   induction l1; intros.
   * apply term_eval in H as H'; auto. destruct H', H0, H0.
@@ -1307,10 +1207,10 @@ Proof.
     exact H1.
 Qed.
 
-Theorem term_app_in_k : forall Fs vl vals e k (P : VALCLOSED (EFun vl e)),
+Theorem term_app_in_k : forall Fs vl vals e k (P : VALCLOSED (VFun vl e)),
   length vl = length vals -> Forall (fun v => VALCLOSED v) vals ->
-  | Fs, e.[EFun vl e .: list_subst vals idsubst] | k ↓ ->
-  | Fs, EApp (EFun vl e) vals | 2 + length vl + k ↓.
+  | Fs, e.[VFun vl e .: list_subst vals idsubst] | k ↓ ->
+  | Fs, EApp (VFun vl e) vals | 2 + length vl + k ↓.
 Proof.
   intros. inversion H0; try inversion_is_value; subst.
   * apply length_zero_iff_nil in H. subst.
@@ -1322,7 +1222,7 @@ Proof.
       subst. apply Forall_app in H3 as [H3_1 H3_2]. inversion H3_2. subst.
       epose proof (eval_app_partial_core l' [] vl e l'x x Fs []
          ltac:(constructor) _ H3_1 H2). cbn in H3.
-      assert (⟨ FApp2 (EFun vl e) [] (x :: l') :: Fs, l'x ⟩ -[1]-> ⟨ Fs, e.[EFun vl e .: list_subst (x :: l' ++ [l'x]) idsubst] ⟩). { 
+      assert (⟨ FApp2 (VFun vl e) [] (x :: l') :: Fs, l'x ⟩ -[1]-> ⟨ Fs, e.[VFun vl e .: list_subst (x :: l' ++ [l'x]) idsubst] ⟩). { 
         econstructor; constructor. all: auto.
         simpl. simpl in H. rewrite app_length in H. simpl in H. lia.
       }
@@ -1341,7 +1241,7 @@ Theorem obj_map_on_meta_level :
   forall l' l x e f
   (VsCL : VALCLOSED l) (SCE : EXP 2 ⊢ e),
   computes x e f -> cons_to_list l = Some l' ->
-  ⟨[], obj_map (EFun [x] e) l⟩ -->* list_to_cons (map f l').
+  ⟨[], obj_map (VFun [x] e) l⟩ -->* list_to_cons (map f l').
 Proof.
   induction l'; intros.
   * destruct l; simpl in H0; inversion H0.
@@ -1417,11 +1317,11 @@ Proof.
     repeat rewrite up_comp.
     repeat rewrite (proj2 (scoped_ignores_sub 2) e); auto.
     apply frame_indep_nil with (Fs' := [FCons1
-     (EApp (EFun [x] e)
-        [a.[EFun [FVar; XVar]
-              (ECase (EVar 2) (PCons PVar PVar)
-                 (ECons (EApp (EVar 3) [EVar 0])
-                    (EApp (EFunId 2) [EVar 3; EVar 1])) ENil)/]])]) in H1. simpl in H1.
+     (EApp (VFun [x] e)
+        [a.[VFun [FVar; XVar]
+              (ECase (VVar 2) (PCons PVar PVar)
+                 (ECons (EApp (VVar 3) [VVar 0])
+                    (EApp (VFunId 2) [VVar 3; VVar 1])) VNil)/]])]) in H1. simpl in H1.
     eapply transitive_eval.
     rewrite (proj2 (scoped_ignores_sub 2) e) in H1; auto.
     exact H1.
@@ -1438,15 +1338,15 @@ Theorem obj_foldr_on_meta_level :
   forall l' l x y z e f
   (VsCL : VALCLOSED l) (SCE : EXP 2 ⊢ e),
   computes x e f -> cons_to_list l = Some l' ->
-  ⟨[], obj_foldr (EFun [y;z] (ECons (EApp (EFun [x] e) [EVar 1]) (EVar 2))) l ENil⟩
+  ⟨[], obj_foldr (VFun [y;z] (ECons (EApp (VFun [x] e) [VVar 1]) (VVar 2))) l VNil⟩
  -->* list_to_cons (map f l').
 Proof.
   induction l'; intros.
-  * assert (VALCLOSED (EFun [FVar; DVar; XVar]
-             (ECase (EVar 3) (PCons PVar PVar)
-                (EApp (EVar 3)
-                   [EVar 0; EApp (EFunId 2) [EVar 3; EVar 4; EVar 1]])
-                (EVar 2)))) as CLF1. {
+  * assert (VALCLOSED (VFun [FVar; DVar; XVar]
+             (ECase (VVar 3) (PCons PVar PVar)
+                (EApp (VVar 3)
+                   [VVar 0; EApp (VFunId 2) [VVar 3; VVar 4; VVar 1]])
+                (VVar 2)))) as CLF1. {
       do 2 constructor; auto. constructor; simpl; auto.
       * do 2 constructor. lia.
       * intros. destruct i. 2: destruct i. do 2 constructor. 1, 3: lia.
@@ -1456,7 +1356,7 @@ Proof.
         1-3: do 2 constructor. all: lia.
       * simpl. do 2 constructor. lia.
     }
-    assert (VALCLOSED (EFun [y; z] (ECons (EApp (EFun [x] e) [EVar 1]) (EVar 2)))). {
+    assert (VALCLOSED (VFun [y; z] (ECons (EApp (VFun [x] e) [VVar 1]) (VVar 2)))). {
       constructor. simpl. do 2 constructor.
       * do 2 constructor. simpl. now apply (proj2 (scope_ext_app 5 2 ltac:(lia))).
       * intros. simpl in H1. destruct i. do 2 constructor. all: lia.
@@ -1493,11 +1393,11 @@ Proof.
     specialize (H a) as [? [kk DER]].
     (***)
     unfold obj_map. split. { simpl. constructor; auto. }
-    assert (VALCLOSED (EFun [FVar; DVar; XVar]
-             (ECase (EVar 3) (PCons PVar PVar)
-                (EApp (EVar 3)
-                   [EVar 0; EApp (EFunId 2) [EVar 3; EVar 4; EVar 1]])
-                (EVar 2)))) as CLF1. {
+    assert (VALCLOSED (VFun [FVar; DVar; XVar]
+             (ECase (VVar 3) (PCons PVar PVar)
+                (EApp (VVar 3)
+                   [VVar 0; EApp (VFunId 2) [VVar 3; VVar 4; VVar 1]])
+                (VVar 2)))) as CLF1. {
       do 2 constructor; auto. constructor; simpl; auto.
       * do 2 constructor. lia.
       * intros. destruct i. 2: destruct i. do 2 constructor. 1, 3: lia.
@@ -1507,7 +1407,7 @@ Proof.
         1-3: do 2 constructor. all: lia.
       * simpl. do 2 constructor. lia.
     }
-    assert (VALCLOSED (EFun [y; z] (ECons (EApp (EFun [x] e) [EVar 1]) (EVar 2)))) as CLVF2. {
+    assert (VALCLOSED (VFun [y; z] (ECons (EApp (VFun [x] e) [VVar 1]) (VVar 2)))) as CLVF2. {
       constructor. simpl. do 2 constructor.
       * do 2 constructor. simpl. now apply (proj2 (scope_ext_app 5 2 ltac:(lia))).
       * intros. simpl in H1. destruct i. do 2 constructor. lia.
@@ -1539,7 +1439,7 @@ Proof.
     econstructor. constructor.
     econstructor. constructor. auto.
     econstructor. constructor; auto. simpl.
-    apply frame_indep_nil with (Fs' :=  [FApp2 (EFun [y; z] (ECons (EApp (EFun [x] e) [EVar 1]) (EVar 2))) [] [a]]) in H1. simpl in H1.
+    apply frame_indep_nil with (Fs' :=  [FApp2 (VFun [y; z] (ECons (EApp (VFun [x] e) [VVar 1]) (VVar 2))) [] [a]]) in H1. simpl in H1.
     eapply transitive_eval. exact H1.
    (** evaluate first element *)
     econstructor. constructor; auto. simpl.
@@ -1551,4 +1451,3 @@ Proof.
     eapply transitive_eval. exact DER.
     econstructor. constructor; auto. constructor.
 Qed.
-
