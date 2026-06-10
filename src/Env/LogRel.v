@@ -238,6 +238,31 @@ Corollary Vrel_closed_r :
       VALCLOSED v2.
 Proof. apply Vrel_closed. Qed.
 
+Corollary Vrel_biforall_closed :
+  forall m l1 l2,
+    list_biforall (Vrel m) l1 l2 ->
+      Forall (fun w => VALCLOSED w) l1 /\
+      Forall (fun w => VALCLOSED w) l2.
+Proof.
+  intros m l1. induction l1; intros l2 Hbfa.
+  * destruct l2; inv Hbfa. repeat constructor.
+  * destruct l2; inv Hbfa. apply Vrel_closed in H2 as [Hc1 Hc2].
+    specialize (IHl1 l2 H4) as [Fl1 Fl2].
+    repeat constructor; auto.
+Qed.
+
+Corollary Vrel_biforall_closed_l :
+  forall m l1 l2,
+    list_biforall (Vrel m) l1 l2 ->
+      Forall (fun w => VALCLOSED w) l1.
+Proof. apply Vrel_biforall_closed. Qed.
+
+Corollary Vrel_biforall_closed_r :
+  forall m l1 l2,
+    list_biforall (Vrel m) l1 l2 ->
+      Forall (fun w => VALCLOSED w) l2.
+Proof. apply Vrel_biforall_closed. Qed.
+
 Lemma Erel_open_scope :
   forall Γ e1 e2,
     Erel_open Γ e1 e2 ->
@@ -509,7 +534,7 @@ Proof.
       eapply scope_ext_app. 2: eauto. lia.
   * rewrite Nat.eqb_refl.
   intros m Hm vals1 vals2 Hl1 Hl2 Hlbfa.
-  epose proof (nH0 := HE m _ _ _).
+  epose proof (nH0 := HE m _ _ _). (* This is where Grel goes to the shelf *)
   destruct nH0 as [nCl1 [nCl2 nH0]].
   split. exact nCl1.
   split. exact nCl2.
@@ -880,19 +905,588 @@ Proof.
     exists i. exact D. lia.
 Qed.
 
+Lemma Erel_open_biforall_scope :
+  forall Γ vals1 vals2 i def,
+    i < length vals1 ->
+    list_biforall (Erel_open Γ) vals1 vals2 ->
+    EXP Γ ⊢ nth i vals1 def /\ EXP Γ ⊢ nth i vals2 def.
+Proof.
+  intros Γ vals1 vals2 i def Hi Hbfa.
+  apply indexed_to_biforall with (d1 := def) (d2 := def) in Hbfa.
+  destruct Hbfa as [Hnth Hl].
+  specialize (Hnth i Hi).
+  apply Erel_open_scope in Hnth. auto.
+Qed.
+
+Corollary Erel_open_biforall_scope_l :
+  forall Γ vals1 vals2 i def,
+    i < length vals1 ->
+    list_biforall (Erel_open Γ) vals1 vals2 ->
+    EXP Γ ⊢ nth i vals1 def.
+Proof. apply Erel_open_biforall_scope. Qed.
+
+Corollary Erel_open_biforall_scope_r :
+  forall Γ vals1 vals2 i def,
+    i < length vals1 ->
+    list_biforall (Erel_open Γ) vals1 vals2 ->
+    EXP Γ ⊢ nth i vals2 def.
+Proof. apply Erel_open_biforall_scope. Qed.
+
+Lemma Erel_open_biforall_Forall_scope :
+  forall Γ vals1 vals2,
+    list_biforall (Erel_open Γ) vals1 vals2 ->
+    Forall (fun e => EXP Γ ⊢ e) vals1 /\ Forall (fun e => EXP Γ ⊢ e) vals2.
+Proof.
+  intros Γ vals1.
+  induction vals1; intros vals2 Hbfa.
+  * destruct vals2; inv Hbfa. split; constructor.
+  * destruct vals2; inv Hbfa. apply IHvals1 in H4 as [HF1 HF2].
+    apply Erel_open_scope in H2 as [HS1 HS2].
+    split; constructor; auto.
+Qed.
+
+Corollary Erel_open_biforall_Forall_scope_l :
+  forall Γ vals1 vals2,
+    list_biforall (Erel_open Γ) vals1 vals2 ->
+    Forall (fun e => EXP Γ ⊢ e) vals1.
+Proof. apply Erel_open_biforall_Forall_scope. Qed.
+
+Corollary Erel_open_biforall_Forall_scope_r :
+  forall Γ vals1 vals2,
+    list_biforall (Erel_open Γ) vals1 vals2 ->
+    Forall (fun e => EXP Γ ⊢ e) vals2.
+Proof. apply Erel_open_biforall_Forall_scope. Qed.
+
+Lemma Erel_EApp_compat :
+  forall Γ f1 f2 vals1 vals2,
+    Erel_open Γ f1 f2 ->
+    list_biforall (Erel_open Γ) vals1 vals2 ->
+    Erel_open Γ (EApp f1 vals1) (EApp f2 vals2).
+Proof.
+  intros Γ f1 f2 vals1 vals2 Hf Hvals.
+  unfold Erel_open. intros n Γ1 Γ2 HG.
+  apply Erel_open_scope in Hf as Hs.
+  destruct Hs as [Hsf1 Hsf2].
+  apply Grel_closed in HG as HC.
+  destruct HC as [HCΓ1 HCΓ2].
+  apply Grel_length in HG as HL.
+  destruct HL as [HLΓ1 HLΓ2].
+  apply biforall_length in Hvals as Hlen.
+  split. 2: split.
+  1-2: do 2 constructor.
+  1,3: try rewrite HLΓ1; try rewrite HLΓ2; auto.
+  1-2: intros i Hi; try rewrite HLΓ1; try rewrite HLΓ2.
+  1-2: pose proof (Erel_open_biforall_scope).
+  eapply Erel_open_biforall_scope_l; eauto.
+  rewrite <- Hlen in Hi.
+  eapply Erel_open_biforall_scope_r; eauto.
+  intros m Hmn F1 F2 [HF1 [HF2 HF]] D.
+  inv D. eapply Hf in H4 as [i D]; eauto.
+  exists (S i). constructor. exact D. lia.
+  split. 2: split.
+  1-2: constructor; auto; constructor; auto.
+  1-2: apply Erel_open_biforall_Forall_scope in Hvals as [Hvals1 Hvals2].
+  2: rewrite HLΓ2.
+  1-2: auto.
+  intros m Hmk v1 v2 Γ0 Γ3 HV D.
+  inv D.
+  * (* 0 args *)
+    simpl in Hlen. symmetry in Hlen. apply nil_length_inv in Hlen. subst vals2.
+    rewrite Vrel_Fix_eq in HV.
+    destruct v1; try discriminate.
+    destruct v2; simpl in HV; destruct HV as [HVC1 [HVC2 HV]]; try contradiction.
+    simpl in H8. destruct vl; try discriminate. inv H8.
+    destruct (0 =? vl0) eqn:Hvl0; try contradiction. apply Nat.eqb_eq in Hvl0.
+    subst vl0.
+    eapply step_terminates_one. eapply red_app0. reflexivity.
+    simpl. unfold exp_rel in HV.
+    assert (VClos Γ 0 res :: Γ = VClos Γ 0 res :: [] ++ Γ) by reflexivity.
+    rewrite H1 in H9. clear H1.
+    assert (VClos Γ4 0 e0 :: Γ4 = VClos Γ4 0 e0 :: [] ++ Γ4) by reflexivity.
+    rewrite H1. clear H1.
+    eapply HV in H9 as [i D]; eauto.
+    exists i. exact D. reflexivity. constructor.
+    split. 2: split. 1-2: auto.
+    intros m Hmk0 v1 v2 Γ5 Γ6 HV' D.
+    eapply HF in D as [i D]; eauto.
+    exists i. exact D. lia.
+  * (* >0 args *)
+    destruct vals2. inv Hvals.
+    eapply step_terminates_one. eapply red_app.
+    
+    clear f1 f2 Hf Hsf1 Hsf2 H4 H0 H.
+    inv Hvals.
+    remember [] as evd.
+    rewrite Heqevd.
+    remember [] as evd'.
+    assert (list_biforall (Vrel k0) evd evd') as Hevd by (rewrite Heqevd, Heqevd'; constructor).
+    clear Heqevd Heqevd'.
+    generalize dependent vals2.
+    generalize dependent evd.
+    generalize dependent evd'.
+    generalize dependent e.
+    generalize dependent e1.
+    generalize dependent k0.
+    (* generalize dependent Γ1.
+    generalize dependent Γ2. *)
+    induction l; intros.
+    + destruct vals2; try discriminate.
+      eapply H2 in H8 as [i D]; eauto.
+      exists i. exact D. lia.
+      apply Vrel_biforall_closed in Hevd as Hbc.
+      destruct Hbc as [Hbc1 Hbc2].
+      apply Vrel_closed in HV as HVc. destruct HVc as [HVc1 HVc2].
+      split. 2: split.
+      1-2: constructor; auto; constructor; auto.
+      intros m Hmk0 v0 v3 Γ4 Γ5 HV' D. inv D.
+      assert (list_biforall (Vrel (S k1)) (evd ++ [v0]) (evd' ++ [v3])) as Hbfa.
+      { apply biforall_app.
+        * eapply Vrel_biforall_downclosed. eauto. Unshelve. lia.
+        * constructor. 2: constructor. auto.
+      }
+      assert (exists Γ'' res', exp_rel k1 (fun m _ => Vrel m) Γ' Γ'' res res' /\ 
+              beta_reduce v2 (evd' ++ [v3]) = Some (Γ'', res')).
+      { destruct v1; try discriminate. simpl in H11.
+        destruct (length (evd ++ [v0]) =? vl) eqn:Hvl; try discriminate. inv H11.
+        rewrite Vrel_Fix_eq in HV. destruct HV as [HVC1' [HVC2' HV]].
+        destruct v2; try contradiction. destruct (vl =? vl0) eqn:Hvl0; try contradiction.
+        apply biforall_length in Hbfa as Hl.
+        rewrite Hl in Hvl. rewrite Nat.eqb_eq in Hvl0. subst vl0. simpl. rewrite Hvl.
+        do 2 eexists. split;[|reflexivity].
+        apply HV; auto.
+        1: rewrite Hl.
+        1-2: rewrite length_app in *; simpl in *; rewrite Nat.eqb_eq in *; auto.
+        eapply Vrel_biforall_downclosed. eauto. Unshelve. lia.
+      }
+      destruct H1 as [Γ'' [res' [He Hb]]].
+      eapply step_terminates_one. constructor. exact Hb.
+      eapply He in H12 as [i D]; eauto. exists i. exact D.
+      split. 2:split. 1-2: auto.
+      intros m Hmk1 v4 v5 Γ6 Γ7 HV'' D.
+      eapply HF in D as [i D]; eauto. exists i. exact D. lia.
+    + destruct vals2; inv Hlen. inv H4.
+      eapply H2 in H8 as [i D]; eauto.
+      exists i. exact D. lia.
+      apply Vrel_closed in HV as HVc. destruct HVc as [Hvc1 Hvc2].
+      apply Vrel_biforall_closed in Hevd as Hevdc. destruct Hevdc as [Hevdc1 Hevdc2].
+      split. 2: split.
+      1-2: constructor; auto; constructor; auto.
+      1-2: constructor; auto.
+      1,3: apply Erel_open_scope in H5 as [Hs1 Hs2]; auto.
+      1: rewrite HLΓ2; auto.
+      1,2: apply Erel_open_biforall_Forall_scope in H7 as [Hs1 Hs2]; auto.
+      1: rewrite HLΓ2; auto.
+      intros m Hmk0 v0 v3 Γ4 Γ5 HV' D.
+      inv D. eapply IHl in H15 as [i D]; eauto.
+      exists (S i). constructor. exact D.
+      lia. eapply Vrel_downclosed. eauto.
+      apply biforall_app.
+      - eapply Vrel_biforall_downclosed. eauto.
+      - constructor. 2: constructor. eapply Vrel_downclosed. eauto.
+    Unshelve. lia. lia. lia.
+Qed.
+
+Lemma Erel_EBIF_compat :
+  forall Γ f1 f2 vals1 vals2,
+    Erel_open Γ f1 f2 ->
+    list_biforall (Erel_open Γ) vals1 vals2 ->
+    Erel_open Γ (EBIF f1 vals1) (EBIF f2 vals2).
+Proof.
+  intros Γ f1 f2 vals1 vals2 Hf Hbfa n Γ1 Γ2 HG.
+  apply Erel_open_scope in Hf as Hfs. destruct Hfs as [Hf1s Hf2s].
+  apply Erel_open_biforall_Forall_scope in Hbfa as Hbfas.
+  destruct Hbfas as [Hbfas1 Hbfas2].
+  apply Grel_length in HG as HGl. destruct HGl as [HGl1 HGl2].
+  apply Grel_closed in HG as HGc. destruct HGc as [HGc1 HGc2].
+  split. 2: split.
+  1-2: do 2 constructor; try rewrite HGl1; try rewrite HGl2; auto.
+  1-2: intros i Hi; eapply Erel_open_biforall_scope with (i := i) 
+                    in Hbfa as [Hbfa1 Hbfa2]; eauto.
+  1: apply biforall_length in Hbfa. lia.
+  intros m Hmn F1 F2 [HF1 [HF2 HF]] D.
+  inv D. eapply Hf in H4 as [i D]; eauto.
+  exists (S i). constructor. exact D. lia.
+  split. 2: split.
+  1-2: constructor; auto; constructor; auto.
+  1: rewrite HGl2; auto.
+  intros m Hmk v1 v2 Γ0 Γ3 HV D.
+  destruct vals1.
+  * inv Hbfa. inv D.
+    destruct v1; try discriminate. simpl in H6.
+    destruct l; try discriminate.
+    destruct s; try discriminate.
+    destruct a; try discriminate.
+    destruct b, b0, b1, b2, b3, b4, b5, b6; try discriminate.
+    destruct s; try discriminate.
+  * inv Hbfa. inv D. eapply step_terminates_one. constructor.
+    eapply H3 in H11; eauto. lia.
+    apply Vrel_closed in HV as HVc. destruct HVc as [HVc1 HVc2].
+    apply Erel_open_biforall_Forall_scope in H6 as Hbfas. destruct Hbfas as [Hbfas1' Hbfas2'].
+    split. 2: split.
+    1-2: constructor; auto; constructor; auto.
+    1: rewrite HGl2; auto.
+    intros m Hmk0 v0 v3 Γ4 Γ5 HV' D.
+    destruct vals1.
+    + inv H6. inv D. simpl in H13.
+      destruct v1; try discriminate. simpl in H13.
+      destruct l; try discriminate.
+      destruct s; try discriminate.
+      destruct a; try discriminate.
+      destruct b, b0, b1, b2, b3, b4, b5, b6; try discriminate.
+      destruct s; try discriminate.
+      destruct v0; try discriminate.
+      destruct l; try discriminate.
+    + inv H6. inv D. eapply H8 in H17 as [i D]; eauto.
+      exists (S i). constructor. exact D. lia.
+      apply Vrel_closed in HV' as HVc'. destruct HVc' as [HVc1' HVc2'].
+      apply Erel_open_biforall_Forall_scope in H10 as Hbfas. destruct Hbfas as [Hbfas1'' Hbfas2''].
+      simpl. split. 2: split.
+      1-2: constructor; auto; constructor; auto.
+      1: rewrite HGl2; auto.
+      intros m Hmk1 v4 v5 Γ6 Γ7 HV'' D.
+      destruct vals1.
+      - inv H10. inv D. simpl in H16.
+        destruct v1; try discriminate.
+        rewrite Vrel_Fix_eq in HV. simpl in HV.
+        destruct HV as [HVl1 [HVl2 HV]].
+        destruct v2; try contradiction. subst l0.
+        assert (exists res', Vrel k2 res res' /\
+                             eval (VLit l) [v3; v5] = Some res') as Hres.
+        { simpl. simpl in H16.
+          destruct l; try discriminate.
+          destruct s; try discriminate.
+          destruct a; try discriminate.
+          destruct b, b0, b1, b2, b3, b4, b5, b6; try discriminate.
+          destruct s; try discriminate.
+          destruct v0; try discriminate.
+          destruct l; try discriminate.
+          destruct v4; try discriminate.
+          destruct l; try discriminate.
+          inv H16.
+          rewrite Vrel_Fix_eq in HV'. simpl in HV'.
+          destruct HV' as [_ [_ HV']].
+          destruct v3; try contradiction. subst.
+          rewrite Vrel_Fix_eq in HV''. simpl in HV''.
+          destruct HV'' as [_ [_ HV'']].
+          destruct v5; try contradiction. subst.
+          eexists. split; auto. rewrite Vrel_Fix_eq; simpl; auto.
+        }
+        destruct Hres as [res' [HVres Heval]].
+        eapply step_terminates_one.
+        constructor. simpl in *. rewrite Heval. reflexivity.
+        eapply HF in H18; eauto. lia.
+      - inv H10. inv D. simpl in H21. eapply H12 in H21 as [i D]; eauto.
+        exists (S i). constructor. exact D. lia. simpl.
+        apply Erel_open_biforall_Forall_scope in H14 as Hbfasd. destruct Hbfasd as [Hbfasd1 Hbfasd2].
+        apply Vrel_closed in HV'' as HV''c. destruct HV''c as [HV''c1 HV''c2].
+        split. 2: split.
+        1-2: constructor; auto; constructor; auto.
+        1: rewrite HGl2; auto.
+        intros m Hmk2 v6 v7 Γ8 Γ9 HV''' D. apply Erel_open_biforall_Forall_scope in H14 as [Hsc _].
+        apply Vrel_closed_l in HV'''.
+        assert (Forall (fun w => VALCLOSED w) [v0; v4]) as HC.
+        { repeat constructor; auto. }
+        clear -D HGc1 Hsc HF1 HVc1 HV''' HC. exfalso.
+        assert (length [v0; v4] >= 2) as Hlen by (simpl; lia).
+        remember [v0; v4] as l. destruct Heql.
+        apply ex_intro with (x := m) in D.
+        generalize dependent Γ8.
+        generalize dependent v6.
+        generalize dependent l.
+        induction vals1; intros.
+        ** inv D. inv H. (* simpl in H7. *)
+           destruct v1; try discriminate. simpl in H7.
+           destruct l; try discriminate.
+           destruct l0; try discriminate.
+           destruct s; try discriminate.
+           destruct a; try discriminate.
+           destruct b, b0, b1, b2, b3, b4, b5, b6; try discriminate.
+           destruct s; try discriminate. simpl in H7.
+           destruct v6; try discriminate.
+           destruct l; try discriminate.
+           destruct l0; try discriminate.
+           destruct s; try discriminate.
+           destruct a; try discriminate.
+           destruct b, b0, b1, b2, b3, b4, b5, b6; try discriminate.
+           destruct s; try discriminate. simpl in H7.
+           destruct v; try discriminate.
+           destruct l0; try discriminate.
+           destruct l;[inv Hlen; inv H0|]. simpl in H7.
+           destruct v; try discriminate.
+           destruct l0; try discriminate.
+           destruct l; try discriminate.
+        ** inv D. inv H. inv Hsc.
+           eapply term_eval_empty in H9 as H8'; auto.
+           2: apply exp_to_any; auto.
+           2: constructor; auto; constructor; auto.
+           2: apply Forall_app; split;[auto|apply Forall_singleton; auto].
+           destruct H8' as [v [k0 [Γ' [HV [H8' _]]]]].
+           eapply frame_indep_core in H8'.
+           eapply terminates_step_any_2 in H9. 2: exact H8'. clear H8'.
+           simpl in H9.
+           apply ex_intro with (x := k - k0) in H9.
+           eapply IHvals1 in H9; eauto.
+           apply Forall_app. split; auto.
+           rewrite length_app. lia.
+Qed.
+
+Theorem Erel_Fundamental :
+  forall (e : Exp) (Γ : nat),
+    EXP Γ ⊢ e -> Erel_open Γ e e.
+Proof.
+  intros e.
+  induction e using Exp_ind2 with
+  (PN := fun n => forall Γ, NVAL Γ ⊢ n -> Erel_open Γ n n)
+  (PV := fun v => VALCLOSED v -> Vrel_open v v)
+  (Q  := Forall (fun e => forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e))
+  (R  := Forall (fun v => VALCLOSED v -> Vrel_open v v)); intros; auto.
+  * apply IHe. inv H. auto.
+  * apply Erel_Val_compat. apply IHe. inv H. auto.
+  * inv H. apply Erel_EFun_compat; auto.
+  * inv H. apply Erel_EApp_compat.
+    + apply IHe. exact H2.
+    + apply forall_biforall_refl.
+      induction IHe0. constructor.
+      constructor. apply H. specialize (H4 0 (Nat.lt_0_succ _)). simpl in H4. auto.
+      apply IHIHe0. intros. apply (H4 (S i)). simpl. lia.
+  * inv H. apply Erel_ELet_compat; auto.
+  * inv H. apply Erel_ECase_compat. all:auto.
+  * inv H. apply Erel_ECons_compat; auto.
+  * inv H. apply Erel_EBIF_compat; auto.
+    apply forall_biforall_refl.
+    induction IHe0. constructor.
+    constructor. specialize (H4 0 (Nat.lt_0_succ _)). simpl in H4. auto.
+    apply IHIHe0. intros. apply (H4 (S i)). simpl. lia.
+  * inv H. apply Erel_EVar_compat. auto.
+  * apply Vrel_VLit_compat.
+  * apply Vrel_VPid_compat.
+  * apply Vrel_VNil_compat.
+  * inv H. apply Vrel_VCons_compat; auto.
+  * inv H. apply Vrel_VClos_compat; auto.
+    unfold Grel. intros. split; auto.
+    apply forall_biforall_refl.
+    clear H4 IHe0.
+    induction IHe. constructor.
+    constructor. specialize (H2 0 (Nat.lt_0_succ _)). simpl in H2.
+    apply H in H2. auto.
+    apply IHIHe. intros. apply (H2 (S i)). simpl. lia.
+Qed.
+
+Theorem Vrel_Fundamental :
+  forall (v : Val),
+    VALCLOSED v -> Vrel_open v v.
+Proof.
+  intros v.
+  induction v using Val_ind2 with
+  (P  := fun e => forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e)
+  (PN := fun n => forall Γ, NVAL Γ ⊢ n -> Erel_open Γ n n)
+  (Q  := Forall (fun e => forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e))
+  (R  := Forall (fun v => VALCLOSED v -> Vrel_open v v));
+      intros; auto; try (apply Erel_Fundamental; auto).
+  * apply Vrel_VLit_compat.
+  * apply Vrel_VPid_compat.
+  * apply Vrel_VNil_compat.
+  * inv H. apply Vrel_VCons_compat; auto.
+  * inv H. apply Vrel_VClos_compat; auto.
+    unfold Grel. intros. split; auto.
+    clear IHv0 H4.
+    apply forall_biforall_refl. induction IHv. constructor.
+    constructor. specialize (H2 0 (Nat.lt_0_succ _)). simpl in H2.
+    apply H in H2. auto.
+    apply IHIHv. intros. apply (H2 (S i)). simpl. lia.
+Qed.
+
+Corollary Vrel_Fundamental_closed :
+  forall (v : Val),
+    VALCLOSED v -> forall n, Vrel n v v.
+Proof. apply Vrel_Fundamental. Qed.
+
+Theorem Grel_Fundamental :
+  forall (G : Env) (Γ : nat),
+    ENVCLOSED G -> length G = Γ -> 
+      forall n, Grel n Γ G G.
+Proof.
+  intros. unfold Grel. split; auto.
+  clear Γ H0. apply forall_biforall_refl.
+  induction G. constructor.
+  inv H. apply IHG in H3. constructor; auto.
+  apply Vrel_Fundamental_closed. auto.
+Qed.
+
+Lemma Erel_comp_CIU_implies_Erel : forall {Γ e1 e2 e3},
+    Erel_open Γ e1 e2 ->
+    CIU_open Γ e2 e3 ->
+    Erel_open Γ e1 e3.
+Proof.
+  intros Γ e1 e2 e3 He HCIU.
+  split. 2: split.
+  1: { apply Erel_open_scope_l in He. apply Grel_length_l in H. rewrite H. auto. }
+  1: { apply CIU_open_scope_r in HCIU. apply Grel_length_r in H. rewrite H. auto. }
+  intros m Hmn F1 F2 HF D.
+  eapply He in D; eauto.
+  apply Grel_closed in H as Hc. destruct Hc as [Hc1 Hc2].
+  destruct H as [Hl Hg].
+  apply biforall_length in Hg as Hl'.
+  apply HCIU in D; auto.
+  lia. apply HF.
+Qed.
+
+Lemma CIU_implies_Erel : forall {Γ e1 e2},
+    CIU_open Γ e1 e2 ->
+    Erel_open Γ e1 e2.
+Proof.
+  intros.
+  eapply Erel_comp_CIU_implies_Erel; eauto.
+  apply Erel_Fundamental.
+  apply CIU_open_scope_l in H. auto.
+Qed.
 
 
 
 
+Theorem CIU_Cons_compat :
+  forall Γ e1 e1' e2 e2',
+    CIU_open Γ e1 e1' ->
+    CIU_open Γ e2 e2' ->
+    CIU_open Γ (ECons e1 e2) (ECons e1' e2').
+Proof.
+  intros * He1 He2 HΓ Hlen Hclosed.
+  apply CIU_implies_Erel in He1, He2.
+  
+  assert (Erel_open Γ (ECons e1 e2) (ECons e1' e2')) as HEc.
+  { apply Erel_ECons_compat; auto. }
+  clear He1 He2.
+  apply Erel_open_scope in HEc as HEs.
+  destruct HEs as [HEs1 HEs2].
+  unfold Erel_open, exp_rel in HEc.
+  repeat split; auto.
+  1-2: rewrite Hlen; auto.
+  intros Fs HFs D.
+  destruct D as [i D].
+  eapply HEc; eauto. apply Grel_Fundamental; auto.
+  (* Frel_Fundamental is needed!! *)
+  (* That actually does make sense: we need to go from Erel_open to CIU_open, and for the
+     general case we need Frel_Fundamental so it's bound to show up in the specific cases
+     somewhere as well. This lemma can still be proven through CIU alone though, see
+     Compatibility.v.
+  *)
+Admitted.
+
+Lemma Vrel_open_closed :
+  forall {v v'},
+    Vrel_open v v' -> VALCLOSED v /\ VALCLOSED v'.
+Proof.
+  (* Since Vrel_open doesn't contain Grel, this is much easier than the subst version. *)
+  intros. specialize (H 42). apply Vrel_closed in H. auto.
+Qed.
+
+Theorem CIU_Clos_compat :
+  forall Γ Γ' vl b1 b2,
+  CIU_open (S vl + length Γ) b1 b2 ->
+  ENVCLOSED Γ ->
+  CIU_open Γ' (VClos Γ vl b1) (VClos Γ vl b2).
+Proof.
+  intros * Hb HΓ Γ' Hl HΓ'.
+  apply CIU_implies_Erel in Hb.
+  assert (Vrel_open (VClos Γ vl b1) (VClos Γ vl b2)).
+  { apply Vrel_VClos_compat; auto. apply Grel_Fundamental; auto. }
+  apply Vrel_open_closed in H as Hc. destruct Hc as [Hc1 Hc2].
+  repeat split; auto.
+  intros Fs HFs D.
+  unfold Vrel_open in H.
+  inv D.
+  (*             VVV   Would this even be correct? I'm not sure. *)
+  specialize (H (S x)). rewrite Vrel_Fix_eq in H. simpl in H.
+  destruct H as [_ [_ H]].
+  rewrite Nat.eqb_refl in H.
+  unfold exp_rel in H.
+  (* So with closures we've got the same problem as before: we don't know anything about
+     the frame stack. The hypo H could help us after the application, but we can't get to the
+     actual application without knowing Fs.
+     
+     Note1: Doing the other side of the equivalence fixes this, because we can turn the last
+            CIU_open back into an Erel_open, which can be turned into a Vrel_open, which we
+            can already construct from the context.
+     
+     Note2: If instead of Γ we had a Γ1 and Γ2, which are "pointwise" related by CIU_open
+            (but what Gamma would need to be given?), then we could turn those CIU_opens into
+            Erel_opens, which could in turn be turned into Vrel_opens with the lemma below.
+            That could essentially be turned into a Grel, giving us the more general version.
+     
+     Note3: In specific cases, closures with non-related environments could still be related.
+            So this compatibility lemma (and the more general one above defined with logrels)
+            receives sufficient but not necessary conditions about the environments (~ related,
+            or the same.)
+  *)
+Admitted.
+
+Lemma Erel_Val_compat_backwards :
+  forall {Γ v v'},
+    Erel_open Γ (˝ v) (˝ v') ->
+    Vrel_open v v'.
+Proof.
+  intros Γ v. revert Γ.
+  induction v using Val_ind2 with
+  (P  := fun e => (1 = 1))
+  (PN := fun n => (2 = 2))
+  (Q  := fun le => (3 = 3))
+  (R  := fun lv => (4 = 4)); auto; intros. (* don't know these yet *)
+  * destruct v'.
+    + unfold Erel_open, exp_rel in H.
+      intros n. rewrite Vrel_Fix_eq. simpl. admit.
+      (* can this be done? *)
+    + unfold Erel_open, exp_rel in H.
+      specialize (H 1 (repeat VNil Γ) (repeat VNil Γ)).
+      assert (Grel 1 Γ (repeat VNil Γ) (repeat VNil Γ)).
+      { apply Grel_Fundamental.
+        * clear. induction Γ; simpl. constructor. constructor; auto.
+        * rewrite repeat_length. reflexivity.
+      }
+      specialize (H H0). clear H0.
+      rewrite repeat_length in H. destruct H as [H1 [H2 H3]].
+      specialize (H3 1 (Nat.le_refl _)).
+      specialize (H3 (FCase (PLit l) (˝ VNil) (˝ VLit 1%Z) [] :: [])
+                     (FCase (PLit l) (˝ VNil) (˝ VLit 1%Z) [] :: [])).
+                     (*                            ^ not this, but put a non-terminating
+                                                     program here *)
+      assert (frame_rel 1 (λ (m' : nat) (_ : m' ≤ 1), Vrel m')
+      [FCase (PLit l) (˝ VNil) (˝ VLit 1%Z) []] [FCase (PLit l) (˝ VNil) (˝ VLit 1%Z) []]) by admit.
+      (* ^ this would come from Frel_Fundamental *)
+      specialize (H3 H). clear H.
+      assert (| repeat VNil Γ, [FCase (PLit l) (˝ VNil) (˝ VLit 1%Z) []], ˝ VLit l | 1 ↓).
+      { eapply term_case_true. simpl. rewrite lit_eqb_refl. reflexivity.
+        simpl. constructor.
+      }
+      specialize (H3 H). clear H.
+      inv H3. inv H. (* again, don't have VLit 1%Z, but something non-terminating *) admit.
+      (* the same trick could be done for the others as well which don't match up... *)
+    + admit.
+    + admit.
+    + admit.
+  * admit.
+  * admit.
+  * admit.
+  * admit. (* probably the most interesting/difficult one is the case with 2 closures *)
+Admitted.
 
 
 
 
-
-
-
-
-
+(*
+      CIU compatibility lemmas
+                ↑
+      VClos and EFun compatibility
+                ↑
+      2 envs are the same
+                ↑
+      2 envs need to be related pointwise by CIU_open
+                ↑
+      CIU_open needs to be reflexive
+                ↑
+      CIU compatibility lemmas
+                ↑
+               ...
+*)
 
 
 
