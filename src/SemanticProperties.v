@@ -556,7 +556,7 @@ Lemma eval_app_partial :
   ⟨ FApp2 (VFun vl e) hds (map VVal vals) :: Fs, v ⟩ -[S (length vals)]-> ⟨ Fs , e.[list_subst (VFun vl e :: (hds ++ v :: vals)) idsubst]⟩.
 Proof.
   induction vals; intros.
-  * simpl. econstructor. apply red_app2. rewrite app_length in H. simpl in H. lia.
+  * simpl. econstructor. apply red_app2. rewrite length_app in H. simpl in H. lia.
     constructor.
   * simpl. econstructor. apply app2_step.
     assert (Hlen : vl = length ((hds ++ [v]) ++ a :: vals)).
@@ -702,28 +702,27 @@ Lemma term_app_length : forall tl hds e k Fs x0,
     forall (Fs : FrameStack) (e : Exp),
     | Fs, e | m ↓ ->
     exists (v : Val) (k : nat), ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩ /\ k <= m) ->
-  | FApp2 x0 tl hds :: Fs, e | k ↓ -> k > length tl.
+  | FApp2 x0 hds tl :: Fs, e | k ↓ -> k > length tl.
 Proof.
   induction tl; intros.
   * inversion H0; simpl; lia.
   * simpl. apply H in H0 as H0'. 2: lia. destruct H0' as [? [? [? ?]]].
-    eapply (terminates_step_any_2 _ _ _ _ H0) in H1 as H1'.
-    
+    eapply (terminates_step_any_2 _ _ _ _ H0) in H1 as H1'. inv H1'.
+    eapply IHtl in H4. lia.
+    intros. apply H. lia. assumption.
 Qed.
 
-Lemma eval_app_partial_core_2 :
-  forall hds' vals vl e e' v Fs hds k (P : VALCLOSED (VFun vl e)) (PP : Forall (fun v => EXPCLOSED v) hds'),
+(* Lemma eval_app_partial_core_2 :
+  forall hds' vals vl e e' v Fs hds k,
   (forall m : nat,
     m < S k ->
     forall (Fs : FrameStack) (e : Exp),
-    EXPCLOSED e -> | Fs, e | m ↓ ->
-    exists (v : Exp) (k : nat), VALCLOSED v /\ ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩) ->
-  | FApp2 (VFun vl e) (hds' ++ e' :: vals) hds :: Fs, v | k ↓ ->
-  VALCLOSED v ->
-  Forall (fun v => VALCLOSED v) hds ->
-  exists k0 hds'', k0 <= k /\ Forall (fun v => VALCLOSED v) hds'' /\
-  ⟨ FApp2 (VFun vl e) (hds' ++ e' :: vals) hds :: Fs, v ⟩ -[k0]-> 
-  ⟨ FApp2 (VFun vl e) vals (hds ++ v :: hds'') :: Fs , e'⟩.
+    | Fs, e | m ↓ ->
+    exists (v : Exp) (k : nat), ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩) ->
+  | FApp2 (VFun vl e) hds (map VVal hds' ++ e' :: vals) :: Fs, v | k ↓ ->
+  exists k0 hds'', k0 <= k /\
+  ⟨ FApp2 (VFun vl e) hds (hds' ++ e' :: vals) :: Fs, v ⟩ -[k0]-> 
+  ⟨ FApp2 (VFun vl e) (hds ++ v :: hds'') vals :: Fs , e'⟩.
 Proof.
   induction hds'; intros.
   * simpl in *. inversion H0; subst; try inversion_is_value.
@@ -757,141 +756,120 @@ Proof.
       + auto.
       + now inversion PP.
     - now inversion PP.
-Qed.
+Qed. *)
 
 Lemma eval_app_partial_core_emtpy :
-  forall hds' vals vfun e' v Fs hds k (P : VALCLOSED vfun) (PP : Forall (fun v => EXPCLOSED v) hds'),
+  forall hds' vals vfun e' (v : Val) Fs (hds : list Val) k ,
   (forall m : nat,
     m < S k ->
     forall (Fs : FrameStack) (e : Exp),
-    EXPCLOSED e -> | Fs, e | m ↓ 
-    -> exists (v : Exp) (k : nat), VALCLOSED v /\ ⟨ [], e ⟩ -[ k ]-> ⟨ [], v ⟩) ->
-  | FApp2 vfun (hds' ++ e' :: vals) hds :: Fs, v | k ↓ ->
-  VALCLOSED v ->
-  Forall (fun v => VALCLOSED v) hds ->
-  exists k0 hds'', k0 <= k /\ Forall (fun v => VALCLOSED v) hds'' /\
-  ⟨ [FApp2 vfun (hds' ++ e' :: vals) hds], v ⟩ -[k0]-> 
-  ⟨ [FApp2 vfun vals (hds ++ v :: hds'')] , e'⟩.
+    | Fs, e | m ↓ 
+    -> exists (v : Val) (k : nat),  ⟨ [], e ⟩ -[ k ]-> ⟨ [], v ⟩) ->
+  | FApp2 vfun hds (hds' ++ e' :: vals) :: Fs, v | k ↓ ->
+  exists k0 hds'', k0 <= k /\
+  ⟨ [FApp2 vfun hds (hds' ++ e' :: vals)], v ⟩ -[k0]-> 
+  ⟨ [FApp2 vfun (hds ++ v :: hds'') vals] , e'⟩.
 Proof.
   induction hds'; intros.
-  * simpl in *. inversion H0; subst; try inversion_is_value.
-    exists 1, []. split. lia. split. auto. econstructor. constructor; auto. constructor.
-  * simpl in *. inversion H0; subst; try inversion_is_value.
-    apply H in H12 as P1. 2: lia. destruct P1, H3, H3.
-    eapply frame_indep_nil in H4 as H4_1.
-    eapply (terminates_step_any_2 _ _ _ _ H12) in H4_1 as H4'.
-    inversion H4'; subst; try inversion_is_value.
-    2: { destruct hds'; inversion H6. }
-    destruct hds'; simpl in H6; inversion H6; subst.
-    - simpl in H4.
-      assert (⟨ [FApp2 vfun (e' :: vals) (hds ++ [v])], x ⟩ -[1]->
-           ⟨ [FApp2 vfun vals ((hds ++ [v]) ++ [x])], e' ⟩).
-           { do 2 econstructor; auto. }
-      eapply frame_indep_nil in H4.
-      epose proof (transitive_eval _ _ _ _ _ H4 _ _ _ H5).
-      exists (S (x0 + 1)), [x]. split. lia. split. auto.
+  * simpl in *. inv H0.
+    exists 1, []. split. lia. econstructor. constructor; auto. constructor.
+  * simpl in *. inv H0.
+    apply H in H8 as P1. 2: lia. destruct P1 as [v1 [k1 D1]].
+    eapply frame_indep_nil in D1 as D1_1.
+    eapply (terminates_step_any_2 _ _ _ _ H8) in D1_1 as H4'.
+    inversion H4'.
+    2: { destruct hds'; inversion H3. }
+    destruct hds'; simpl in H3; inv H3; subst.
+    - simpl in H1.
+      assert (⟨ [FApp2 vfun (hds ++ [v]) (e' :: vals)], v1 ⟩ -[1]->
+           ⟨ [FApp2 vfun ((hds ++ [v]) ++ [v1]) vals], e' ⟩).
+      { do 2 econstructor; auto. }
+      eapply frame_indep_nil in D1.
+      epose proof (transitive_eval _ _ _ _ _ D1 _ _ _ H0).
+      exists (S (k1 + 1)), [v1]. split. lia.
       econstructor. constructor; auto.
-      rewrite <- app_assoc in H7. simpl in H7. auto.
-    - epose proof (IHhds' vals vfun e' x Fs _ _ _ _ _ H4' H'0 H15).
-      Unshelve. 4: { intros. eapply H. 3: exact H8. lia. auto. }
-      destruct H5, H5, H5, H7.
-      eapply frame_indep_nil in H4.
-      epose proof (transitive_eval _ _ _ _ _ H4 _ _ _ H8).
-      exists (S (x0 + x1)), (x::x2). 
-      split. 2: split.
+      rewrite <- app_assoc in H2. simpl in H2. auto.
+    - epose proof (IHhds' vals vfun e' _ Fs _ _ _ H4') as X.
+      Unshelve. 2: { intros. eapply H. 2: exact H2. lia. }
+      destruct X as [k2 [vs2 [Hlt HD]]].
+      eapply frame_indep_nil in D1.
+      epose proof (transitive_eval _ _ _ _ _ D1 _ _ _ HD).
+      exists (S (k1 + k2)), (v1::vs2). 
+      split.
       + lia.
-      + constructor; auto.
-      + econstructor. constructor; auto. simpl in H9.
-        replace ((hds ++ [v]) ++ x :: x2) with (hds ++ v :: x :: x2) in H9.
-        exact H9.
-        rewrite <- app_assoc. auto.
-      + auto.
-      + now inversion PP.
-    - now inversion PP.
+      + econstructor. constructor; auto. simpl in H0.
+        rewrite <- app_assoc in H0.
+        exact H0.
 Qed.
 
 Lemma term_bif_eval_empty :
-  forall tl Fs v0 vals lst hd k,
+  forall tl Fs v0 vals lst (hd : Val) k,
   (forall m : nat,
     m < S k ->
     forall (Fs : FrameStack) (e : Exp),
-    EXPCLOSED e ->
     | Fs, e | m ↓ ->
-    exists (v : Exp) (k : nat),
-      VALCLOSED v /\
+    exists (v : Val) (k : nat),
       ⟨ [], e ⟩ -[ k ]-> ⟨ [], v ⟩) ->
-  | FBIF2 v0 (tl ++ [lst]) vals :: Fs, hd | k ↓ ->
-  VALCLOSED hd ->
-  Forall (fun e => EXPCLOSED e) tl ->
-  Forall (fun e => VALCLOSED e) vals ->
-  exists i vals', i <= k /\ Forall (fun v => VALCLOSED v) vals' /\
-    ⟨ FBIF2 v0 (tl ++ [lst]) vals :: [], hd ⟩ -[i]->
-    ⟨ FBIF2 v0 [] (vals ++ [hd] ++ vals') :: [], lst ⟩.
+  | FBIF2 v0 vals (tl ++ [lst]) :: Fs, hd | k ↓ ->
+  exists i vals', i <= k /\
+    ⟨ FBIF2 v0 vals (tl ++ [lst]) :: [], hd ⟩ -[i]->
+    ⟨ FBIF2 v0 (vals ++ [hd] ++ vals') [] :: [], lst ⟩.
 Proof.
   induction tl; intros; simpl.
-  * inversion H0; subst; try inversion_is_value.
-    exists 1, []. split. 2: split. 2: auto.
+  * inv H0.
+    exists 1, []. split.
     lia.
     econstructor. constructor; auto. constructor.
-  * inversion H2; subst.
-    inversion H0; subst; try inversion_is_value.
-    apply H in H15 as HH; auto. destruct HH as [v1 [k1 [v1cl HH]]].
+  * inv H0.
+    apply H in H8 as HH; auto. destruct HH as [v1 [k1 HH]].
     eapply frame_indep_nil in HH as HH0.
-    eapply (terminates_step_any_2 _ _ _ _ H15) in HH0 as HH'; auto.
+    eapply (terminates_step_any_2 _ _ _ _ H8) in HH0 as HH'; auto.
     destruct (k0 - k1) eqn:Eq. inversion HH'.
-    epose proof (IHtl Fs v0 (vals ++ [hd]) lst v1 (S n) _ HH' v1cl H7 _).
-    destruct H4 as [k2 [vals' [Hlt [Fcl H4]]]].
+    epose proof (IHtl Fs v0 (vals ++ [hd]) lst v1 (S n) _ HH') as X.
+    destruct X as [k2 [vals' [Hlt X]]].
     exists (S (k1 + k2)), (v1 :: vals').
-    split. 2: split. lia.
-    constructor; auto.
+    split. lia.
     econstructor. constructor; auto.
     eapply transitive_eval.
     eapply frame_indep_nil in HH. exact HH.
-    simpl in H4.
-    rewrite <- app_assoc in H4. exact H4.
+    simpl in X.
+    rewrite <- app_assoc in X. exact X.
   Unshelve.
-    intros. eapply H. 3: exact H8. lia. auto. apply Forall_app; auto.
+    intros. eapply H. 2: exact H1. lia.
 Qed.
 
 (* NOTE: This is not a duplicate! Do not remove! *)
-Theorem term_eval_empty : forall x Fs e (P : EXPCLOSED e), | Fs, e | x ↓ ->
-  exists v k, VALCLOSED v /\ ⟨ [], e ⟩ -[k]-> ⟨ [], v ⟩ (* /\ k <= x *).
+Theorem term_eval_empty : forall x Fs e, | Fs, e | x ↓ ->
+  exists (v : Val) k, ⟨ [], e ⟩ -[k]-> ⟨ [], v ⟩ /\ k <= x.
 Proof.
   induction x using lt_wf_ind. destruct x; intros; inversion H0; subst; try congruence.
-  * exists e, 0. now repeat constructor.
-  * exists e, 0. split; [ auto | do 2 constructor ].
-  * exists e, 0. split; [ auto | now constructor ].
-  * exists e, 0. split; [ auto | now constructor].
-  * apply H in H4. destruct H4, H1, H1. exists x0, (S x1).
-    split; [ auto | ]. econstructor. constructor. auto. lia.
-    inversion P. 2: inversion_is_value. apply -> subst_preserves_scope_exp; eauto.
-  * exists e, 0. split; [ auto | now constructor ].
-  * exists e, 0. split; [ auto | now constructor ].
-  * exists (VFun [] e0), 0. inversion P. split; [ auto | do 2 constructor].
-  * exists e, 0. split; [ auto | now constructor].
-  * exists e, 0. split; [ auto | now constructor ].
-  * exists (VLit i2), 0. split; [ auto | now constructor ].
-  * exists e, 0. split; [ auto | now constructor ].
-  * exists e, 0. split; [ auto | now constructor ].
-  * exists e, 0. split; [ auto | now constructor ].
-  * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
-    eapply frame_indep_nil in H2 as H2_1.
+  * exists v, 0. now repeat constructor.
+  * exists v, 0. split; [ do 2 constructor | lia ].
+  * exists v, 0. split; [ now constructor | lia ].
+  * exists v, 0. split; [ now constructor | lia ].
+  * exists v, 0. split; [ now constructor | lia ].
+  * exists v, 0. split; [ now constructor | lia ].
+  * eexists. exists 0. split; [ now constructor | lia ].
+  * exists v', 0. split; [ now constructor | lia ].
+  * exists v', 0. split; [ now constructor | lia ].
+  * eexists. exists 0. split; [ now constructor | lia ].
+  * exists v, 0. split; [ now constructor | lia ].
+  * exists v2, 0. split; [ now constructor | lia ].
+  * exists v1, 0. split; [ now constructor | lia ].
+  * apply H in H4 as HH. 2: lia. destruct HH as [v0 [k0 [HD0 Hlt0]]].
+    eapply frame_indep_nil in HD0 as H2_1.
     eapply (terminates_step_any_2 _ _ _ _ H4) in H2_1 as H2'.
-    inversion H2'; subst; try inversion_is_value.
-    - apply H in H12. 2: lia. destruct H12, H3, H3.
-      exists x2, (S (x1 + S x3)). split. auto.
+    inversion H2'; subst.
+    - apply H in H9. 2: lia. destruct H9 as [v1 [k1 [HD1 Hlt1]]].
+      exists v1, (S (k0 + S k1)). split. 2: lia.
       econstructor. constructor. eapply transitive_eval; eauto.
-      eapply frame_indep_nil in H2. exact H2.
-      econstructor. constructor. all: eauto. inversion P. 2: inversion_is_value.
-      subst. apply -> subst_preserves_scope_exp. exact H13.
-      rewrite (match_pattern_length _ _ _ H11), Nat.add_0_r.
-      eapply scoped_list_idsubst, match_pattern_scoped. exact H9. eauto.
-    - apply H in H12. 2: lia. destruct H12, H3, H3.
-      exists x2, (S (x1 + S x3)). split. auto.
+      eapply frame_indep_nil in HD0. exact HD0.
+      econstructor. constructor. all: eauto.
+    - apply H in H9. 2: lia. destruct H9 as [v1 [k1 [HD1 Hlt1]]].
+      exists v1, (S (k0 + S k1)). split. 2: lia.
       econstructor. constructor. eapply transitive_eval; eauto.
-      eapply frame_indep_nil in H2. exact H2.
-      econstructor. apply red_case_false; auto. auto. now inversion P.
-    - now inversion P.
+      eapply frame_indep_nil in HD0. exact HD0.
+      econstructor. apply red_case_false. all: eauto.
   * apply H in H4 as v_eval. 2: lia. destruct v_eval, H1, H1.
     eapply frame_indep_nil in H2 as H2_1.
     eapply (terminates_step_any_2 _ _ _ _ H4) in H2_1 as H2'.
