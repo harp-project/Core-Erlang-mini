@@ -510,7 +510,7 @@ Proof.
   unfold Vrel_open. intros. apply Vrel_VCons_compat_closed; auto.
 Qed.
 
-Theorem Vrel_VClos_compat_closed' :
+(* Theorem Vrel_VClos_compat_closed' :
   forall Γ1 Γ2 vl1 vl2 b1 b2,
     vl1 = vl2 ->
     Erel_open (S vl1 + min (length Γ1) (length Γ2)) b1 b2 ->
@@ -546,16 +546,55 @@ Unshelve.
   apply Grel_app; auto.
   + unfold Grel. auto.
   + unfold Grel. split;[auto|].
-Admitted.
+Admitted. *)
 
-Theorem Vrel_VClos_compat_closed :
-  forall m Γ1 Γ2 vl1 vl2 b1 b2,
+Theorem Vrel_VClos_compat :
+  forall Γ1 Γ2 vl1 vl2 b1 b2,
     vl1 = vl2 ->
     Erel_open (S vl1 + length Γ1) b1 b2 ->
-    Grel m (length Γ1) Γ1 Γ2 ->
-    Vrel m (VClos Γ1 vl1 b1) (VClos Γ2 vl2 b2).
+    forall m, 
+      Grel m (length Γ1) Γ1 Γ2 ->
+      Vrel m (VClos Γ1 vl1 b1) (VClos Γ2 vl2 b2).
+      (* ^^^ This is the same as Vrel_Clos_compat in the subst-semantics, but in that
+             lemma Vrel_open is used. In the subst version, 2 values are related under
+             Vrel_open if for related substitutions the values are related under Vrel.
+             
+             In the env-semantics the closure stores the environment that the function
+             was evaluated in, because it will be needed for the beta reduction. We can
+             think of the stored environment as the values that have aready been
+             substituted. This is part of the reason why it doesn't make sense to put a
+             Grel inside Vrel_open in this version.
+             
+             Recall the relevant part from Vrel_rec in the subst and env semantics:
+                
+                 "exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
+                            (b1.[list_subst (EFun vl1 b1 :: vals1) idsubst])
+                            (b2.[list_subst (EFun vl2 b2 :: vals2) idsubst])"
+                 
+                 "exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
+                            (VClos Γ1 vl1 b1 :: vals1 ++ Γ1)
+                            (VClos Γ2 vl2 b2 :: vals2 ++ Γ2) b1 b2"
+             
+             Since Γ1 and Γ2 contain the values aready substituted, the variables to these
+             bindings don't exist in the substitution version. But with Vrel_open, the
+             variables are still present, and related variables need to be substituted in.
+             That is why Grel is used in the subst-semantics version of Vrel_open.
+             
+             But in the env-semantics, we also need the stored environments to be related.
+             This is because even though values do not depend on the environment, expressions
+             do, and closures are only equivalent if their stored expressions are equivalent
+             under the right environment. That environment depends on the environment that
+             was used when the closure was created.
+             
+             All in all, this lemma looks different from the substitution-version, but the
+             last 3 lines are the subst-semantics version of Vrel_open unfolded.
+             
+             TODO: discuss if the env-version of Vrel_open needs to be adjusted, or just
+                   renamed to avoid confusion.
+      *)
 Proof.
-  intros m. induction m using Wf_nat.lt_wf_ind.
+  intros * Hl HE m. revert Γ1 Γ2 vl1 vl2 b1 b2 Hl HE.
+  induction m using Wf_nat.lt_wf_ind.
   intros Γ1  Γ2 vl1 vl2 b1 b2 Hl HE HG. subst.
   rewrite Vrel_Fix_eq. simpl.
   split. 2: split.
@@ -586,7 +625,7 @@ Proof.
   Unshelve. lia. lia.
 Qed.
 
-Theorem Vrel_VClos_compat :
+(* Theorem Vrel_VClos_compat :
   forall Γ1 Γ2 vl1 vl2 b1 b2,
     vl1 = vl2 ->
     Erel_open (S vl1 + length Γ1) b1 b2 ->
@@ -595,7 +634,7 @@ Theorem Vrel_VClos_compat :
     Vrel_open (VClos Γ1 vl1 b1) (VClos Γ2 vl2 b2).
 Proof.
   unfold Vrel_open. intros. apply Vrel_VClos_compat_closed; auto.
-Qed.
+Qed. *)
 
 Theorem Erel_Val_compat_helper :
   forall {n v1 v2 Γ1 Γ2},
@@ -750,7 +789,7 @@ Proof.
   destruct m; inv D.
   eapply HF in H2 as [i D]; eauto.
   eexists. constructor. exact D.
-  apply Vrel_VClos_compat_closed; auto.
+  apply Vrel_VClos_compat; auto.
   eapply Grel_downclosed. eauto.
   Unshelve. lia.
 Qed.
@@ -1262,8 +1301,8 @@ Proof.
   * apply Vrel_VPid_compat.
   * apply Vrel_VNil_compat.
   * inv H. apply Vrel_VCons_compat; auto.
-  * inv H. apply Vrel_VClos_compat; auto.
-    unfold Grel. intros. split; auto.
+  * inv H. intros n. apply Vrel_VClos_compat; auto.
+    unfold Grel. split; auto.
     apply forall_biforall_refl.
     clear H4 IHe0.
     induction IHe. constructor.
@@ -1287,8 +1326,8 @@ Proof.
   * apply Vrel_VPid_compat.
   * apply Vrel_VNil_compat.
   * inv H. apply Vrel_VCons_compat; auto.
-  * inv H. apply Vrel_VClos_compat; auto.
-    unfold Grel. intros. split; auto.
+  * inv H. intros n. apply Vrel_VClos_compat; auto.
+    unfold Grel. split; auto.
     clear IHv0 H4.
     apply forall_biforall_refl. induction IHv. constructor.
     constructor. specialize (H2 0 (Nat.lt_0_succ _)). simpl in H2.
@@ -1341,37 +1380,6 @@ Proof.
   apply CIU_open_scope_l in H. auto.
 Qed.
 
-
-
-
-Theorem CIU_Cons_compat :
-  forall Γ e1 e1' e2 e2',
-    CIU_open Γ e1 e1' ->
-    CIU_open Γ e2 e2' ->
-    CIU_open Γ (ECons e1 e2) (ECons e1' e2').
-Proof.
-  intros * He1 He2 HΓ Hlen Hclosed.
-  apply CIU_implies_Erel in He1, He2.
-  
-  assert (Erel_open Γ (ECons e1 e2) (ECons e1' e2')) as HEc.
-  { apply Erel_ECons_compat; auto. }
-  clear He1 He2.
-  apply Erel_open_scope in HEc as HEs.
-  destruct HEs as [HEs1 HEs2].
-  unfold Erel_open, exp_rel in HEc.
-  repeat split; auto.
-  1-2: rewrite Hlen; auto.
-  intros Fs HFs D.
-  destruct D as [i D].
-  eapply HEc; eauto. apply Grel_Fundamental; auto.
-  (* Frel_Fundamental is needed!! *)
-  (* That actually does make sense: we need to go from Erel_open to CIU_open, and for the
-     general case we need Frel_Fundamental so it's bound to show up in the specific cases
-     somewhere as well. This lemma can still be proven through CIU alone though, see
-     Compatibility.v.
-  *)
-Admitted.
-
 Lemma Vrel_open_closed :
   forall {v v'},
     Vrel_open v v' -> VALCLOSED v /\ VALCLOSED v'.
@@ -1380,7 +1388,7 @@ Proof.
   intros. specialize (H 42). apply Vrel_closed in H. auto.
 Qed.
 
-Theorem CIU_Clos_compat :
+(* Theorem CIU_Clos_compat :
   forall Γ Γ' vl b1 b2,
   CIU_open (S vl + length Γ) b1 b2 ->
   ENVCLOSED Γ ->
@@ -1418,7 +1426,168 @@ Proof.
             receives sufficient but not necessary conditions about the environments (~ related,
             or the same.)
   *)
-Admitted.
+Admitted. *)
+
+Lemma Frel_downclosed :
+  forall {n m : nat} {Hmn : m <= n} {F1 F2 : FrameStack},
+    Frel n F1 F2 ->
+    Frel m F1 F2.
+Proof.
+  intros n m Hmn F1 F2 HF.
+  repeat split; try apply HF.
+  intros m0 Hm0m v1 v2 Γ1 Γ2 Hv D.
+  destruct HF as [_ [_ HF]].
+  eapply HF in D as [i D]; eauto.
+  exists i. eauto. lia.
+Qed.
+
+Lemma Frel_closed :
+  forall n F1 F2,
+    Frel n F1 F2 -> FSCLOSED F1 /\ FSCLOSED F2.
+Proof. intros. split; apply H. Qed.
+
+Corollary Frel_closed_l :
+  forall n F1 F2,
+    Frel n F1 F2 -> FSCLOSED F1.
+Proof. apply Frel_closed. Qed.
+
+Corollary Frel_closed_r :
+  forall n F1 F2,
+    Frel n F1 F2 -> FSCLOSED F2.
+Proof. apply Frel_closed. Qed.
+
+Lemma Frel_FLet :
+  forall n e2 e2' Γ Γ',
+  ENVCLOSED Γ -> ENVCLOSED Γ' ->
+  (forall m v1 v1',
+    m <= n -> Vrel m v1 v1' -> exp_rel m (fun m _ => Vrel m) (v1 :: Γ) (v1' :: Γ') e2 e2') ->
+  forall m F1 F2, m <= n -> Frel m F1 F2 ->
+    Frel m (FLet e2 Γ :: F1) (FLet e2' Γ' :: F2).
+Proof.
+  intros n e2 e2' Γ Γ' HGc1 HGc2 Hv m F1 F2 Hmn HF.
+  specialize (Hv m VNil VNil Hmn (Vrel_VNil_compat _)) as Hvs.
+  apply Frel_closed in HF as HFc. destruct HFc as [HFc1 HFc2].
+  destruct Hvs as [He2s [He2's Hvs]]. simpl in He2s, He2's.
+  split. 2: split.
+  1-2: constructor; auto; constructor; auto.
+  intros m0 Hm0m v1 v2 Γ1 Γ2 HV D.
+  inv D. eapply Hv in H5 as [i D].
+  exists (S i). constructor. exact D.
+  2: exact HV. 1-2: lia.
+  split. 2: split. 1-2: auto.
+  eapply Frel_downclosed. eauto.
+  Unshelve. lia.
+Qed.
+
+Lemma Frel_FCons1 :
+  forall n e1 e1' Γ Γ',
+  ENVCLOSED Γ -> ENVCLOSED Γ' ->
+  (forall m, m <= n -> exp_rel m (fun m _ => Vrel m) Γ Γ' e1 e1') ->
+  (forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FCons1 e1 Γ :: F1) (FCons1 e1' Γ' :: F2)).
+Proof.
+  intros n e1 e1' Γ Γ' HGc1 HGc2 He m F1 F2 Hmn HF.
+  specialize (He m Hmn).
+  apply Frel_closed in HF as HFc. destruct HFc as [HFc1 HFc2].
+  destruct He as [He1c [He1'c He]].
+  split. 2: split.
+  1-2: constructor; auto; constructor; auto.
+  intros m0 Hm0m v1 v2 Γ1 Γ2 HV D.
+  inv D. eapply He in H5 as [i D].
+  exists (S i). constructor. exact D. lia.
+  apply Vrel_closed in HV as HVc. destruct HVc as [HVc1 HVc2].
+  split. 2: split.
+  1-2: constructor; auto; constructor; auto.
+  intros m0 Hm0k v0 v3 Γ0 Γ3 HV' D.
+  inv D. eapply HF in H6 as [i D].
+  exists (S i). constructor. exact D. lia.
+  eapply Vrel_VCons_compat_closed.
+  all: eapply Vrel_downclosed; eauto.
+  Unshelve. lia. lia.
+Qed.
+
+Lemma Frel_FCons2 :
+  forall n v2 v2' Γ Γ', 
+  ENVCLOSED Γ -> ENVCLOSED Γ' ->
+  (* ^^^ we've discussed that we don't even need envs in FCons2, but they are checked for
+         closedness anyway.
+  *)
+  (forall m, m <= n -> Vrel m v2 v2') ->
+  (forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FCons2 v2 Γ :: F1) (FCons2 v2' Γ' :: F2)).
+Proof.
+  intros n v2 v2' Γ Γ' HGc1 HGc2 HV m F1 F2 Hmn HF.
+  specialize (HV m Hmn).
+  apply Vrel_closed in HV as HVc. destruct HVc as [HVc1 HVc2].
+  apply Frel_closed in HF as HFc. destruct HFc as [HFc1 HFc2].
+  split. 2: split.
+  1-2: constructor; auto; constructor; auto.
+  intros m0 Hm0m v1 v0 Γ1 Γ2 HV' D.
+  inv D. eapply HF in H5 as [i D].
+  exists (S i). constructor. exact D. lia.
+  eapply Vrel_VCons_compat_closed.
+  all: eapply Vrel_downclosed; eauto.
+  Unshelve. lia. lia.
+Qed.
+
+Lemma Frel_FCase :
+  forall n p e2 e2' e3 e3' Γ Γ',
+  ENVCLOSED Γ -> ENVCLOSED Γ' ->
+  (forall m, m <= n -> forall vl1 vl2, length vl1 = pat_vars p -> list_biforall (Vrel m) vl1 vl2 ->
+    exp_rel m (fun m _ => Vrel m) (vl1 ++ Γ) (vl2 ++ Γ') e2 e2') ->
+  (forall m, m <= n -> exp_rel m (fun m _ => Vrel m) Γ Γ' e3 e3') ->
+  (forall m F1 F2, m <= n -> Frel m F1 F2 ->
+    Frel m (FCase p e2 e3 Γ :: F1) (FCase p e2' e3' Γ' :: F2)).
+Proof.
+  intros n p e2 e2' e3 e3' Γ Γ' HGc1 HGc2 He2 He3 m F1 F2 Hmn HF.
+  specialize (He3 m Hmn). destruct He3 as [He3s [He3's He3]].
+  specialize (He2 m Hmn (repeat VNil (pat_vars p)) (repeat VNil (pat_vars p))) as He2'.
+  rewrite repeat_length in He2'.
+  assert (list_biforall (Vrel m) (repeat VNil (pat_vars p)) (repeat VNil (pat_vars p))) as Hbfa.
+  { clear. remember (pat_vars p) as k. clear Heqk.
+    induction k; simpl; constructor.
+    apply Vrel_VNil_compat_closed. exact IHk. }
+  specialize (He2' eq_refl Hbfa). clear Hbfa.
+  destruct He2' as [He2s [He2's _]].
+  rewrite length_app, repeat_length in He2s, He2's.
+  apply Frel_closed in HF as HFc. destruct HFc as [HFc1 HFc2]. 
+  split. 2: split.
+  1-2: constructor; auto; constructor; auto.
+  intros m0 Hm0m v1 v2 Γ1 Γ2 HV D.
+  inv D.
+  * eapply match_pattern_Vrel in HV as HP. 2: exact H7.
+    destruct HP as [l2 [HPv2 HPbfa]].
+    apply match_pattern_length in H7 as HPl.
+    eapply He2 in H8 as [i D].
+    exists (S i). eapply term_case_true. exact HPv2. exact D.
+    2: auto.
+    2: eapply Vrel_biforall_downclosed; eauto. 2: reflexivity. lia.
+    eapply Frel_downclosed. eauto.
+    Unshelve. lia. lia.
+  * eapply nomatch_pattern_Vrel in HV as HP. 2: exact H7.
+    eapply He3 in H8 as [i D].
+    exists (S i). apply term_case_false. auto. exact D. lia.
+    eapply Frel_downclosed. eauto.
+    Unshelve. lia.
+Qed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Lemma Erel_Val_compat_backwards :
   forall {Γ v v'},
@@ -1469,24 +1638,6 @@ Proof.
   * admit. (* probably the most interesting/difficult one is the case with 2 closures *)
 Admitted.
 
-
-
-
-(*
-      CIU compatibility lemmas
-                ↑
-      VClos and EFun compatibility
-                ↑
-      2 envs are the same
-                ↑
-      2 envs need to be related pointwise by CIU_open
-                ↑
-      CIU_open needs to be reflexive
-                ↑
-      CIU compatibility lemmas
-                ↑
-               ...
-*)
 
 
 
