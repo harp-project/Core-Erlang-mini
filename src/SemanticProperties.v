@@ -712,52 +712,6 @@ Proof.
     intros. apply H. lia. assumption.
 Qed.
 
-(* Lemma eval_app_partial_core_2 :
-  forall hds' vals vl e e' v Fs hds k,
-  (forall m : nat,
-    m < S k ->
-    forall (Fs : FrameStack) (e : Exp),
-    | Fs, e | m ↓ ->
-    exists (v : Exp) (k : nat), ⟨ Fs, e ⟩ -[ k ]-> ⟨ Fs, v ⟩) ->
-  | FApp2 (VFun vl e) hds (map VVal hds' ++ e' :: vals) :: Fs, v | k ↓ ->
-  exists k0 hds'', k0 <= k /\
-  ⟨ FApp2 (VFun vl e) hds (hds' ++ e' :: vals) :: Fs, v ⟩ -[k0]-> 
-  ⟨ FApp2 (VFun vl e) (hds ++ v :: hds'') vals :: Fs , e'⟩.
-Proof.
-  induction hds'; intros.
-  * simpl in *. inversion H0; subst; try inversion_is_value.
-    exists 1, []. split. lia. split. auto. econstructor. constructor; auto. constructor.
-  * simpl in *. inversion H0; subst; try inversion_is_value.
-    apply H in H12 as P1. 2: lia. destruct P1, H3, H3.
-    eapply (terminates_step_any_2 _ _ _ _ H12) in H4 as H4'.
-    inversion H4'; subst; try inversion_is_value.
-    2: { destruct hds'; inversion H7. }
-    destruct hds'; simpl in H6; inversion H6; subst.
-    - simpl in H4.
-      assert (⟨ FApp2 (VFun vl e) (e' :: vals) (hds ++ [v]) :: Fs, x ⟩ -[1]->
-           ⟨ FApp2 (VFun vl e) vals ((hds ++ [v]) ++ [x]) :: Fs, e' ⟩).
-           { do 2 econstructor; auto. }
-      epose proof (transitive_eval _ _ _ _ _ H4 _ _ _ H5).
-      exists (S (x0 + 1)), [x]. split. lia. split. auto.
-      econstructor. constructor; auto.
-      rewrite <- app_assoc in H7. simpl in H7. auto.
-    - epose proof (IHhds' vals vl e e' x Fs _ _ _ _ _ H4' H'0 H15).
-      Unshelve. 4: { intros. eapply H. 3: exact H8. lia. auto. }
-      destruct H5, H5, H5, H7.
-      epose proof (transitive_eval _ _ _ _ _ H4 _ _ _ H8).
-      exists (S (x0 + x1)), (x::x2). 
-      split. 2: split.
-      + lia.
-      + constructor; auto.
-      + econstructor. constructor; auto. simpl in H9.
-        replace ((hds ++ [v]) ++ x :: x2) with (hds ++ v :: x :: x2) in H9.
-        exact H9.
-        rewrite <- app_assoc. auto.
-      + auto.
-      + now inversion PP.
-    - now inversion PP.
-Qed. *)
-
 Lemma eval_app_partial_core_empty :
   forall hds' vals vfun e' (v : Val) Fs (hds : list Val) k ,
   (forall m : nat,
@@ -993,182 +947,130 @@ Proof.
 Qed.
 
 Corollary term_eval : forall x Fs e, | Fs, e | x ↓ ->
-  exists v k, ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ /\ k <= x.
+  exists (v : Val) k, ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ /\ k <= x.
 Proof.
   intros.
   pose proof (term_eval_empty x Fs e H) as [? [? [X ?]]].
   do 2 eexists. split; eauto. eapply frame_indep_nil in X. exact X.
 Qed.
 
-Corollary app_term_fun_final : forall tl k hds e e' Fs,
-  | FApp2 e' tl hds :: Fs, e | k ↓ -> Forall (fun v => VALCLOSED v) hds ->
-  EXPCLOSED e -> Forall (fun e => EXPCLOSED e) tl
+Corollary app_term_conditions : forall tl k hds e e' Fs,
+  | FApp2 e' hds tl :: Fs, e | k ↓
 ->
-  exists vl b, e' = VFun vl b /\ length vl = S (length (hds ++ tl)).
+  exists vl b, e' = VFun vl b /\ vl = S (length hds + length tl).
 Proof.
   intros. eapply app_term_fun; eauto.
-  intros. eapply term_eval. eauto. eauto.
+  intros. eapply term_eval in H1 as [? [? [X ?]]].
+  do 2 eexists. exact X.
 Qed.
 
-Corollary term_eval_both : forall x Fs e (P : EXPCLOSED e), | Fs, e | x ↓ ->
-  exists v k, VALCLOSED v /\ ⟨ [], e ⟩ -[k]-> ⟨ [], v ⟩ /\ ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩.
+Corollary term_eval_both : forall x Fs e, | Fs, e | x ↓ ->
+  exists (v : Val) k,
+    ⟨ [], e ⟩ -[k]-> ⟨ [], v ⟩ /\
+    ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩.
 Proof.
-  intros. apply term_eval_empty in H. destruct H, H, H.
-  exists x0, x1; split; [| split]; auto.
-  eapply frame_indep_nil in H0; eauto. auto.
-Qed.
-
-Theorem app_term_conditions : forall l1 l2 v e x Fs (P : EXPCLOSED e) (PP : Forall (fun e => EXPCLOSED e) l1), 
-  | FApp2 v l1 l2 :: Fs, e | x ↓ ->
-  Forall (fun v => VALCLOSED v) l2 /\ exists vl e', v = VFun vl e'.
-Proof.
-  induction l1; intros.
-  * apply term_eval in H as H'; auto. destruct H', H0, H0.
-    eapply (terminates_step_any_2 _ _ _ _ H) in H1 as H1'.
-    inversion H1'; subst; try inversion_is_value. split. auto. now do 2 eexists.
-  * apply term_eval in H as H'. destruct H', H0, H0.
-    eapply (terminates_step_any_2 _ _ _ _ H) in H1 as H1'.
-    inversion H1'; subst; try inversion_is_value. apply IHl1 in H11.
-    destruct H11, H3, H3. split; auto. subst. now do 2 eexists.
-    now inversion PP.
-    now inversion PP.
-    congruence.
+  intros. apply term_eval_empty in H as [v [k [D L]]].
+  do 2 eexists. split. eassumption.
+  eapply frame_indep_nil in D; eauto.
 Qed.
 
 Lemma eval_bif_partial :
-  forall hds vals vfun v Fs,
-  Forall (fun v => EXPCLOSED v) vals ->
-  Forall (fun v => VALCLOSED v) hds ->
-  VALCLOSED vfun ->
-  EXPCLOSED v ->
-  ⟨ Fs, EBIF vfun (hds ++ v :: vals) ⟩ -[S (S (length hds))]-> 
-  ⟨ FBIF2 vfun vals hds :: Fs , v⟩.
+  forall vals exps vfun e Fs,
+  ⟨ Fs, EBIF (˝vfun) (map VVal vals ++ e :: exps) ⟩ -[S (S (length vals))]-> 
+  ⟨ FBIF2 vfun vals exps :: Fs , e⟩.
 Proof.
-  intro hds.
-  remember (length hds) as len. generalize dependent hds.
+  intro vals.
+  remember (length vals) as len. generalize dependent vals.
   induction len; intros.
   * apply eq_sym, length_zero_iff_nil in Heqlen. subst.
     simpl. econstructor. constructor; auto.
     econstructor. constructor; auto. constructor.
   * apply last_element_exists in Heqlen as L'.
     destruct L' as [hds' [lst Eq]]; subst.
-    apply Forall_app in H0 as [H0_1 H0_2]. inversion H0_2; subst.
-    rewrite app_length in Heqlen. simpl in Heqlen.
-    specialize (IHlen hds' ltac:(lia) (v::vals) vfun lst Fs
-         ltac:(constructor;auto) H0_1 H1 ltac:(constructor;auto)).
-    rewrite <- app_assoc. simpl.
+    rewrite length_app in Heqlen. simpl in Heqlen.
+    specialize (IHlen hds' ltac:(lia) (e::exps) vfun lst Fs).
+    rewrite map_app. rewrite <- app_assoc. simpl.
     replace (S (S (S len))) with (S (S len) + 1) by lia.
     eapply transitive_eval. exact IHlen.
     econstructor. constructor; auto. constructor.
 Qed.
 
-Theorem put_back : forall F e Fs (P : EXPCLOSED e) (P2 : FCLOSED F),
+Theorem put_back : forall F e Fs,
   | F :: Fs, e | ↓ -> | Fs, plug_f F e | ↓.
 Proof.
   destruct F; intros; simpl.
   * inversion H. exists (S x). constructor. auto.
   * destruct H.
     apply term_eval in H as H'. destruct H', H0, H0.
-    apply app_term_conditions in H as CDS. destruct CDS, H3, H3. subst.
-    destruct l2.
+    apply app_term_conditions in H as CDS.
+    destruct CDS as [vl [b [? ?]]]. subst.
+    destruct l1.
     - simpl in *. exists (2 + x). do 2 constructor; auto.
-      now inversion P2.
-    - inversion H2. subst.
-      epose proof (eval_app_partial_core l2 l1 x2 x3 e e0 Fs [] _ _ H6 H5).
-      exists (2 + (S (Datatypes.length l2) + x)). simpl.
-      do 2 constructor. now inversion P2.
-      apply terminates_in_k_eq_terminates_in_k_sem in H.
-      apply terminates_in_k_eq_terminates_in_k_sem. destruct H, H.
-      exists x4. split; auto. rewrite <- Nat.add_succ_l.
-      eapply transitive_eval. exact H3. auto.
-    - auto.
-    - now inversion P2.
-    - auto.
+    - epose proof (eval_app_partial_core l1 l2 _ b e v Fs []).
+      exists (2 + (S (Datatypes.length l1) + x)). simpl.
+      do 2 constructor.
+      eapply term_step_term. exact H2.
+      replace (S (length l1 + x) - S (length l1)) with x by lia. assumption.
+      lia.
   * inversion H. exists (S x). constructor. auto.
   * inversion H. exists (S x). constructor. auto.
   * inversion H. exists (S x). constructor. auto.
-  * inversion H. exists (S (S x)). inversion P2. do 2 constructor; auto.
+  * inversion H. exists (S (S x)). do 2 constructor; auto.
   * destruct H. exists (S x). constructor. auto.
   * destruct H. 
     apply term_eval in H as HH; auto.
-    destruct HH as [? [? [? ?]]]. inversion P2; subst.
-    pose proof (eval_bif_partial l2 l1 v e Fs H6 H7 H5 P).
+    destruct HH as [? [? [? ?]]].
+    pose proof (eval_bif_partial l1 l2 v e Fs).
     eexists.
     eapply term_step_term_plus. exact H2. exact H.
-Unshelve.
-  now inversion P2.
-  auto.
 Qed.
 
-Theorem put_back_rev : forall F e Fs (P : EXPCLOSED e), FCLOSED F ->
+Theorem put_back_rev : forall F e Fs,
   | Fs, plug_f F e | ↓ -> | F :: Fs, e | ↓.
 Proof.
   destruct F; intros; simpl.
-  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
-  * simpl in *. inversion H. subst. destruct H0.
-    destruct l2.
-    - simpl in H0. inversion H0; subst; try inversion_is_value.
-      inversion H8; subst; try inversion_is_value. eexists. eauto.
-    - inversion H0; subst; try inversion_is_value.
-      inversion H8; subst; try inversion_is_value.
-      inversion H6; subst.
-      apply app_term_conditions in H11 as COND.
-      2: now constructor.
-      2: apply Forall_app; split; [ | constructor]; auto.
-      destruct COND as [FC [vl [b ?]]]. subst.
-      epose proof (eval_app_partial_core l2 l1 vl b e e0 Fs [] ltac:(auto) ltac:(auto) H7 H3).
-      simpl in H1.
-      eapply (terminates_step_any_2 _ _ _ _ H11) in H1 as H1'. eexists. exact H1'.
-      eapply Forall_impl. 2: exact H7. intros. now constructor.
-  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
-  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
-  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
-  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. inversion H.
-    subst. inversion H5; subst; try inversion_is_value. eexists. eauto.
-  * destruct H0. simpl in H0. inversion H0; subst; try inversion_is_value. eexists. eauto.
-  * simpl in H0. inversion H. subst. 
-    destruct H0.
-    pose proof (eval_bif_partial l2 l1 v e Fs H5 H6 H4 P).
+  * destruct H. inv H. eexists. eauto.
+  * destruct H. inv H.
+    destruct l1.
+    - inv H4.
+      by eexists.
+    - inv H4.
+      apply app_term_conditions in H5 as H5'.
+      destruct H5' as [FC [vl [b ?]]]. subst.
+      epose proof (eval_app_partial_core l1 l2 _ _ _ _ _ _) as X.
+      simpl in X.
+      eapply (terminates_step_any_2 _ _ _ _ H5) in X as H1'.
+      eexists. exact H1'.
+  * destruct H. inv H. eexists. eauto.
+  * destruct H. inv H. eexists. eauto.
+  * destruct H. inv H. eexists. eauto.
+  * destruct H. inv H. inv H4. eexists. eauto.
+  * destruct H. inv H. eexists. eauto.
+  * destruct H. inv H.
+    pose proof (eval_bif_partial l1 l2 v e Fs).
     eexists.
-    eapply terminates_step_any_2. exact H0.
-    exact H1.
+    eapply terminates_step_any_2. 2: apply H.
+    econstructor. exact H4.
 Qed.
 
-Theorem term_app_in_k : forall Fs vl vals e k (P : VALCLOSED (VFun vl e)),
-  length vl = length vals -> Forall (fun v => VALCLOSED v) vals ->
+Theorem term_app_in_k : forall Fs vl vals e k,
+  vl = length vals ->
   | Fs, e.[VFun vl e .: list_subst vals idsubst] | k ↓ ->
-  | Fs, EApp (VFun vl e) vals | 2 + length vl + k ↓.
+  | Fs, EApp (VFun vl e) (map VVal vals) | 2 + vl + k ↓.
 Proof.
-  intros. inversion H0; try inversion_is_value; subst.
-  * apply length_zero_iff_nil in H. subst.
-    do 2 constructor. auto.
-  * destruct (length l) eqn:D1.
-    - apply length_zero_iff_nil in D1. subst. rewrite H. simpl.
-      do 2 constructor; auto. now constructor.
-    - apply eq_sym, last_element_exists in D1 as D1'. destruct D1' as [l' [l'x EQ]].
-      subst. apply Forall_app in H3 as [H3_1 H3_2]. inversion H3_2. subst.
-      epose proof (eval_app_partial_core l' [] vl e l'x x Fs []
-         ltac:(constructor) _ H3_1 H2). cbn in H3.
-      assert (⟨ FApp2 (VFun vl e) [] (x :: l') :: Fs, l'x ⟩ -[1]-> ⟨ Fs, e.[VFun vl e .: list_subst (x :: l' ++ [l'x]) idsubst] ⟩). { 
-        econstructor; constructor. all: auto.
-        simpl. simpl in H. rewrite app_length in H. simpl in H. lia.
-      }
-      epose proof (transitive_eval _ _ _ _ _ H3 _ _ _ H4).
-      eapply term_step_term_plus in H7. 2: exact H1.
-      rewrite H. simpl. rewrite app_length. simpl. do 2 constructor. auto. exact H7.
-  Unshelve.
-    now inversion P.
-    auto.
+  intros. subst.
+  eapply term_step_term.
+  apply full_eval_app_partial. reflexivity. 2: lia.
+  by replace (2 + base.length vals + k - (2 + base.length vals)) with k by lia.
 Qed.
 
 (** The following two theorems state general properties about the evaluation
     of map and foldr. Specifically, they explain the conditions under they
     evaluate to the same list value. *)
 Theorem obj_map_on_meta_level :
-  forall l' l x e f
-  (VsCL : VALCLOSED l) (SCE : EXP 2 ⊢ e),
-  computes x e f -> cons_to_list l = Some l' ->
-  ⟨[], obj_map (VFun [x] e) l⟩ -->* list_to_cons (map f l').
+  forall l' l e f,
+  computes e f -> cons_to_list l = Some l' ->
+  ⟨[], obj_map (VFun 1 e) l⟩ -->* list_to_cons (map f l').
 Proof.
   induction l'; intros.
   * destruct l; simpl in H0; inversion H0.

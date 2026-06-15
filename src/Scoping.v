@@ -969,13 +969,13 @@ Inductive Frame : Set :=
 Definition plug_f (F : Frame) (e : Exp) : Exp :=
 match F with
  | FApp1 l => EApp e l
- | FApp2 v l1 l2 => EApp v (l2 ++ [e] ++ map VVal l1)
+ | FApp2 v l1 l2 => EApp v (map VVal l1 ++ [e] ++ l2)
  | FLet e2 => ELet e e2
  | FCase p e2 e3 => ECase e p e2 e3
  | FCons1 e1 => ECons e1 e
  | FCons2 v2 => ECons e v2
  | FBIF1 l => EBIF e l
- | FBIF2 v l1 l2 => EBIF v (l2 ++ [e] ++ map VVal l1)
+ | FBIF2 v l1 l2 => EBIF v (map VVal l1 ++ [e] ++ l2)
 end.
 
 Definition FrameStack := list Frame.
