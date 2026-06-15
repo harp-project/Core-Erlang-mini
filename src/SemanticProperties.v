@@ -1068,145 +1068,124 @@ Qed.
     of map and foldr. Specifically, they explain the conditions under they
     evaluate to the same list value. *)
 Theorem obj_map_on_meta_level :
-  forall l' l e f,
+  forall l' l e f
+  (VsCL : VALCLOSED l) (SCE : EXP 2 ⊢ e),
   computes e f -> cons_to_list l = Some l' ->
   ⟨[], obj_map (VFun 1 e) l⟩ -->* list_to_cons (map f l').
 Proof.
   induction l'; intros.
-  * destruct l; simpl in H0; inversion H0.
-    2: { destruct (cons_to_list l2); inversion H0. }
+  * destruct l; inv H0.
+    2: { destruct (cons_to_list l2); inversion H2. }
     unfold obj_map. cbn.
-    eexists. auto. eexists.
+    eexists.
+    econstructor. constructor.
     econstructor. constructor. cbn.
     econstructor. constructor.
-    econstructor. constructor. {
-      constructor. simpl. constructor; auto.
-      cbn. do 2 constructor; auto. 2: do 2 constructor; lia.
-      all: intros; destruct i; simpl; constructor; auto; simpl in *.
-      2-3: destruct i; try constructor; lia. constructor. lia.
-    }
-    econstructor. constructor. {
-      constructor. simpl. constructor; auto.
-      cbn. do 2 constructor; auto. 2: do 2 constructor; lia.
-      all: intros; destruct i; simpl; constructor; auto; simpl in *.
-      2-3: destruct i; try constructor; lia. constructor. lia.
-    } auto.
-    {
-      constructor. simpl. rewrite (proj2 (scoped_ignores_sub 2) e); auto.
-    }
-    simpl.
-    econstructor. constructor; auto. constructor; auto.
-    {
-      constructor. simpl. rewrite (proj2 (scoped_ignores_sub 2) e); auto.
-    }
-    econstructor. simpl. constructor; auto. cbn.
-    econstructor. apply red_case_false; auto.
+    econstructor. constructor.
+    econstructor. constructor.
+    econstructor. constructor. reflexivity.
+    cbn.
+    econstructor. constructor.
+    econstructor. simpl. apply red_case_false; auto.
     constructor.
   * destruct l; simpl in H0; inversion H0.
-    break_match_hyp; inversion H0. subst.
-    inversion VsCL. subst.
-    clear H0 H2 VsCL. specialize (IHl' _ _ _ _  H5 SCE H Heqo).
-    destruct IHl' as [VCL [k H']].
-    unfold obj_map in H'. inversion H'; subst.
-    1: { rewrite <- H3 in VCL. inversion_is_value. } clear H'.
-    inversion H0; subst. clear H0. simpl in H1.
-    (** eval first element (necessary before eexists): *)
-    specialize (H a) as [? [kk DER]].
+    break_match_hyp; inversion H0. subst. inv VsCL.
+    specialize (IHl' _ _ _ H5 SCE H Heqo).
+    destruct IHl' as [k H'].
+    unfold obj_map in H'. inv H'. inv H0. inv H1. inv H0.
+    simpl in H2.
+    setoid_rewrite (scoped_ignores_sub e 2) in H2; auto.
+    rewrite closed_ignores_sub_val in H2 by assumption.
+
+
+    (* eval first element (necessary before eexists): *)
+    specialize (H a) as [k1 D].
     (***)
-    unfold obj_map. split. { simpl. constructor; auto. }
+    unfold obj_map.
 
     eexists.
+    econstructor. constructor.
     econstructor. constructor. cbn.
     econstructor. constructor.
-    econstructor. constructor. {
-      constructor. simpl. constructor; auto.
-      cbn. do 2 constructor; auto. 2: do 2 constructor; lia.
-      all: intros; destruct i; simpl; constructor; auto; simpl in *.
-      2-3: destruct i; try constructor; lia. constructor. lia.
-    }
-    econstructor. constructor. {
-      constructor. simpl. constructor; auto.
-      cbn. do 2 constructor; auto. 2: do 2 constructor; lia.
-      all: intros; destruct i; simpl; constructor; auto; simpl in *.
-      2-3: destruct i; try constructor; lia. constructor. lia.
-    } auto.
-    {
-      constructor. simpl. rewrite (proj2 (scoped_ignores_sub 2) e); auto.
-    }
-    econstructor. constructor; auto. simpl. constructor.
-    {
-      constructor. simpl. rewrite (proj2 (scoped_ignores_sub 2) e); auto.
-    } auto.
-    econstructor. constructor; auto. simpl.
-    econstructor. constructor; auto. reflexivity. simpl.
+    econstructor. constructor.
+    econstructor. constructor.
+    econstructor. constructor. reflexivity.
+    cbn.
+    econstructor. constructor.
+    econstructor. simpl. apply red_case_true; auto. cbn.
     econstructor. apply step_cons.
     repeat rewrite renaming_is_subst.
     repeat rewrite ren_up.
     repeat rewrite subst_comp.
     repeat rewrite up_comp.
-    repeat rewrite (proj2 (scoped_ignores_sub 2) e); auto.
-    apply frame_indep_nil with (Fs' := [FCons1
-     (EApp (VFun [x] e)
-        [a.[VFun [FVar; XVar]
-              (ECase (VVar 2) (PCons PVar PVar)
-                 (ECons (EApp (VVar 3) [VVar 0])
-                    (EApp (VFunId 2) [VVar 3; VVar 1])) VNil)/]])]) in H1. simpl in H1.
+    repeat setoid_rewrite (scoped_ignores_sub e 2); auto.
+    do 2 rewrite closed_ignores_sub_val by assumption.
+    apply frame_indep_nil with (Fs' := [FCons1 (° EApp (˝ VFun 1 e) [˝ a])]) in H2. simpl in H2.
     eapply transitive_eval.
-    rewrite (proj2 (scoped_ignores_sub 2) e) in H1; auto.
-    exact H1.
+    exact H2.
    (** evaluate first element *)
-    econstructor. constructor. { auto. }
-    rewrite vclosed_ignores_sub; auto.
+    econstructor. constructor.
     apply frame_indep_nil with (Fs' := [FCons2 (list_to_cons (map f l'))])
-       in DER. simpl in DER.
-    eapply transitive_eval. exact DER.
+       in D. simpl in D.
+    eapply transitive_eval. exact D.
     econstructor. constructor; auto. constructor.
 Qed.
 
 Theorem obj_foldr_on_meta_level :
-  forall l' l x y z e f
+  forall l' l e f
   (VsCL : VALCLOSED l) (SCE : EXP 2 ⊢ e),
-  computes x e f -> cons_to_list l = Some l' ->
-  ⟨[], obj_foldr (VFun [y;z] (ECons (EApp (VFun [x] e) [VVar 1]) (VVar 2))) l VNil⟩
+  computes e f -> cons_to_list l = Some l' ->
+  ⟨[], obj_foldr (VFun 2 (ECons (EApp (VFun 1 e) [˝VVar 1]) (VVar 2))) l VNil⟩
  -->* list_to_cons (map f l').
 Proof.
   induction l'; intros.
-  * assert (VALCLOSED (VFun [FVar; DVar; XVar]
+  * assert (VALCLOSED (VFun 3
              (ECase (VVar 3) (PCons PVar PVar)
                 (EApp (VVar 3)
-                   [VVar 0; EApp (VFunId 2) [VVar 3; VVar 4; VVar 1]])
+                   [˝VVar 0; °EApp (VVar 2) [˝VVar 3; ˝VVar 4; ˝VVar 1]])
                 (VVar 2)))) as CLF1. {
       do 2 constructor; auto. constructor; simpl; auto.
+      constructor; simpl; auto.
+      constructor; simpl; auto.
       * do 2 constructor. lia.
       * intros. destruct i. 2: destruct i. do 2 constructor. 1, 3: lia.
         constructor; auto. simpl. intros.
-        do 2 constructor. lia.
+        constructor. do 2 constructor. lia.
         simpl. intros. destruct i. 2: destruct i. 3: destruct i.
         1-3: do 2 constructor. all: lia.
-      * simpl. do 2 constructor. lia.
     }
-    assert (VALCLOSED (VFun [y; z] (ECons (EApp (VFun [x] e) [VVar 1]) (VVar 2)))). {
+    assert (VALCLOSED (VFun 2 (ECons (EApp (VFun 1 e) [˝VVar 1]) (VVar 2)))). {
       constructor. simpl. do 2 constructor.
-      * do 2 constructor. simpl. now apply (proj2 (scope_ext_app 5 2 ltac:(lia))).
-      * intros. simpl in H1. destruct i. do 2 constructor. all: lia.
-      * constructor. lia.
+      * do 2 constructor. simpl.
+        constructor. constructor.
+        now apply (scope_ext_app 5 2 ltac:(lia)).
+        intros. simpl in H1. destruct i. do 2 constructor. all: lia.
+      * do 2 constructor. lia.
     }
     destruct l; simpl in H0; inversion H0.
     2: { destruct (cons_to_list l2); inversion H0. }
     unfold obj_map. cbn.
-    eexists. auto. eexists.
+    eexists.
     econstructor. constructor. cbn.
-    econstructor. constructor.
+    econstructor. constructor. cbn.
+    
     econstructor. constructor. auto.
-    repeat rewrite (proj2 (scoped_ignores_sub 2) e); auto.
+    repeat setoid_rewrite (scoped_ignores_sub e 2); auto.
     econstructor. constructor; auto.
-    cbn.
+    econstructor. constructor; auto. cbn.
     econstructor. constructor; auto.
     econstructor. constructor; auto.
-    {
-      constructor. auto.
-      constructor; auto.
-    } cbn.
+
+
+
+    (* TBD *)
+
+
+
+
+
+
+
     econstructor. constructor; auto.
     econstructor. apply red_case_false; auto.
     constructor.
