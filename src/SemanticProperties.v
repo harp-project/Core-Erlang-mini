@@ -758,7 +758,7 @@ Proof.
     - now inversion PP.
 Qed. *)
 
-Lemma eval_app_partial_core_emtpy :
+Lemma eval_app_partial_core_empty :
   forall hds' vals vfun e' (v : Val) Fs (hds : list Val) k ,
   (forall m : nat,
     m < S k ->
@@ -766,13 +766,12 @@ Lemma eval_app_partial_core_emtpy :
     | Fs, e | m ↓ 
     -> exists (v : Val) (k : nat),  ⟨ [], e ⟩ -[ k ]-> ⟨ [], v ⟩) ->
   | FApp2 vfun hds (hds' ++ e' :: vals) :: Fs, v | k ↓ ->
-  exists k0 hds'', k0 <= k /\
-  ⟨ [FApp2 vfun hds (hds' ++ e' :: vals)], v ⟩ -[k0]-> 
-  ⟨ [FApp2 vfun (hds ++ v :: hds'') vals] , e'⟩.
+  exists hds'' k0, ⟨ [FApp2 vfun hds (hds' ++ e' :: vals)], v ⟩ -[k0]-> 
+  ⟨ [FApp2 vfun (hds ++ v :: hds'') vals] , e'⟩ /\ k0 <= k.
 Proof.
   induction hds'; intros.
   * simpl in *. inv H0.
-    exists 1, []. split. lia. econstructor. constructor; auto. constructor.
+    exists [], 1. split. 2: lia. econstructor. constructor; auto. constructor.
   * simpl in *. inv H0.
     apply H in H8 as P1. 2: lia. destruct P1 as [v1 [k1 D1]].
     eapply frame_indep_nil in D1 as D1_1.
@@ -786,20 +785,20 @@ Proof.
       { do 2 econstructor; auto. }
       eapply frame_indep_nil in D1.
       epose proof (transitive_eval _ _ _ _ _ D1 _ _ _ H0).
-      exists (S (k1 + 1)), [v1]. split. lia.
+      exists [v1], (S (k1 + 1)). split. 2: lia.
       econstructor. constructor; auto.
       rewrite <- app_assoc in H2. simpl in H2. auto.
     - epose proof (IHhds' vals vfun e' _ Fs _ _ _ H4') as X.
       Unshelve. 2: { intros. eapply H. 2: exact H2. lia. }
-      destruct X as [k2 [vs2 [Hlt HD]]].
+      destruct X as [vs2 [k2 [HD Hlt]]].
       eapply frame_indep_nil in D1.
       epose proof (transitive_eval _ _ _ _ _ D1 _ _ _ HD).
-      exists (S (k1 + k2)), (v1::vs2). 
+      exists (v1::vs2), (S (k1 + k2)). 
       split.
-      + lia.
       + econstructor. constructor; auto. simpl in H0.
         rewrite <- app_assoc in H0.
         exact H0.
+      + lia.
 Qed.
 
 Lemma term_bif_eval_empty :
@@ -811,24 +810,24 @@ Lemma term_bif_eval_empty :
     exists (v : Val) (k : nat),
       ⟨ [], e ⟩ -[ k ]-> ⟨ [], v ⟩) ->
   | FBIF2 v0 vals (tl ++ [lst]) :: Fs, hd | k ↓ ->
-  exists i vals', i <= k /\
+  exists vals' i,
     ⟨ FBIF2 v0 vals (tl ++ [lst]) :: [], hd ⟩ -[i]->
-    ⟨ FBIF2 v0 (vals ++ [hd] ++ vals') [] :: [], lst ⟩.
+    ⟨ FBIF2 v0 (vals ++ [hd] ++ vals') [] :: [], lst ⟩ /\ i <= k .
 Proof.
   induction tl; intros; simpl.
   * inv H0.
-    exists 1, []. split.
-    lia.
+    exists [], 1. split.
     econstructor. constructor; auto. constructor.
+    lia.
   * inv H0.
     apply H in H8 as HH; auto. destruct HH as [v1 [k1 HH]].
     eapply frame_indep_nil in HH as HH0.
     eapply (terminates_step_any_2 _ _ _ _ H8) in HH0 as HH'; auto.
     destruct (k0 - k1) eqn:Eq. inversion HH'.
     epose proof (IHtl Fs v0 (vals ++ [hd]) lst v1 (S n) _ HH') as X.
-    destruct X as [k2 [vals' [Hlt X]]].
-    exists (S (k1 + k2)), (v1 :: vals').
-    split. lia.
+    destruct X as [vals' [k2 [X Hlt]]].
+    exists (v1 :: vals'), (S (k1 + k2)).
+    split. 2: lia.
     econstructor. constructor; auto.
     eapply transitive_eval.
     eapply frame_indep_nil in HH. exact HH.
@@ -870,185 +869,135 @@ Proof.
       econstructor. constructor. eapply transitive_eval; eauto.
       eapply frame_indep_nil in HD0. exact HD0.
       econstructor. apply red_case_false. all: eauto.
-  * apply H in H4 as v_eval. 2: lia. destruct v_eval, H1, H1.
-    eapply frame_indep_nil in H2 as H2_1.
-    eapply (terminates_step_any_2 _ _ _ _ H4) in H2_1 as H2'.
+  * apply H in H4 as v_eval. 2: lia. destruct v_eval as [v1 [k1 [D1 L1]]].
+    eapply frame_indep_nil in D1 as D1_1.
+    eapply (terminates_step_any_2 _ _ _ _ H4) in D1_1 as H2'.
     destruct vs.
-    - inversion H2'; subst; try inversion_is_value.
-      apply H in H7. 2: lia. destruct H7, H3, H3.
-      exists x0, (S (x1 + S x2)). split; auto.
+    - inv H2'.
+      apply H in H5. 2: lia. destruct H5 as [v2 [k2 [D2 L2]]].
+      exists v2, (S (k1 + S k2)). split; auto.
       econstructor. constructor. eapply transitive_eval; eauto.
-      eapply frame_indep_nil in H2. exact H2.
-      econstructor. constructor. auto.
-      inversion H1. apply -> subst_preserves_scope_exp; eauto.
-    - inversion H2'; subst; try inversion_is_value.
-      assert (| FApp2 x0 vs [] :: Fs, e | k ↓) as PP by auto.
-      eapply H in H10. 2: lia. destruct H10, H3, H3.
+      eapply frame_indep_nil in D1. exact D1.
+      econstructor. constructor. auto. lia.
+    - inversion H2'; subst.
+      assert (| FApp2 v1 [] vs :: Fs, e | k ↓) as PP by auto.
+      eapply H in H2. 2: lia. destruct H2 as [v2 [k2 [D2 L2]]].
       destruct (length vs) eqn:P0.
       + apply length_zero_iff_nil in P0. subst.
-        eapply frame_indep_nil in H5 as H5_1.
+        eapply frame_indep_nil in D2 as H5_1.
         eapply (terminates_step_any_2 _ _ _ _ PP) in H5_1 as H5'.
-        inversion H5'; subst; try inversion_is_value.
-        apply H in H16. 2: lia. destruct H16, H6, H6.
-        assert (⟨ [FApp2 (VFun vl e1) [] []], x2 ⟩ -[1]-> ⟨ [], e1.[list_subst (VFun vl e1 :: [] ++ [x2]) idsubst] ⟩).
-        { repeat econstructor; auto. }
-        eapply frame_indep_nil in H7.
-        epose proof (transitive_eval _ _ _ _ _ H10 _ _ _ H7).
-        assert (⟨ [FApp1 [e]], VFun vl e1 ⟩ -[1]-> ⟨ [FApp2 (VFun vl e1) [] []], e ⟩). { do 2 econstructor; auto. }
-        eapply frame_indep_nil in H2.
-        epose proof (transitive_eval _ _ _ _ _ H2 _ _ _ H16).
-        eapply frame_indep_nil in H5.
-        epose proof (transitive_eval _ _ _ _ _ H5 _ _ _ H10).
-        epose proof (transitive_eval _ _ _ _ _ H17 _ _ _ H18).
-        epose proof (transitive_eval _ _ _ _ _ H19 _ _ _ H7).
-        exists x0, (S (x1 + 1 + (x3 + 1) + x4)). split; auto.
-        econstructor. constructor. auto.
-        inversion H1.
-        apply -> subst_preserves_scope_exp; eauto; subst.
-        simpl. apply cons_scope; auto. rewrite H14. apply cons_scope; auto.
-      + apply eq_sym, last_element_exists in P0. destruct P0, H6. subst.
-        eapply frame_indep_nil in H5 as H5_1.
+        inv H5'.
+        apply H in H9. 2: lia. destruct H9 as [v3 [k3 [D3 L3]]].
+        exists v3, (S (k1 + (1 + (k2 + (1 + k3))))). split; auto. 2: lia.
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_nil in D1. exact D1.
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_nil in D2. exact D2.
+        econstructor. constructor. reflexivity.
+        assumption.
+      + apply eq_sym, last_element_exists in P0. destruct P0 as [vshds [vtl Eq]].
+        subst.
+        eapply frame_indep_nil in D2 as H5_1.
         eapply (terminates_step_any_2 _ _ _ _ PP) in H5_1 as H5'.
 
-        epose proof (eval_app_partial_core_emtpy x4 [] x0 x5 _ _ _ _ _ _ _ H5' H3 ltac:(auto)).
-        destruct H6, H6, H6, H7. simpl in H10.
-        eapply frame_indep_core in H10 as H10_1. simpl in H10_1.
+        epose proof (eval_app_partial_core_empty vshds [] v1 vtl v2 _ _ _
+          _ H5') as [v3 [k3 [D3 L3]]].
+        simpl in *.
+        eapply frame_indep_core in D3 as H10_1. simpl in H10_1.
         eapply (terminates_step_any_2 _ _ _ _ H5') in H10_1 as H7'.
-        apply H in H7' as H7''. 2: lia. destruct H7'', H11, H11.
-        eapply frame_indep_nil in H12 as H12_1.
+        apply H in H7' as H7''. 2: lia. destruct H7'' as [v4 [k4 [D4 L4]]].
+        eapply frame_indep_nil in D4 as H12_1.
         eapply (terminates_step_any_2 _ _ _ _ H7') in H12_1 as H11'.
-        inversion H11'; subst; try inversion_is_value.
-        apply H in H21. 2: lia. destruct H21, H13, H13.
-        eapply frame_indep_nil in H12.
-        epose proof (transitive_eval _ _ _ _ _ H10 _ _ _ H12).
-        assert (⟨ [FApp2 (VFun vl e1) [] (x2 :: x7)], x8 ⟩ -[1]->
-              ⟨ [], e1.[list_subst (VFun vl e1 :: (x2 :: x7) ++ [x8]) idsubst] ⟩). { econstructor. constructor; auto. constructor. }
-        epose proof (transitive_eval _ _ _ _ _ H15 _ _ _ H18).
-        epose proof (transitive_eval _ _ _ _ _ H21 _ _ _ H14).
-        eapply frame_indep_nil in H5.
-        epose proof (transitive_eval _ _ _ _ _ H5 _ _ _ H22).
-        assert (⟨ [FApp1 (e :: x4 ++ [x5])], VFun vl e1 ⟩ -[1]->
-            ⟨ [FApp2 (VFun vl e1) (x4 ++ [x5]) []] , e ⟩).
-            { econstructor. constructor. auto. constructor. }
-        simpl app in *.
-        epose proof (transitive_eval _ _ _ _ _ H24 _ _ _ H23).
-        eapply frame_indep_nil in H2.
-        epose proof (transitive_eval _ _ _ _ _ H2 _ _ _ H25).
-
-        exists x0, (S (x1 + (1 + (x3 + (x6 + x9 + 1 + x10))))). split; auto.
-        econstructor. constructor. auto.
+        inv H11'.
+        apply H in H9. 2: lia. destruct H9 as [v5 [k5 [D5 L5]]].
+        exists v5, (S (k1 + (1 + (k2 + (k3 + (k4 + (1 + k5))))))). split; auto. 2: lia.
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_nil in D1. exact D1.
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_nil in D2. exact D2.
+        eapply transitive_eval. exact D3.
+        eapply transitive_eval. eapply frame_indep_nil in D4. exact D4.
+        econstructor. constructor. reflexivity.
+        exact D5.
      Unshelve.
-       ** inversion H1. subst. apply -> subst_preserves_scope_exp; eauto.
-          replace (S (Datatypes.length vl) + 0) with (length ((VFun vl e1 :: (x2 :: x7) ++ [x8]))). 2: { simpl. rewrite app_length. simpl in *. lia. }
-          apply scoped_list_idsubst. simpl. do 2 constructor; auto.
-          apply Forall_app; auto.
-        ** inversion P. 2: inversion_is_value.
-           subst. rewrite <- indexed_to_forall in H14.
-           inversion H14. subst. rewrite Forall_app in H16; auto.
-           destruct H16. now inversion H12.
-        ** inversion P. 2: inversion_is_value.
-           rewrite <- indexed_to_forall in H11. now inversion H11.
-        ** inversion P. 2: inversion_is_value.
-           rewrite <- indexed_to_forall in H11. inversion H11.
-           now rewrite Forall_app in H15.
-        ** intros. eapply H. 3: exact H10. lia. auto.
-      + inversion P. 2: inversion_is_value. apply (H7 0); simpl; lia.
-    - now inversion P.
-  * inversion P; subst. 2: inversion_is_value.
-    apply H in H4 as HH; auto. destruct HH as [v0 [k0 [v0CL HH]]].
-    eapply frame_indep_nil in HH as HH0.
+        ** intros. specialize (H m ltac:(lia) Fs0 e1 H2) as [vv [kk [DD _]]].
+           do 2 eexists; eassumption.
+  * apply H in H4 as HH; auto. destruct HH as [v1 [k1 [D1 L1]]].
+    eapply frame_indep_nil in D1 as HH0.
     eapply (terminates_step_any_2 _ _ _ _ H4) in HH0 as HH'.
-    inversion HH'; subst; try inversion_is_value; auto.
+    inv HH'.
     destruct (length tl) eqn:Len.
     - apply length_zero_iff_nil in Len. subst.
-      apply H in H9 as H9'; auto. 2: lia.
-      destruct H9' as [hd' [k1 [hd'Vcl H9']]].
-      eapply frame_indep_nil in H9' as H9'0.
-      eapply (terminates_step_any_2 _ _ _ _ H9) in H9'0 as H9''.
-      inversion H9''; subst; try inversion_is_value.
-      inversion P; subst. apply (H10 0 ltac:(simpl;lia)).
-      inversion_is_value.
+      apply H in H2 as H2'; auto. 2: lia.
+      destruct H2' as [v2 [k2 [D2 L2]]].
+      eapply frame_indep_nil in D2 as D2'.
+      eapply (terminates_step_any_2 _ _ _ _ H2) in D2' as D2''.
+      inv D2''.
     - apply eq_sym, last_element_exists in Len as [tl' [lst ?]]; subst.
-      inversion P; subst; try inversion_is_value.
-      apply indexed_to_forall in H10.
-      inversion H10. subst. apply Forall_app in H12 as [H12_1 H12_2].
-      inversion H12_2; subst.
-      apply H in H9 as H9'; auto. 2: lia.
-      destruct H9' as [hd' [k1 [hd'Vcl H9']]].
-      eapply frame_indep_nil in H9' as H9'0.
-      eapply (terminates_step_any_2 _ _ _ _ H9) in H9'0 as H9''.
-      epose proof (term_bif_eval_empty tl' Fs v0 [] lst hd' _ _ H9'' _ _ _).
-      destruct H1 as [k2 [vals' [Hlt [Hall Der]]]].
-      eapply frame_indep_core in Der as Der0.
-      eapply (terminates_step_any_2 _ _ _ _ H9'') in Der0 as Der'.
-      eapply H in Der' as Der''; auto. 2: lia.
-      destruct Der'' as [lstval [k3 [VCl3 Der'']]].
-      eapply frame_indep_nil in Der'' as Der''0.
-      epose proof (transitive_eval _ _ _ _ _ Der _ _ _ Der''0) as DEND.
-      simpl app in *.
-      eapply frame_indep_nil in H9'.
-      epose proof (transitive_eval _ _ _ _ _ H9' _ _ _ DEND) as COMP.
-      assert (⟨ FBIF1 (hd :: tl' ++ [lst]) :: [], v0 ⟩ -[1]->
-              ⟨ FBIF2 v0 (tl' ++ [lst]) [] :: [], hd ⟩) as ONE. {
-        econstructor. constructor. auto. constructor.
-      }
-      epose proof (transitive_eval _ _ _ _ _ ONE _ _ _ COMP) as COMP'.
-      eapply frame_indep_nil in HH.
-      epose proof (transitive_eval _ _ _ _ _ HH _ _ _ COMP') as COMP''.
-      simpl in COMP''.
-      eapply frame_indep_nil in Der''.
-      eapply (terminates_step_any_2 _ _ _ _ Der') in Der'' as Der'''.
-      inversion Der'''; subst; try inversion_is_value.
-      exists (VLit (i1 + i2)%Z). eexists.
-      split; auto.
+      apply H in H2 as H2'; auto. 2: lia.
+      destruct H2' as [v2 [k2 [D2 L2]]].
+      eapply frame_indep_nil in D2 as D2'.
+      eapply (terminates_step_any_2 _ _ _ _ H2) in D2' as D2''.
+      epose proof (term_bif_eval_empty tl' Fs v1 [] lst v2 _ _ D2'')
+        as [v3 [k3 [D3 L3]]].
+      eapply frame_indep_core in D3 as D3'.
+      eapply (terminates_step_any_2 _ _ _ _ D2'') in D3' as D3''.
+      eapply H in D3'' as D4; auto. 2: lia.
+      destruct D4 as [v4 [k4 [D4 L4]]].
+      eapply frame_indep_nil in D4 as D4'.
+      
+      eapply (terminates_step_any_2 _ _ _ _ D3'') in D4'.
+      inv D4'.
+
+      exists (VLit (i1 + i2)%Z). exists (S (k1 + (S (k2 + (k3 + (k4 + 1)))))).
+      split; auto. 2: lia.
       econstructor. constructor.
-      eapply transitive_eval. exact COMP''.
+      eapply transitive_eval. eapply frame_indep_nil in D1. exact D1.
+      econstructor. constructor.
+      eapply transitive_eval. eapply frame_indep_nil in D2. exact D2.
+      eapply transitive_eval. exact D3.
+      eapply transitive_eval. eapply frame_indep_nil in D4. exact D4.
       econstructor. constructor. constructor.
     Unshelve.
-      all: auto.
-      intros. eapply H. 3: exact H14. lia. auto.
-  * apply H in H4 as HH. destruct HH, H1, H1. 2: lia.
-    eapply frame_indep_nil in H2 as H2_1.
+       ** intros. specialize (H m ltac:(lia) Fs0 _ H3) as [vv [kk [DD _]]].
+           do 2 eexists; eassumption.
+  * apply H in H4 as H4'. 2: lia. destruct H4' as [v1 [k1 [D1 L1]]].
+    eapply frame_indep_nil in D1 as H2_1.
     eapply (terminates_step_any_2 _ _ _ _ H4) in H2_1 as H2'.
-    inversion H2'; subst; try inversion_is_value.
-    apply H in H10 as HH. destruct HH, H3, H3. 2: lia.
-    eapply frame_indep_nil in H5 as H5_1.
-    eapply (terminates_step_any_2 _ _ _ _ H10) in H5_1 as H5'.
-    exists x2, (S (x1 + (S x3))).
+    inv H2'.
+    apply H in H2 as HH. destruct HH as [v2 [k2 [D2 L2]]]. 2: lia.
+    eapply frame_indep_nil in D2 as H5_1.
+    eapply (terminates_step_any_2 _ _ _ _ H2) in H5_1 as H5'.
+    exists v2, (S (k1 + (S k2))).
     split. auto.
     econstructor. constructor. eapply transitive_eval; eauto.
-    eapply frame_indep_nil in H2. exact H2. 
-    econstructor. constructor; auto. auto.
-
-    inversion P. 2: inversion_is_value. 
-    apply -> subst_preserves_scope_exp; eauto.
-    now inversion P.
-  * apply H in H4 as HH. 2: lia. 2: now inversion P.
-    destruct HH as [v2 [k2 [V2CL Eval2]]].
+    eapply frame_indep_nil in D1. exact D1.
+    econstructor. constructor; auto. auto. lia.
+  * apply H in H4 as HH. 2: lia.
+    destruct HH as [v2 [k2 [Eval2 V2CL]]].
     eapply frame_indep_nil in Eval2 as Eval2'.
     eapply (terminates_step_any_2 _ _ _ _ H4) in Eval2'.
-    inversion Eval2'; subst; try inversion_is_value.
-    apply H in H7 as [v1 [k1 [V1CL Eval1]]]. 2: lia. 2: now inversion P.
-    assert (⟨ [FCons1 e1], v2 ⟩ -[1]-> ⟨ [FCons2 v2], e1 ⟩).
-    { econstructor. constructor. auto. constructor. }
-    eapply transitive_eval in H1.
-    2: eapply frame_indep_nil in Eval2 as Eval2''; exact Eval2''.
-    eapply frame_indep_nil in Eval1 as Eval1''.
-    eapply transitive_eval in Eval1''. 2: exact H1.
-    assert (⟨ [FCons2 v2], v1 ⟩ -[1]-> ⟨ [], VCons v1 v2 ⟩).
-    { econstructor. constructor; auto. constructor. }
-    eapply transitive_eval in H2. 2: exact Eval1''.
-    exists (VCons v1 v2), (S ((k2 + 1 + k1) + 1)). split. constructor; auto.
-    econstructor. constructor; auto. exact H2.
+    inv Eval2'.
+    apply H in H2 as HH. destruct HH as [v1 [k1 [Eval1 V1CL]]]. 2: lia.
+    eapply frame_indep_nil in Eval1 as Eval1'.
+    eapply (terminates_step_any_2 _ _ _ _ H2) in Eval1'.
+    inv Eval1'.
+
+    exists (VCons v1 v2), (S (k2 + (1 + (k1 + 1)))). split. 2: lia.
+    econstructor. constructor; auto.
+    eapply transitive_eval. eapply frame_indep_nil in Eval2. exact Eval2.
+    econstructor. constructor; auto.
+    eapply transitive_eval. eapply frame_indep_nil in Eval1. exact Eval1.
+    econstructor. constructor; auto.
+    constructor.
 Qed.
 
-Corollary term_eval : forall x Fs e (P : EXPCLOSED e), | Fs, e | x ↓ ->
-  exists v k, VALCLOSED v /\ ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ (* /\ k <= x *).
+Corollary term_eval : forall x Fs e, | Fs, e | x ↓ ->
+  exists v k, ⟨ Fs, e ⟩ -[k]-> ⟨ Fs, v ⟩ /\ k <= x.
 Proof.
   intros.
-  pose proof (term_eval_empty x Fs e P H).
-  destruct H0, H0, H0.
-  do 2 eexists. split; eauto. eapply frame_indep_nil in H1. exact H1.
+  pose proof (term_eval_empty x Fs e H) as [? [? [X ?]]].
+  do 2 eexists. split; eauto. eapply frame_indep_nil in X. exact X.
 Qed.
 
 Corollary app_term_fun_final : forall tl k hds e e' Fs,
