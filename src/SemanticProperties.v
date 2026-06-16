@@ -1139,7 +1139,7 @@ Theorem obj_foldr_on_meta_level :
  -->* list_to_cons (map f l').
 Proof.
   induction l'; intros.
-  * assert (VALCLOSED (VFun 3
+  * (* assert (VALCLOSED (VFun 3
              (ECase (VVar 3) (PCons PVar PVar)
                 (EApp (VVar 3)
                    [˝VVar 0; °EApp (VVar 2) [˝VVar 3; ˝VVar 4; ˝VVar 1]])
@@ -1161,7 +1161,7 @@ Proof.
         now apply (scope_ext_app 5 2 ltac:(lia)).
         intros. simpl in H1. destruct i. do 2 constructor. all: lia.
       * do 2 constructor. lia.
-    }
+    } *)
     destruct l; simpl in H0; inversion H0.
     2: { destruct (cons_to_list l2); inversion H0. }
     unfold obj_map. cbn.
@@ -1173,89 +1173,58 @@ Proof.
     repeat setoid_rewrite (scoped_ignores_sub e 2); auto.
     econstructor. constructor; auto.
     econstructor. constructor; auto. cbn.
+    econstructor. constructor; auto. cbn.
+    econstructor. constructor; auto. cbn.
+    (* cleanup *)
+    repeat rewrite renaming_is_subst. repeat rewrite ren_up.
+    repeat setoid_rewrite (scoped_ignores_sub e 2); auto.
+    (* * *)
     econstructor. constructor; auto.
-    econstructor. constructor; auto.
-
-
-
-    (* TBD *)
-
-
-
-
-
-
-
-    econstructor. constructor; auto.
-    econstructor. apply red_case_false; auto.
-    constructor.
+    econstructor. apply red_case_false. reflexivity.
+    econstructor.
   * destruct l; simpl in H0; inversion H0.
-    break_match_hyp; inversion H0. subst.
-    inversion VsCL. subst.
-    clear H0 H2 VsCL. specialize (IHl' _ _ y z _ _ H5 SCE H Heqo).
-    destruct IHl' as [VCL [k H']].
-    unfold obj_foldr in H'. inversion H'; subst.
-    1: { rewrite <- H3 in VCL. inversion_is_value. } clear H'.
-    inversion H0; subst. clear H0. simpl in H1.
+    break_match_hyp; inversion H0. subst. clear H0 H2.
+    inv VsCL. specialize (IHl' l2 e f H3 SCE H Heqo).
+    destruct IHl' as [k H'].
+    unfold obj_foldr in H'. inv H'; subst.
+    inv H0. inv H1. inv H0.
     (** eval first element (necessary before eexists): *)
-    specialize (H a) as [? [kk DER]].
+    specialize (H a) as [k1 D].
     (***)
-    unfold obj_map. split. { simpl. constructor; auto. }
-    assert (VALCLOSED (VFun [FVar; DVar; XVar]
-             (ECase (VVar 3) (PCons PVar PVar)
-                (EApp (VVar 3)
-                   [VVar 0; EApp (VFunId 2) [VVar 3; VVar 4; VVar 1]])
-                (VVar 2)))) as CLF1. {
-      do 2 constructor; auto. constructor; simpl; auto.
-      * do 2 constructor. lia.
-      * intros. destruct i. 2: destruct i. do 2 constructor. 1, 3: lia.
-        constructor; auto. simpl. intros.
-        do 2 constructor. lia.
-        simpl. intros. destruct i. 2: destruct i. 3: destruct i.
-        1-3: do 2 constructor. all: lia.
-      * simpl. do 2 constructor. lia.
-    }
-    assert (VALCLOSED (VFun [y; z] (ECons (EApp (VFun [x] e) [VVar 1]) (VVar 2)))) as CLVF2. {
-      constructor. simpl. do 2 constructor.
-      * do 2 constructor. simpl. now apply (proj2 (scope_ext_app 5 2 ltac:(lia))).
-      * intros. simpl in H1. destruct i. do 2 constructor. lia.
-        simpl in *. lia.
-      * constructor. lia.
-    }
+    unfold obj_foldr.
     eexists.
     econstructor. constructor. cbn.
-    econstructor. constructor.
+    econstructor. constructor. cbn.
+    
     econstructor. constructor. auto.
-    repeat rewrite (proj2 (scoped_ignores_sub 2) e); auto.
-    rewrite (proj2 (scoped_ignores_sub 2) e) in H1; auto.
-    econstructor. constructor; auto. simpl.
+    repeat setoid_rewrite (scoped_ignores_sub e 2); auto.
     econstructor. constructor; auto.
+    econstructor. constructor; auto. cbn.
+    econstructor. constructor; auto. cbn.
+    econstructor. constructor; auto. cbn.
+    (* cleanup *)
+    repeat rewrite renaming_is_subst. repeat rewrite ren_up.
+    repeat setoid_rewrite (scoped_ignores_sub e 2); auto.
+    (* * *)
     econstructor. constructor; auto.
-    {
-      constructor. auto.
-      constructor; auto.
-    } simpl.
-    econstructor. constructor; auto.
-    econstructor. constructor; auto. reflexivity. simpl.
-    repeat rewrite renaming_is_subst.
-    repeat rewrite ren_up.
-    repeat rewrite subst_comp.
-    repeat rewrite up_comp.
-    repeat rewrite (proj2 (scoped_ignores_sub 2) e); auto.
-    repeat rewrite vclosed_ignores_sub; auto.
-    rewrite vclosed_ignores_sub in H1; auto.
+    econstructor. apply red_case_true. reflexivity.
+    cbn.
+    repeat setoid_rewrite (scoped_ignores_sub e 2); auto.
+    repeat rewrite closed_ignores_sub_val; auto.
+    cbn in H4. rewrite closed_ignores_sub_val in H4; auto.
+    setoid_rewrite (scoped_ignores_sub e 2) in H4; auto.
+
     econstructor. constructor.
-    econstructor. constructor. auto.
-    econstructor. constructor; auto. simpl.
-    apply frame_indep_nil with (Fs' :=  [FApp2 (VFun [y; z] (ECons (EApp (VFun [x] e) [VVar 1]) (VVar 2))) [] [a]]) in H1. simpl in H1.
-    eapply transitive_eval. exact H1.
+    econstructor. constructor.
+    econstructor. constructor. simpl.
+    eapply frame_indep_nil in H4. simpl in H4.
+    eapply transitive_eval. exact H4.
    (** evaluate first element *)
     econstructor. constructor; auto. simpl.
-    repeat rewrite (proj2 (scoped_ignores_sub 2) e); auto.
+    repeat setoid_rewrite (scoped_ignores_sub e 2); auto.
     econstructor. constructor.
-    econstructor. constructor. { auto. }
-    apply frame_indep_nil with (Fs' := [FCons2 (list_to_cons (map f l'))])
-       in DER. simpl in DER.
-    eapply transitive_eval. exact DER.
+    econstructor. constructor.
+    eapply frame_indep_nil in D. simpl in D.
+    eapply transitive_eval. exact D.
     econstructor. constructor; auto. constructor.
 Qed.
