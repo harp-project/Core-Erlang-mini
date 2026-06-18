@@ -567,12 +567,18 @@ Proof.
   unfold substcomp, ren. cbn. rewrite idsubst_is_id. reflexivity.
 Qed.
 
-Corollary rename_subst_core_val : forall e v,
-  (rename_val (fun n : nat => S n) e).ᵥ[v .:: idsubst] = e.
+Corollary rename_subst_core_val : forall e v ξ,
+  (rename_val (fun n : nat => S n) e).ᵥ[v .:: ξ] = e.ᵥ[ξ].
 Proof.
   intros.
   rewrite renaming_is_subst_val, subst_comp_val. cbn.
-  unfold substcomp, ren. cbn. rewrite idsubst_is_id_val. reflexivity.
+  unfold substcomp, ren. cbn. reflexivity.
+Qed.
+
+Corollary rename_subst_core_val_idsubst : forall e v,
+  (rename_val (fun n : nat => S n) e).ᵥ[v .:: idsubst] = e.
+Proof.
+  intros. rewrite rename_subst_core_val. by rewrite idsubst_is_id_val.
 Qed.
 
 Corollary rename_subst_core_nonval : forall e v,
@@ -592,7 +598,7 @@ Qed.
 Corollary rename_subst_val : forall e v,
   (rename_val (fun n : nat => S n) e).ᵥ[v/] = e.
 Proof.
-  intros. apply rename_subst_core_val.
+  intros. apply rename_subst_core_val_idsubst.
 Qed.
 
 Corollary rename_subst_nonval : forall e v,
@@ -645,29 +651,20 @@ Proof.
   * now rewrite substcomp_scons, IHl.
 Qed.
 
-Theorem subst_extend_core : forall ξ v,
-  (up_subst ξ) >> (v .:: idsubst) = v .:: ξ.
+Theorem subst_extend_core : forall ξ η v,
+  (up_subst ξ) >> (v .:: η) = v .:: (ξ >> η).
 Proof.
   intros. unfold substcomp. extensionality x. destruct x; auto.
   cbn. break_match_goal.
-  * unfold shift in Heqs. break_match_hyp; inversion Heqs. rewrite rename_subst_core_val. auto.
+  * unfold shift in Heqs. break_match_hyp; inversion Heqs.
+    rewrite rename_subst_core_val. auto.
   * unfold shift in Heqs. break_match_hyp; inversion Heqs. cbn. reflexivity.
 Qed.
 
-Theorem subst_extend : forall ξ v,
-  (up_subst ξ) >> (v .: idsubst) = v .: ξ.
+Corollary subst_extend : forall ξ η v,
+  (up_subst ξ) >> (v .: η) = v .: (ξ >> η).
 Proof.
   intros. apply subst_extend_core.
-Qed.
-
-Corollary subst_list_extend : forall n ξ vals, length vals = n ->
-  (upn n ξ) >> (list_subst vals idsubst) = list_subst vals ξ.
-Proof.
-  induction n; intros.
-  * apply length_zero_iff_nil in H. subst. cbn. unfold substcomp. extensionality x.
-    break_match_goal; try rewrite idsubst_is_id_val; try reflexivity.
-  * simpl. apply eq_sym in H as H'. apply element_exist in H'. destruct H', H0. subst.
-    simpl. rewrite substcomp_scons. rewrite IHn; auto.
 Qed.
 
 Theorem list_subst_lt : forall n vals ξ, n < length vals ->
@@ -712,6 +709,22 @@ Lemma substcomp_id_l :
   forall ξ, idsubst >> ξ = ξ.
 Proof.
   unfold ">>", idsubst. intros. extensionality x. auto.
+Qed.
+
+Theorem subst_extend_id : forall ξ v,
+  (up_subst ξ) >> (v .: idsubst) = v .: ξ.
+Proof.
+  intros. rewrite subst_extend. by rewrite substcomp_id_r.
+Qed.
+
+Corollary subst_list_extend : forall n ξ vals, length vals = n ->
+  (upn n ξ) >> (list_subst vals idsubst) = list_subst vals ξ.
+Proof.
+  induction n; intros.
+  * apply length_zero_iff_nil in H. subst. cbn. unfold substcomp. extensionality x.
+    break_match_goal; try rewrite idsubst_is_id_val; try reflexivity.
+  * simpl. apply eq_sym in H as H'. apply element_exist in H'. destruct H', H0. subst.
+    simpl. rewrite substcomp_scons. rewrite IHn; auto.
 Qed.
 
 Lemma subst_ren_scons : forall (ξ : Substitution) e,
