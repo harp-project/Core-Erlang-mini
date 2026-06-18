@@ -1,4 +1,4 @@
-From CoreErlang Require Import SubstSemantics.
+From CoreErlang Require Export SubstSemantics.
 
 
 (** Example, simple evaluations *)
@@ -267,6 +267,8 @@ Proof.
   constructor.
 Qed.
 
+Close Scope Z_scope.
+
 Definition computes (e : Exp) (f : Val -> Val) :=
   forall v, ⟨[], EApp (VFun 1 e) [˝v]⟩ -->* f v.
 
@@ -387,62 +389,6 @@ Proof.
   * by inversion H1.
   * apply step_closedness in H as []; auto.
 Qed.
-
-Definition terminates_sem (fs : FrameStack) (e : Exp) : Prop :=
-  exists v, ⟨fs, e⟩ -->* v.
-
-Definition terminates_in_k_sem (fs : FrameStack) (e : Exp) (k : nat) : Prop :=
-  exists v : Val, ⟨fs, e⟩ -[k]-> ⟨[], v⟩.
-
-Open Scope nat_scope.
-
-(** Inductively defined termination relation. This will be used by the
-    equivalence concepts (CIU, CTX, logical relations).
-*)
-Reserved Notation "| fs , e | k ↓" (at level 80).
-Inductive terminates_in_k : FrameStack -> Exp -> nat -> Prop :=
-
-| term_value (v : Val) : | [] , v | 0 ↓
-| term_case_true fs e1 e2 k v p l :
-  match_pattern p v = Some l -> | fs , e1.[list_subst l idsubst] | k ↓
- ->
-  | (FCase p e1 e2)::fs , v | S k ↓
-| term_case_false fs e1 e2 v k p :
-  match_pattern p v = None -> | fs , e2 | k ↓ 
- -> 
-  | (FCase p e1 e2)::fs , v | S k ↓
-| term_let_subst v e2 fs k : | fs, e2.[v/] | k ↓ -> | (FLet e2)::fs, v | S k ↓
-| term_app_start v hd tl fs k : 
-  | (FApp2 v [] tl)::fs, hd| k ↓ -> | (FApp1 (hd::tl))::fs, v | S k ↓
-| term_bif_start v hd tl fs k : 
-  | (FBIF2 v [] tl)::fs, hd| k ↓ -> | (FBIF1 (hd::tl))::fs, v | S k ↓
-| term_app_fin e fs k : | fs, e.[VFun 0 e/] | k ↓ -> | (FApp1 [])::fs, VFun 0 e | S k ↓
-| term_app_step v v' hd tl vs fs k :
-  | (FApp2 v (vs ++ [v']) tl)::fs, hd | k ↓ -> | (FApp2 v vs (hd::tl))::fs , v' | S k ↓
-| term_bif_step v v' hd tl vs fs k :
-  | (FBIF2 v (vs ++ [v']) tl)::fs, hd | k ↓ -> | (FBIF2 v vs (hd::tl))::fs , v' | S k ↓
-| term_plus (i1 i2 : Z) fs k :
-  | fs, VLit (Z.add i1 i2) | k ↓ ->
-  | (FBIF2 (VLit "+"%string) [VLit (Int i1)] [])::fs, VLit (Int i2) | S k ↓
-
-| term_app2 v vl e vs fs k :
-  vl = S (length vs) -> | fs, e.[list_subst (VFun vl e  :: (vs ++ [v])) idsubst] | k ↓ 
--> | (FApp2 (VFun vl e) vs [])::fs, v | S k ↓
-| term_cons1 e1 v2 fs k:
-  | FCons2 v2::fs, e1 | k ↓ -> | FCons1 e1 :: fs, v2 | S k ↓
-| term_cons2 v1 v2 fs k :
-  | fs, VCons v1 v2 | k ↓ -> | FCons2 v2 :: fs, v1 | S k ↓
-
-| term_case e e1 e2 fs k p : | (FCase p e1 e2)::fs, e | k ↓ -> | fs, ECase e p e1 e2 | S k ↓
-| term_app e vs fs k : | (FApp1 vs)::fs, e | k ↓ -> | fs, EApp e vs | S k ↓
-| term_bif e vs fs k : | (FBIF1 vs)::fs, e | k ↓ -> | fs, EBIF e vs | S k ↓
-| term_let e1 e2 fs k : | (FLet e2)::fs, e1 | k ↓ -> | fs, ELet e1 e2 | S k ↓
-| term_cons fs e1 e2 k :
-  | FCons1 e1 :: fs, e2 | k ↓ -> | fs, ECons e1 e2 | S k ↓
-where "| fs , e | k ↓" := (terminates_in_k fs e k).
-
-Definition terminates (fs : FrameStack) (e : Exp) := exists n, | fs, e | n ↓.
-Notation "| fs , e | ↓" := (terminates fs e) (at level 80).
 
 Theorem terminates_in_k_eq_terminates_in_k_sem :
   forall k e fs, terminates_in_k_sem fs e k <-> | fs, e | k ↓.
