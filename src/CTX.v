@@ -8,7 +8,7 @@
   At the bottom of the file, we define a notion of behavioural equivalence too,
   which also proved to be coincide with CIU equivalence.
 *)
-Require Export CIU.
+From CoreErlang Require Export CIU.
 
 Import ListNotations.
 

@@ -5,7 +5,7 @@
   We prove that CIU equivalence coicides with logical relations.
 *)
 
-Require Export Compatibility.
+From CoreErlang Require Export Compatibility.
 
 Import ListNotations.
 
