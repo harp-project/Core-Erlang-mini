@@ -1583,60 +1583,17 @@ Proof.
     rewrite map_nth. constructor. apply H0. by rewrite length_map in H6.
   * pose proof (full_eval_app_partial e.[upn (S vl) ξ] (map (subst_val ξ) vals) vl F
        ltac:(by rewrite length_map)).
-    
-  
-  
-    rewrite subst_comp, scons_substcomp_list, substcomp_id_l.
-    destruct H7. simpl in H7. inversion H7; subst; try inversion_is_value.
-    destruct vals.
-    - inversion H12; subst; try inversion_is_value. simpl in *.
-      rewrite subst_comp, subst_extend in H10. exists k0. auto.
-    - Opaque list_subst.
-      assert (Forall (fun v => VALCLOSED v) (e0.[ξ]::map (subst ξ) vals)). { 
-        inversion H0. subst.
-        constructor.
-        eapply subst_preserves_scope_val in H8. exact H8. auto.
-
-        clear H0 H1 H3 H6 H7 H8 H12 F H vl e0 e. induction vals.
-        constructor.
-        inversion H9. constructor. 2: apply IHvals; auto.
-        subst. eapply subst_preserves_scope_val in H1. exact H1.
-        auto.
-      } inversion H2. subst.
-      destruct (length vals) eqn:Lvals.
-      + apply length_zero_iff_nil in Lvals. subst.
-        inversion H12; subst; try inversion_is_value. simpl in *.
-        inversion H16; try rewrite <- H4 in *; try inversion_is_value.
-        subst. repeat fold_upn. repeat fold_upn_hyp.
-        rewrite subst_comp, subst_list_extend in H21. simpl in H21. exists k. auto.
-        simpl. lia.
-      + apply eq_sym, last_element_exists in Lvals as LL. destruct LL, H4. subst.
-        rewrite length_app in Lvals; simpl in Lvals. rewrite map_app in H10.
-        apply Forall_app in H10. destruct H10.
-        epose proof (eval_app_partial_core (map (subst ξ) x) [] vl 
-                          (e.[up_subst (upn (Datatypes.length vl) ξ)]) x0.[ξ] 
-                          e0.[ξ] F [] ltac:(auto) ltac:(auto) H4 H9).
-        inversion H12; subst; try inversion_is_value. rewrite map_app in H18.
-        eapply (terminates_step_any_2 _ _ _ _ H18) in H10 as H10'. simpl in H10'.
-        inversion H8. subst.
-        inversion H10'; subst; try rewrite <- H11 in *; try inversion_is_value.
-        repeat fold_upn_hyp. rewrite subst_comp, subst_list_extend in H25. simpl in H25.
-        simpl. rewrite map_app. eexists. exact H25.
-        simpl in *. rewrite length_app, length_map in *. simpl. lia.
-      Transparent list_subst.
-  Unshelve.
-    ** constructor. inversion H. subst.
-       fold_upn. apply upn_scope with (n := S (length vl)) in H5.
-       apply -> subst_preserves_scope_exp. exact H13. exact H5.
-    ** constructor. inversion H. subst.
-       fold_upn. apply upn_scope with (n := S (length vl)) in H5.
-       apply -> subst_preserves_scope_exp. exact H11. exact H5.
+    simpl in *. rewrite map_map in *.
+    eapply terminates_step_any in H7. 2: exact H8. clear H8.
+    rewrite subst_comp in *. rewrite subst_extend in H7. rewrite subst_list_extend in H7.
+    2: by rewrite length_map. rewrite scons_substcomp. rewrite scons_substcomp_list.
+    simpl. rewrite substcomp_id_l. assumption.
 Qed.
 
 Corollary CTX_beta_values : forall {Γ e vl vals},
-    VAL Γ ⊢ VFun vl e -> Forall (fun v => VAL Γ ⊢ v) vals -> length vl = length vals ->
-    (CTX Γ (e.[list_subst (VFun vl e :: vals) idsubst]) (EApp (VFun vl e) vals) /\ 
-     CTX Γ (EApp (VFun vl e) vals) (e.[list_subst (VFun vl e :: vals) idsubst])).
+    VAL Γ ⊢ VFun vl e -> Forall (fun v => VAL Γ ⊢ v) vals -> vl = length vals ->
+    (CTX Γ (e.[list_subst (VFun vl e :: vals) idsubst]) (EApp (VFun vl e) (map VVal vals)) /\ 
+     CTX Γ (EApp (VFun vl e) (map VVal vals)) (e.[list_subst (VFun vl e :: vals) idsubst])).
 Proof.
   intros. split; apply CIU_iff_CTX, CIU_beta_values; auto.
 Qed.
@@ -1650,9 +1607,9 @@ match n with
 | S n' =>
   match v1, v2 with
   | VLit l1, VLit l2 => l1 = l2
-  | EPid p1, EPid p2 => p1 = p2
+  | VPid p1, VPid p2 => p1 = p2
   | VFun vl1 b1, VFun vl2 b2 => forall vals, Forall (fun v => VALCLOSED v) vals ->
-    length vals = length vl1 -> length vals = length vl2 ->
+    length vals = vl1 -> length vals = vl2 ->
     equivalent_exps (b1.[list_subst (VFun vl1 b1::vals) idsubst]) (b2.[list_subst (VFun vl2 b2::vals) idsubst]) (equivalent_values n')
   | VCons v1 v2, VCons v1' v2' => equivalent_values n' v1 v1' /\ equivalent_values n' v2 v2'
   | VNil, VNil => True
@@ -1681,9 +1638,9 @@ Proof.
     - repeat constructor; auto.
     - repeat constructor; auto.
     - intros. destruct H2.
-      inversion H2; try inversion_is_value; subst.
-      inversion H7; subst; try inversion_is_value.
-      inversion H9; subst; try inversion_is_value. eexists. exact H12.
+      inversion H2; subst.
+      inversion H7; subst.
+      inversion H8; subst. eexists. exact H9.
   * split. 2: split.
     - repeat constructor; auto.
     - repeat constructor; auto.
@@ -1697,74 +1654,73 @@ Theorem equivalent_valexps :
   forall n e1 e2, VALCLOSED e1 -> VALCLOSED e2 ->
   equivalent_exps e1 e2 (equivalent_values n) -> equivalent_values n e1 e2.
 Proof.
-  induction n; intros; simpl; auto; destruct e1, e2; try inversion_is_value;
-    unfold equivalent_exps in *; try lia.
-  * epose proof (H1 (VLit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VLit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VLit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VLit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VLit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (EPid p) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (EPid p) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (EPid p) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (EPid p) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (EPid p) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VFun vl e1) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VFun vl e1) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * intros. epose proof (H1 (VFun vl e1) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H7. inversion H7. 2: { apply value_nostep in H8. contradiction. auto. }
+  induction n; intros; simpl; auto; destruct e1, e2; repeat destruct_scope; unfold equivalent_exps in *; try lia.
+  * epose proof (H1 (VLit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. by auto.
+  * epose proof (H1 (VLit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. by auto.
+  * epose proof (H1 (VLit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VLit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VLit l) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VPid p) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VPid p) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VPid p) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VPid p) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VPid p) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VFun vl e) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VFun vl e) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * intros. epose proof (H1 (VFun vl e) _) as [v2 [Eval2 eq2]]. inversion Eval2.
+    inversion H6. 2: { apply value_nostep in H7. contradiction. }
     subst. simpl in eq2. apply eq2; auto.
-  * epose proof (H1 (VFun vl e1) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VFun vl e1) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 VNil _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 VNil _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 VNil _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 VNil _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3. inversion H3.
-    subst. 2: inversion H4. auto.
-  * inversion H. inversion H0. subst.
-    epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. destruct H3.
-    inversion H3. subst. 2: { inversion H6. } simpl in eq2. destruct eq2.
-    assert ((forall v1 : Exp,
-       ⟨ [], e1_1 ⟩ -->* v1 -> exists v2 : Exp, ⟨ [], e2_1 ⟩ -->* v2 /\ equivalent_values n v1 v2)).
+  * epose proof (H1 (VFun vl e) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VFun vl e) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 VNil _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 VNil _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 VNil _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 VNil _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2. inversion H.
+    subst. 2: inversion H0. auto.
+  * epose proof (H1 (VCons e1_1 e1_2) _) as [v2 [Eval2 eq2]]. inversion Eval2.
+    inversion H. subst. 2: { inversion H0. } simpl in eq2. destruct eq2.
+    assert ((forall v1 : Val,
+       ⟨ [], e1_1 ⟩ -->* v1 -> exists v2 : Val, ⟨ [], e2_1 ⟩ -->* v2 /\ equivalent_values n v1 v2)).
     {
-      intros. destruct H10 as [Vcl [k E1]]. inversion E1; try inversion_is_value. subst.
-      2: { apply value_nostep in H10. contradiction. auto. }
-      exists e2_1. split; auto. split; auto. exists 0. constructor.
+      intros. destruct H7 as [k E1]. inversion E1; subst.
+      2: { apply value_nostep in H7. contradiction. }
+      exists e2_1. split; auto. exists 0. constructor.
     }
-    assert ((forall v1 : Exp,
-       ⟨ [], e1_2 ⟩ -->* v1 -> exists v2 : Exp, ⟨ [], e2_2 ⟩ -->* v2 /\ equivalent_values n v1 v2)).
+    assert ((forall v1 : Val,
+       ⟨ [], e1_2 ⟩ -->* v1 -> exists v2 : Val, ⟨ [], e2_2 ⟩ -->* v2 /\ equivalent_values n v1 v2)).
     {
-      intros. destruct H11 as [Vcl [k E1]]. inversion E1; try inversion_is_value. subst.
-      2: { apply value_nostep in H11. contradiction. auto. }
-      exists e2_2. split; auto. split; auto. exists 0. constructor.
+      intros. destruct H8 as [k E1]. inversion E1; subst.
+      2: { apply value_nostep in H8. contradiction. }
+      exists e2_2. split; auto. exists 0. constructor.
     }
-    apply IHn in H10. apply IHn in H11. all: auto.
+    apply IHn in H7. apply IHn in H8. all: auto.
   Unshelve.
-   all: split; auto; exists 0; constructor.
+   all: exists 0; constructor.
 Qed.
 
 Theorem terminating_implies_equivalence_helper :
