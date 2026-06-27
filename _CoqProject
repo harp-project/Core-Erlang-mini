@@ -9,19 +9,19 @@ src/Env/Termination.v
 src/Env/CIU.v
 
 
-
-
-
-
-
-
 src/ExpSyntax.v
 src/ExpManipulation.v
 src/Scoping.v
 src/SubstSemantics.v
 src/SemanticProperties.v
+src/LogRel.v
+src/Compatibility.v
+src/CIU.v
+src/CTX.v
+src/Equivs.v
 
 src/Env/EnvSubst.v
+
 
 
 
@@ -30,9 +30,12 @@ src/ConcurrentFunSemantics.v
 src/Examples.v
 src/ConcurrentProperties.v
 src/Bisimulations.v
-src/LogRel.v
-src/Compatibility.v
-src/CIU.v
-src/CTX.v
-src/Equivs.v
 
+src/EnvSimple/Syntax.v
+src/EnvSimple/Semantics.v
+src/EnvSimple/ClosedScoping.v
+src/EnvSimple/Scoping.v
+src/EnvSimple/Termination.v
+src/EnvSimple/CIU.v
+src/EnvSimple/Compatibility.v
+src/EnvSimple/EnvSubst.v

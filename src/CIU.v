@@ -5,7 +5,7 @@
   We prove that CIU equivalence coicides with logical relations.
 *)
 
-Require Export Compatibility.
+From CoreErlang Require Export Compatibility.
 
 Import ListNotations.
 
@@ -126,16 +126,21 @@ Theorem CIU_eval : forall e1 v,
   EXPCLOSED e1 ->
   ⟨ [], e1 ⟩ -->* v -> CIU e1 v /\ CIU v e1.
 Proof.
-  intros. split. split. 2: split. auto.
-  apply step_any_closedness in H0; auto. now constructor.
-  intros. destruct H2, H0, H3. eapply frame_indep_nil in H3.
-  eapply terminates_step_any. 2: exact H3. eexists. exact H2.
-
-  split. 2: split. 2: auto.
-  apply step_any_closedness in H0; auto. now constructor.
-  intros. destruct H2, H0, H3. eapply frame_indep_nil in H3.
-  exists (x + x0).
-  eapply term_step_term. exact H3. 2: lia. replace (x + x0 - x0) with x by lia. exact H2.
+  intros. split.
+  {
+    split. 2: split. auto.
+    apply step_any_closedness in H0; auto. now constructor.
+    intros. destruct H0 as [x0 D]. eapply frame_indep_nil in D.
+    eapply terminates_step_any. exact H2. exact D.
+  }
+  {
+    split. 2: split. 2: auto.
+    apply step_any_closedness in H0; auto. now constructor.
+    intros. destruct H0 as [x0 D]. eapply frame_indep_nil in D.
+    destruct H2 as [x D2].
+    exists (x + x0).
+    eapply term_step_term. exact D. 2: lia. replace (x + x0 - x0) with x by lia. exact D2.
+  }
 Qed.
 
 Theorem CIU_list_parts : forall e1 e2 e1' e2',
@@ -148,45 +153,37 @@ Proof.
   split; split.
   1, 3: constructor; auto.
   all: split. 1, 3: constructor; auto.
-  * intros. assert (FSCLOSED (FCase (PCons PVar PVar) (EVar 0) inf :: F)). {
+  * intros. assert (FSCLOSED (FCase (PCons PVar PVar) (VVar 0) inf :: F)). {
        constructor; auto. constructor; auto. 2: repeat constructor.
-       simpl. do 2 constructor. auto. inversion H8. inversion H8.
+       simpl. do 2 constructor. auto. all: simpl; lia.
      }
-     specialize (H5 (FCase (PCons PVar PVar) (EVar 0) inf :: F) H8).
+     specialize (H5 (FCase (PCons PVar PVar) (VVar 0) inf :: F) H8).
      destruct H7.
-     assert (| FCase (PCons PVar PVar) (EVar 0) inf :: F, ECons e1 e2 | ↓). {
+     assert (| FCase (PCons PVar PVar) (VVar 0) inf :: F, ECons e1 e2 | ↓). {
        exists (4 + x). apply term_cons.
-       constructor; auto. constructor; auto. eapply term_case_true.
-       constructor; auto. reflexivity.
+       constructor; auto. constructor; auto. eapply term_case_true. reflexivity.
        simpl. auto.
      }
      apply H5 in H9. destruct H9.
-     inversion H9; subst; try inversion_is_value.
-     inversion H14; subst; try inversion_is_value.
-     inversion H16; subst; try inversion_is_value.
-     inversion H19; subst; try inversion_is_value.
-     - simpl in H23. inversion H23. subst. simpl in H24. eexists; eassumption.
-     - apply inf_diverges in H24. contradiction.
-  * intros. assert (FSCLOSED (FCase (PCons PVar PVar) (EVar 1) inf :: F)). {
+     inv H9. inv H14. inv H13. inv H14.
+     simpl in H16. inv H16. subst. simpl in *. eexists; eassumption.
+  * intros. assert (FSCLOSED (FCase (PCons PVar PVar) (VVar 1) inf :: F)). {
        constructor; auto. constructor; auto.
        do 2 constructor.
-       do 2 constructor. auto. intros. inversion H8. inversion H8.
+       do 2 constructor.
+       do 2 constructor. auto. all: simpl; lia.
      }
-     specialize (H5 (FCase (PCons PVar PVar) (EVar 1) inf :: F) H8).
+     specialize (H5 (FCase (PCons PVar PVar) (VVar 1) inf :: F) H8).
      destruct H7.
-     assert (| FCase (PCons PVar PVar) (EVar 1) inf :: F, ECons e1 e2 | ↓). {
+     assert (| FCase (PCons PVar PVar) (VVar 1) inf :: F, ECons e1 e2 | ↓). {
        exists (4 + x). apply term_cons.
        constructor; auto. constructor; auto. eapply term_case_true.
-       constructor; auto. reflexivity.
+       reflexivity.
        simpl. auto.
      }
      apply H5 in H9. destruct H9.
-     inversion H9; subst; try inversion_is_value.
-     inversion H14; subst; try inversion_is_value.
-     inversion H16; subst; try inversion_is_value.
-     inversion H19; subst; try inversion_is_value.
-     - simpl in H23. inversion H23. subst. simpl in H24. eexists; eassumption.
-     - apply inf_diverges in H24. contradiction.
+     inv H9. inv H14. inv H13. inv H14. inv H16.
+     simpl in *. eexists. eassumption.
 Qed.
 
 (* Theorem CIU_implies_Vrel :
