@@ -340,7 +340,7 @@ Lemma term_eval_helper_app :
     m < S k
     → ∀ (Γ : list Val) (Fs : FrameStack) (e : Exp),
         AEXP length Γ ⊢ e
-        → FSCLOSED Fs
+        (*→ FSCLOSED Fs*)
           → ENVCLOSED Γ
             → | Γ, Fs, e | m ↓
               → ∃ (v : Val) (k : nat) (Γ' : Env),
@@ -354,7 +354,7 @@ Lemma term_eval_helper_app :
   EXP length Γapp ⊢ e' ->
   VALCLOSED v ->
   VALCLOSED v1 ->
-  FSCLOSED Fs ->
+  (*FSCLOSED Fs ->*)
   | Γ, FApp2 v vals (hds' ++ e' :: hds) Γapp :: Fs, ˝v1 | k ↓ ->
   exists k0 hds'' (* Γ' *),
   Forall (fun v => VALCLOSED v) hds'' /\
@@ -362,35 +362,35 @@ Lemma term_eval_helper_app :
   ⟨ Γapp, [FApp2 v (vals ++ v1 :: hds'') hds Γapp] , e'⟩ /\ k0 <= k.
 Proof.
   induction hds'; intros; simpl.
-  * inv H8. do 2 eexists. repeat split.
+  * inv H7. do 2 eexists. repeat split.
     2: {
       econstructor. constructor. constructor.
     }
     by auto.
     lia.
-  * inv H8. inv H0.
-    eapply H in H18 as D'; auto. 2: {
+  * inv H7. inv H0.
+    eapply H in H17 as D'; auto. 2: {
       by apply exp_to_any.
     }
-    2: {
+    (* 2: {
       constructor. constructor. all: try by auto.
       apply Forall_app; split; try assumption. by auto.
       apply Forall_app. split; try assumption.
       by constructor.
-    }
+    } *)
     destruct D' as [v' [k' [Γ' [Hv' [HD' Hlt']]]]].
-    eapply terminates_step_any_2 in H18. 2: {
+    eapply terminates_step_any_2 in H17. 2: {
       eapply frame_indep_core in HD'. exact HD'.
     }
-    simpl in H18.
+    simpl in H17.
     apply (IHhds' hds e' (k0 - k') (vals ++ [v1])
-                v Γ' Γapp Fs v') in H18 as D''; try by auto.
+                v Γ' Γapp Fs v') in H17 as D''; try by auto.
     2: {
       intros. eapply H; try eassumption. lia.
     }
     2: apply Forall_app; split; by auto.
     destruct D'' as [v'' [k'' [Hv'' [HD'' Hlt'']]]].
-    eapply terminates_step_any_2 in H18. 2: {
+    eapply terminates_step_any_2 in H17. 2: {
       eapply frame_indep_core in HD''. exact HD''.
     }
     do 2 eexists. repeat split.
@@ -410,7 +410,7 @@ Lemma term_eval_helper_bif :
     m < S k
     → ∀ (Γ : list Val) (Fs : FrameStack) (e : Exp),
         AEXP length Γ ⊢ e
-        → FSCLOSED Fs
+        (*→ FSCLOSED Fs*)
           → ENVCLOSED Γ
             → | Γ, Fs, e | m ↓
               → ∃ (v : Val) (k : nat) (Γ' : Env),
@@ -424,7 +424,7 @@ Lemma term_eval_helper_bif :
   EXP length Γapp ⊢ e' ->
   VALCLOSED v ->
   VALCLOSED v1 ->
-  FSCLOSED Fs ->
+  (*FSCLOSED Fs ->*)
   | Γ, FBIF2 v vals (hds' ++ e' :: hds) Γapp :: Fs, ˝v1 | k ↓ ->
   exists k0 hds'' (* Γ' *),
   Forall (fun v => VALCLOSED v) hds'' /\
@@ -432,35 +432,35 @@ Lemma term_eval_helper_bif :
   ⟨ Γapp, [FBIF2 v (vals ++ v1 :: hds'') hds Γapp] , e'⟩ /\ k0 <= k.
 Proof.
   induction hds'; intros; simpl.
-  * inv H8. do 2 eexists. repeat split.
+  * inv H7. do 2 eexists. repeat split.
     2: {
       econstructor. constructor. constructor.
     }
     by auto.
     lia.
-  * inv H8. inv H0.
-    eapply H in H18 as D'; auto. 2: {
+  * inv H7. inv H0.
+    eapply H in H17 as D'; auto. 2: {
       by apply exp_to_any.
     }
-    2: {
+    (* 2: {
       constructor. constructor. all: try by auto.
       apply Forall_app; split; try assumption. by auto.
       apply Forall_app. split; try assumption.
       by constructor.
-    }
+    } *)
     destruct D' as [v' [k' [Γ' [Hv' [HD' Hlt']]]]].
-    eapply terminates_step_any_2 in H18. 2: {
+    eapply terminates_step_any_2 in H17. 2: {
       eapply frame_indep_core in HD'. exact HD'.
     }
-    simpl in H18.
+    simpl in H17.
     apply (IHhds' hds e' (k0 - k') (vals ++ [v1])
-                v Γ' Γapp Fs v') in H18 as D''; try by auto.
+                v Γ' Γapp Fs v') in H17 as D''; try by auto.
     2: {
       intros. eapply H; try eassumption. lia.
     }
     2: apply Forall_app; split; by auto.
     destruct D'' as [v'' [k'' [Hv'' [HD'' Hlt'']]]].
-    eapply terminates_step_any_2 in H18. 2: {
+    eapply terminates_step_any_2 in H17. 2: {
       eapply frame_indep_core in HD''. exact HD''.
     }
     do 2 eexists. repeat split.
@@ -478,14 +478,14 @@ Qed.
 Theorem term_eval_empty :
   forall x Γ Fs e,
     AEXP length Γ ⊢ e ->
-    FSCLOSED Fs ->
+    (*FSCLOSED Fs ->*)
     ENVCLOSED Γ ->
     | Γ, Fs, e | x ↓ ->
     exists v k Γ',
       VALCLOSED v /\
       ⟨ Γ, [], e ⟩ -[k]-> ⟨ Γ', [], ˝v ⟩ /\ k <= x.
 Proof.
-  induction x using lt_wf_ind; intros * He HFs HΓ D; inv D.
+  induction x using lt_wf_ind; intros * He (*HFs*) HΓ D; inv D.
   all: try by exists v, 0, Γ; repeat split; auto; try constructor; try lia.
   * exists v0, 0, Γ. repeat split; auto; constructor; lia.
   * exists v0, 0, Γ. repeat split; auto; constructor; lia.
@@ -498,9 +498,9 @@ Proof.
     eapply H in H0 as D'; auto. 2: {
       by apply exp_to_any.
     }
-    2: {
+    (* 2: {
       constructor. constructor. all: by auto.
-    }
+    } *)
     destruct D' as [v1 [k1 [Γ1 [Hv1 [HD1 Hlt1]]]]].
     eapply terminates_step_any_2 in H0. 2: {
       eapply frame_indep_core in HD1. exact HD1.
@@ -526,10 +526,10 @@ Proof.
     eapply H in H0 as D'; auto. 2: {
       by apply exp_to_any.
     }
-    2: {
+    (* 2: {
       constructor. constructor. all: try by auto.
       by rewrite indexed_to_forall.
-    }
+    } *)
     destruct D' as [v1 [k1 [Γ1 [Hv1 [HD1 Hlt1]]]]].
     eapply terminates_step_any_2 in H0. 2: {
       eapply frame_indep_core in HD1. exact HD1.
@@ -572,12 +572,12 @@ Proof.
         apply exp_to_any.
         by apply (H5 0 ltac:(simpl; lia)).
       }
-      2: {
+      (* 2: {
         constructor; auto.
         constructor; auto.
         rewrite indexed_to_forall. intros.
         by apply (H5 (S i) ltac:(simpl; lia)).
-      }
+      } *)
       destruct D' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
       eapply terminates_step_any_2 in H4. 2: {
         eapply frame_indep_core in HD2. exact HD2.
@@ -635,11 +635,11 @@ Proof.
           apply exp_to_any. specialize (H5 (S (length l')) ltac:(simpl; rewrite length_app; simpl; lia)).
           simpl in H5. rewrite app_nth2 in H5. rewrite Nat.sub_diag in H5. assumption. lia.
         }
-        2: {
+        (* 2: {
           apply Forall_app. split; try assumption.
           do 2 constructor; try assumption. 2: constructor.
           simpl. by constructor.
-        }
+        } *)
         destruct X as [v4 [k4 [Γ4 [Hv4 [HD4 Hlt4]]]]].
         simpl in H4.
         eapply terminates_step_any_2 in H4. 2: eapply frame_indep_core in HD4; exact HD4.
@@ -670,16 +670,16 @@ Proof.
         }
         assumption.
         lia.
-      * assumption.
+        * assumption.
     }
   * inv He.
     eapply H in H0 as D'; auto. 2: {
       by apply exp_to_any.
     }
-    2: {
+    (* 2: {
       constructor. constructor. all: try by auto.
       by rewrite indexed_to_forall.
-    }
+    } *)
     destruct D' as [v1 [k1 [Γ1 [Hv1 [HD1 Hlt1]]]]].
     eapply terminates_step_any_2 in H0. 2: {
       eapply frame_indep_core in HD1. exact HD1.
@@ -716,12 +716,12 @@ Proof.
         apply exp_to_any.
         by apply (H5 0 ltac:(simpl; lia)).
       }
-      2: {
+      (* 2: {
         constructor; auto.
         constructor; auto.
         rewrite indexed_to_forall. intros.
         by apply (H5 (S i) ltac:(simpl; lia)).
-      }
+      } *)
       destruct D' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
       eapply terminates_step_any_2 in H4. 2: {
         eapply frame_indep_core in HD2. exact HD2.
@@ -775,11 +775,11 @@ Proof.
           apply exp_to_any. specialize (H5 (S (length l')) ltac:(simpl; rewrite length_app; simpl; lia)).
           simpl in H5. rewrite app_nth2 in H5. rewrite Nat.sub_diag in H5. assumption. lia.
         }
-        2: {
+        (* 2: {
           apply Forall_app. split; try assumption.
           do 2 constructor; try assumption. 2: constructor.
           simpl. by constructor.
-        }
+        } *)
         destruct X as [v4 [k4 [Γ4 [Hv4 [HD4 Hlt4]]]]].
         simpl in H4.
         eapply terminates_step_any_2 in H4. 2: eapply frame_indep_core in HD4; exact HD4.
@@ -807,15 +807,15 @@ Proof.
         }
         assumption.
         lia.
-      * assumption.
+        * assumption.
     }
   * inv He.
     eapply H in H0 as D'; auto. 2: {
       by apply exp_to_any.
     }
-    2: {
+    (* 2: {
       constructor. constructor. all: by auto.
-    }
+    } *)
     destruct D' as [v1 [k1 [Γ1 [Hv1 [HD1 Hlt1]]]]].
     eapply terminates_step_any_2 in H0. 2: {
       eapply frame_indep_core in HD1. exact HD1.
@@ -863,9 +863,9 @@ Proof.
     eapply H in H0 as D'; auto. 2: {
       by apply exp_to_any.
     }
-    2: {
+    (* 2: {
       constructor. constructor. all: by auto.
-    }
+    } *)
     destruct D' as [v1 [k1 [Γ1 [Hv1 [HD1 Hlt1]]]]].
     eapply terminates_step_any_2 in H0. 2: {
       eapply frame_indep_core in HD1. exact HD1.
@@ -874,10 +874,10 @@ Proof.
     eapply H in H4 as D''; auto. 2: lia. 2: {
       by apply exp_to_any.
     }
-    2: {
+    (* 2: {
       constructor; auto.
       constructor; auto.
-    }
+    } *)
     destruct D'' as [v2 [k2 [Γ2 [Hv2 [HD2 Hlt2]]]]].
     do 3 eexists. repeat split.
     2: {

@@ -127,10 +127,6 @@ Proof.
     destruct H4 as [i D].
     eapply term_eval_empty in D as D'; eauto.
     2: by apply exp_to_any.
-    2: {
-      constructor; auto.
-      constructor; assumption.
-    }
     destruct D' as [v [l [Γ' [Hv [D' _]]]]].
     eapply frame_indep_core in D' as D''.
     eapply terminates_step_any_2 in D. 2: exact D''. clear D''. inv D.
@@ -142,10 +138,6 @@ Proof.
     destruct H1 as [j D].
     eapply term_eval_empty in D as D'''; eauto.
     2: by apply exp_to_any.
-    2: {
-      constructor; auto.
-      constructor; assumption.
-    }
     destruct D''' as [v2 [l2 [Γ'2 [Hv2 [D'2 _]]]]].
     eapply frame_indep_core in D'2 as D''2.
     eapply terminates_step_any_2 in D. 2: exact D''2. clear D''2.
@@ -323,11 +315,6 @@ Proof.
            destruct D as [k D].
            eapply term_eval_empty in D as D'.
            2: { inv HFs. inv H4. inv H6. apply exp_to_any. auto. }
-           2: { inv HFs. constructor; auto. inv H4. constructor; auto.
-                2: { inv H6. auto. }
-                constructor.
-                * intros *. apply ENVCLOSED_nth. auto.
-                * apply CIU_open_scope_l in Ho. auto. }
            2: { inv HFs. inv H4. auto. }
            destruct D' as [v [k' [Γ'' [Hv [D' _]]]]].
            eapply frame_indep_core in D' as D''.
@@ -348,11 +335,6 @@ Proof.
               destruct D as [k'' D].
               eapply term_eval_empty in D as D'.
               2: { inv HFs. inv H5. inv H7. inv H8. apply exp_to_any. auto. }
-              2: { inv HFs. constructor; auto. inv H5. constructor; auto.
-                   1: { constructor. intros. eapply ENVCLOSED_nth; auto.
-                        apply CIU_open_scope_l in Ho. auto. }
-                   1: { apply Forall_app. split; auto. }
-                   1: { inv H7. inv H8. auto. } }
               2: { inv HFs. inv H5. auto. }
               destruct D' as [v' [k''' [Γ''' [Hv' [D' _]]]]].
               eapply frame_indep_core in D' as D''.
@@ -397,11 +379,6 @@ Proof.
            destruct D as [k D].
            eapply term_eval_empty in D as D'.
            2: { apply exp_to_any. inv HFs. inv H4. inv H10. auto.  }
-           2: { inv HFs. inv H4. constructor; auto. inv H10.
-                constructor; auto. apply Forall_app; split; auto.
-                constructor; auto. constructor.
-                * intros i. apply ENVCLOSED_nth; auto.
-                * apply CIU_open_scope_l in Ho. auto. }
            2: { inv HFs. inv H4. auto. }
            destruct D' as [v' [k0 [Γ'' [HV [D' _]]]]].
            eapply frame_indep_core in D'.
@@ -446,11 +423,6 @@ Proof.
               eapply term_eval_empty in D as D'.
               2: { apply exp_to_any. inv HFs. inv H4. inv H10.
                    inv H4. auto. }
-              2: { inv HFs. constructor; auto. inv H4. inv H10.
-                   inv H4. constructor; auto. apply Forall_app.
-                   split.
-                   2: { constructor; auto. }
-                   auto. }
               2: { inv HFs. inv H4. auto. }
               destruct D' as [v'' [k'' [Γ''' [HV' [D' _]]]]].
               eapply frame_indep_core in D'.
@@ -544,7 +516,6 @@ Proof.
     destruct H5 as [i D].
     eapply term_eval_empty in D as D'; auto.
     2: by apply exp_to_any.
-    2: { constructor; auto. constructor; auto. }
     destruct D' as [v [k [Γ' [Hv [D' _]]]]].
     eapply frame_indep_core in D' as D''.
     eapply terminates_step_any_2 in D. 2:eassumption.
@@ -640,7 +611,6 @@ Proof.
     clear k0. destruct H4 as [k D].
     apply term_eval_empty in D as D'; auto.
     2: by apply exp_to_any.
-    2: repeat constructor; auto.
     destruct D' as [v [k' [Γ' [Hv [D' _]]]]].
     eapply step_terminates_one. constructor.
     eapply frame_indep_core in D' as D''. simpl in D''.
@@ -671,8 +641,6 @@ Proof.
       destruct D as [k'' D].
       apply term_eval_empty in D as D'; auto.
       2: by apply exp_to_any.
-      2: { constructor; auto. constructor; auto.
-           apply Forall_inv_tail in Hlv1. auto. }
       destruct D' as [v' [k''' [Γ'' [Hv' [D' _]]]]].
       eapply frame_indep_core in D' as D''.
       eapply frame_indep_core in D'.
@@ -723,9 +691,6 @@ Proof.
         destruct H9 as [k2 D].
         apply term_eval_empty in D as D'; auto.
         2: by apply exp_to_any.
-        2: { constructor; auto. constructor; auto.
-             apply Forall_app; auto.
-             apply Forall_inv_tail in Hlv1. auto. }
         destruct D' as [v'' [k3 [Γ1 [Hv'' [D' _]]]]].
         eapply frame_indep_core in D' as D''.
         eapply frame_indep_core in D'.
@@ -822,7 +787,6 @@ Proof.
     destruct H6 as [k D].
     eapply term_eval_empty in D as D'; auto.
     2: by apply exp_to_any.
-    2: { constructor; auto. constructor; auto. }
     destruct D' as [v [k' [Γ' [HV [D' _]]]]].
     eapply frame_indep_core in D' as D''.
     eapply terminates_step_any_2 in D. 2:eassumption.
@@ -922,7 +886,6 @@ Proof.
     destruct D as [k D].
     eapply term_eval_empty in D as D'; auto.
     2: by apply exp_to_any.
-    2: { constructor; auto. constructor; auto. }
     destruct D' as [v [k' [Γ' [HV [D' _]]]]].
     eapply frame_indep_core in D' as D''.
     eapply frame_indep_core in D'.
@@ -951,7 +914,6 @@ Proof.
       destruct D as [k D].
       eapply term_eval_empty in D as D'; auto.
       2: by apply exp_to_any.
-      2: { constructor; auto. constructor; auto. }
       destruct D' as [v' [k' [Γ'' [HV' [D' _]]]]].
       eapply frame_indep_core in D' as D''.
       eapply frame_indep_core in D'.
@@ -989,9 +951,6 @@ Proof.
         destruct D as [k D].
         eapply term_eval_empty in D as D'; auto.
         2: { apply exp_to_any. apply Forall_inv in Hlv2. auto. }
-        2: { constructor; auto. constructor; auto.
-             apply Forall_app; auto.
-             apply Forall_inv_tail in Hlv1. auto. }
         destruct D' as [v'' [k' [Γ' [HV'' [D' _]]]]].
         eapply frame_indep_core in D' as D''.
         eapply frame_indep_core in D'.
