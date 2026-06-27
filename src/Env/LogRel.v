@@ -263,6 +263,24 @@ Corollary Vrel_biforall_closed_r :
       Forall (fun w => VALCLOSED w) l2.
 Proof. apply Vrel_biforall_closed. Qed.
 
+Lemma exp_rel_scope :
+  forall m H Γ1 Γ2 e1 e2,
+    exp_rel m H Γ1 Γ2 e1 e2 ->
+    EXP length Γ1 ⊢ e1 /\ EXP length Γ2 ⊢ e2.
+Proof. intros. split; apply H0. Qed.
+
+Corollary exp_rel_scope_l :
+  forall m H Γ1 Γ2 e1 e2,
+    exp_rel m H Γ1 Γ2 e1 e2 ->
+    EXP length Γ1 ⊢ e1.
+Proof. apply exp_rel_scope. Qed.
+
+Corollary exp_rel_scope_r :
+  forall m H Γ1 Γ2 e1 e2,
+    exp_rel m H Γ1 Γ2 e1 e2 ->
+    EXP length Γ2 ⊢ e2.
+Proof. apply exp_rel_scope. Qed.
+
 Lemma Erel_open_scope :
   forall Γ e1 e2,
     Erel_open Γ e1 e2 ->
@@ -547,6 +565,17 @@ Unshelve.
   + unfold Grel. auto.
   + unfold Grel. split;[auto|].
 Admitted. *)
+
+(* 
+
+Lemma Vrel_Clos_compat :
+  forall Γ ext1 ext2 id1 id2 vl1 vl2 b1 b2,
+  vl1 = vl2 ->
+  Erel_open (length ext1 + vl1 + Γ) b1 b2 ->
+  Vrel_open Γ (VClos vl1 b1) (VClos vl2 b2).
+
+ *)
+
 
 Theorem Vrel_VClos_compat :
   forall Γ1 Γ2 vl1 vl2 b1 b2,
@@ -996,6 +1025,31 @@ Corollary Erel_open_biforall_Forall_scope_r :
     Forall (fun e => EXP Γ ⊢ e) vals2.
 Proof. apply Erel_open_biforall_Forall_scope. Qed.
 
+Lemma exp_rel_biforall_Forall_scope :
+  forall m H Γ1 Γ2 l1 l2,
+    list_biforall (exp_rel m H Γ1 Γ2) l1 l2 ->
+    Forall (fun e => EXP length Γ1 ⊢ e) l1 /\ Forall (fun e => EXP length Γ2 ⊢ e) l2.
+Proof.
+  intros m H Γ1 Γ2 l1.
+  induction l1; intros l2 Hbfa.
+  * destruct l2; inv Hbfa. split; constructor.
+  * destruct l2; inv Hbfa. apply IHl1 in H5 as [HF1 HF2].
+    apply exp_rel_scope in H3 as [H3 H3'].
+    split; constructor; auto.
+Qed.
+
+Corollary exp_rel_biforall_Forall_scope_l:
+  forall m H Γ1 Γ2 l1 l2,
+    list_biforall (exp_rel m H Γ1 Γ2) l1 l2 ->
+    Forall (fun e => EXP length Γ1 ⊢ e) l1.
+Proof. apply exp_rel_biforall_Forall_scope. Qed.
+
+Corollary exp_rel_biforall_Forall_scope_r:
+  forall m H Γ1 Γ2 l1 l2,
+    list_biforall (exp_rel m H Γ1 Γ2) l1 l2 ->
+    Forall (fun e => EXP length Γ2 ⊢ e) l2.
+Proof. apply exp_rel_biforall_Forall_scope. Qed.
+
 Lemma Erel_EApp_compat :
   forall Γ f1 f2 vals1 vals2,
     Erel_open Γ f1 f2 ->
@@ -1028,7 +1082,7 @@ Proof.
   2: rewrite HLΓ2.
   1-2: auto.
   intros m Hmk v1 v2 Γ0 Γ3 HV D.
-  inv D.
+  inv D. 
   * (* 0 args *)
     simpl in Hlen. symmetry in Hlen. apply nil_length_inv in Hlen. subst vals2.
     rewrite Vrel_Fix_eq in HV.
@@ -1380,6 +1434,19 @@ Proof.
   apply CIU_open_scope_l in H. auto.
 Qed.
 
+(* Theorem CIU_Cons_compat :
+  forall Γ e1 e1' e2 e2',
+    CIU_open Γ e1 e1' ->
+    CIU_open Γ e2 e2' ->
+    CIU_open Γ (ECons e1 e2) (ECons e1' e2').
+Proof.
+  intros. apply CIU_implies_Erel in H, H0.
+  unfold CIU_open. intros.
+  repeat split.
+  4: { intros. pose proof Erel_ECons_compat _ _ _ _ _ H H0. destruct H4 as [i D].
+       eapply H5. 4: exact D. apply Grel_Fundamental; eauto. reflexivity.
+Qed. *)
+
 Lemma Vrel_open_closed :
   forall {v v'},
     Vrel_open v v' -> VALCLOSED v /\ VALCLOSED v'.
@@ -1455,6 +1522,170 @@ Corollary Frel_closed_r :
   forall n F1 F2,
     Frel n F1 F2 -> FSCLOSED F2.
 Proof. apply Frel_closed. Qed.
+
+Print fold_right.
+
+Lemma step_one :
+  forall Γ Γ' Fs Fs' e e' v,
+    ⟨ Γ, Fs, e ⟩ --> ⟨ Γ', Fs', e' ⟩ ->
+    ⟨ Γ', Fs', e' ⟩ -->* v ->
+    ⟨ Γ, Fs, e ⟩ -->* v.
+Proof.
+  intros * D T.
+  destruct T as [i [Γ'' T]].
+  exists (1 + i). exists Γ''.
+  eapply transitive_eval; eauto.
+  eapply step_trans; eauto.
+  apply step_refl.
+Qed.
+
+Definition fold_env (Γ : Env) (e : Exp) : Exp :=
+  foldl (fun ex v => ELet (VVal v) ex) e Γ.
+
+Compute fold_env [VLit 1%Z; VLit 2%Z; VLit 3%Z] VNil.
+
+Lemma put_env_back_helper :
+  forall v1 Γ Fs e v,
+    ⟨ v1 :: Γ, Fs, e ⟩ -->* v ->
+    ⟨ Γ, Fs, ° ELet (VVal v1) e ⟩ -->* v.
+Proof.
+  intros * D.
+  eapply step_one. constructor.
+  eapply step_one. constructor.
+  auto.
+Qed.
+
+Lemma put_env_back_app :
+  forall Γ Fs e v,
+    ⟨ Γ, Fs, e ⟩ -->* v ->
+    forall Γ' Γ'',
+      Γ = Γ' ++ Γ'' ->
+      ⟨ Γ'', Fs, fold_env Γ' e ⟩ -->* v.
+Proof.
+  induction Γ; intros.
+  * destruct Γ'; try discriminate. simpl in H0. inv H0. simpl. assumption.
+  * destruct Γ'.
+    + simpl in *. subst. assumption.
+    + simpl in *. inv H0.
+      apply put_env_back_helper in H.
+      eapply IHΓ in H. 2: reflexivity. assumption.
+Qed.
+
+Lemma put_env_back :
+  forall Γ Fs e v,
+    ⟨ Γ, Fs, e ⟩ -->* v -> ⟨ [], Fs, fold_env Γ e ⟩ -->* v.
+Proof.
+  intros * D. eapply put_env_back_app.
+  2: rewrite app_nil_r; reflexivity.
+  assumption.
+Qed.
+
+Corollary put_env_back_term_app :
+  forall Γ Fs e,
+    | Γ, Fs, e | ↓ ->
+    forall Γ' Γ'',
+      Γ = Γ' ++ Γ'' ->
+      | Γ'', Fs, fold_env Γ' e | ↓.
+Proof.
+  intros.
+  apply terminates_semantics in H. destruct H.
+  apply semantics_terminates with (v := x).
+  eapply put_env_back_app; eauto.
+Qed.
+
+Corollary put_env_back_term :
+  forall Γ Fs e,
+    | Γ, Fs, e | ↓ -> | [], Fs, fold_env Γ e | ↓.
+Proof.
+  intros.
+  apply terminates_semantics in H. destruct H.
+  apply semantics_terminates with (v := x).
+  apply put_env_back. auto.
+Qed.
+
+Definition plug_f_env (F : Frame) (e : Exp) : Exp :=
+  match F with
+  | FLet e2 _ => ° ELet e e2
+  | FCons1 e1 _ => ° ECons e1 e
+  | FCons2 v2 _ => ° ECons e (VVal v2)
+  | FCase p e2 e3 _ => ° ECase e p e2 e3
+  | FApp1 l _ => ° EApp e l
+  | FBIF1 l _ => ° EBIF e l
+  | FApp2 v l el _ => ° EApp (VVal v) (map VVal l ++ [e] ++ el)
+  | FBIF2 v l el _ => ° EBIF (VVal v) (map VVal l ++ [e] ++ el)
+  end.
+
+Definition get_frame_env (F : Frame) : Env :=
+  match F with
+  | FLet _ Γ => Γ
+  | FCons1 _ Γ => Γ
+  | FCons2 _ Γ => Γ
+  | FCase _ _ _ Γ => Γ
+  | FApp1 _ Γ => Γ
+  | FBIF1 _ Γ => Γ
+  | FApp2 _ _ _ Γ => Γ
+  | FBIF2 _ _ _ Γ => Γ
+  end.
+
+Lemma term_scope :
+  forall Γ Fs e,
+    | Γ, Fs, e | ↓ -> EXP (length Γ) ⊢ e.
+Proof.
+  intros Γ Fs e D. destruct D as [x D].
+  induction D.
+  * admit.
+  * inv IHD. constructor.
+    destruct v; try discriminate. constructor.
+  * constructor.
+Admitted.
+
+Lemma env_ext :
+  forall Γ Fs e,
+    | Γ, Fs, e | ↓ ->
+    forall Γ',
+      | Γ ++ Γ', Fs, e | ↓.
+Proof.
+  intros Γ Fs e D.
+  destruct D as [i D].
+  induction D; intros Γ''.
+  12: eapply step_terminates_one;[apply red_case_false; try eassumption|];
+      try (exists k; eauto).
+  2-13: eapply step_terminates_one;[constructor; try eassumption|];
+        try (exists k; eauto).
+  * exists 0. constructor.
+  * eapply step_terminates_one. constructor.
+    admit.
+  * admit.
+Restart.
+  intros Γ Fs e D.
+  destruct D as [i D]. revert Γ Fs e D.
+  induction i; intros.
+  * inv D. exists 0. constructor.
+  * inv D.
+    14: { eapply step_terminates_one. constructor. apply IHi.
+Admitted.
+
+Lemma put_back_term :
+  forall F e Fs Γ0,
+    | Γ0, F :: Fs, e | ↓ -> | get_frame_env F, Fs, plug_f_env F (fold_env Γ0 e) | ↓.
+Proof.
+  intros F e Fs Γ0 D.
+  destruct F; simpl.
+  * eapply step_terminates_one. constructor.
+    apply put_env_back_term_app with (Γ := Γ0 ++ Γ);[|reflexivity].
+    admit.
+  *
+Admitted.
+
+(* Lemma put_back_term' :
+  forall F e Fs Γ0,
+    | Γ0, F :: Fs, e | ↓ -> | snd (plug_f_env F (fold_env Γ0 e)), Fs, fst (plug_f_env F (fold_env Γ0 e)) | ↓.
+Proof.
+  intros F e Fs Γ0 D.
+  destruct F.
+  * simpl. eapply step_terminates_one. constructor. apply put_env_back_term.
+  *
+Admitted. *)
 
 Lemma Frel_FLet :
   forall n e2 e2' Γ Γ',
@@ -1569,18 +1800,86 @@ Proof.
     Unshelve. lia.
 Qed.
 
+(* Lemma Erel_App_compat_ind : forall hds hds' tl tl' F1 F2 k0 v1 v2 Γ Γ',
+  list_biforall (exp_rel k0 (fun m _ => Vrel m) Γ Γ') tl tl' ->
+  list_biforall (Vrel k0) hds hds' ->
+  Vrel k0 v1 v2 ->
+  FSCLOSED F1 ->
+  FSCLOSED F2 ->
+  (forall m : nat, m <= k0 -> forall v1 v2 : Val, Vrel m v1 v2 -> | Γ, F1, v1 | m ↓ -> | Γ, F2, v2 | ↓)
+->
+  frame_rel k0 (fun (m' : nat) (_ : m' <= k0) => Vrel m') (FApp2 v1 hds tl Γ :: F1)
+  (FApp2 v2 hds' tl' Γ' :: F2).
+Proof.
+  intros * Htl Hhd Hv HF1 HF2 HD.
+  split. 2: split.
+  1-2: constructor; auto; constructor; auto.
+Qed. *)
+
+Lemma Frel_FApp1 :
+  forall n l l' Γ Γ',
+  ENVCLOSED Γ -> ENVCLOSED Γ' ->
+  list_biforall (fun e e' => forall m, m <= n -> exp_rel m (fun m _ => Vrel m) Γ Γ' e e') l l' ->
+  (forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FApp1 l Γ :: F1) (FApp1 l' Γ' :: F2)).
+Proof.
+
+Admitted.
+
+Lemma Frel_FBIF1 :
+  forall n l l' Γ Γ',
+  ENVCLOSED Γ -> ENVCLOSED Γ' ->
+  list_biforall (fun e e' => forall m, m <= n -> exp_rel m (fun m _ => Vrel m) Γ Γ' e e') l l' ->
+  (forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FBIF1 l Γ :: F1) (FBIF1 l' Γ' :: F2)).
+Proof.
+
+Admitted.
+
+Lemma Frel_FApp2 :
+  forall n v v' l l' el el' Γ Γ',
+  ENVCLOSED Γ -> ENVCLOSED Γ' ->
+  (forall m, m <= n -> Vrel m v v') ->
+  list_biforall (fun v v' => forall m, m <= n -> Vrel m v v') l l' ->
+  list_biforall (fun e e' => forall m, m <= n -> exp_rel m (fun m _ => Vrel m) Γ Γ' e e') el el' ->
+  (forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FApp2 v l el Γ :: F1) (FApp2 v' l' el' Γ' :: F2)).
+Proof.
+
+Admitted.
+
+Lemma Frel_FBIF2 :
+  forall n v v' l l' el el' Γ Γ',
+  ENVCLOSED Γ -> ENVCLOSED Γ' ->
+  (forall m, m <= n -> Vrel m v v') ->
+  list_biforall (fun v v' => forall m, m <= n -> Vrel m v v') l l' ->
+  list_biforall (fun e e' => forall m, m <= n -> exp_rel m (fun m _ => Vrel m) Γ Γ' e e') el el' ->
+  (forall m F1 F2, m <= n -> Frel m F1 F2 -> Frel m (FBIF2 v l el Γ :: F1) (FBIF2 v' l' el' Γ' :: F2)).
+Proof.
+
+Admitted.
+
+Theorem Frel_Fundamental :
+  forall F n,
+    FSCLOSED F ->
+    Frel n F F.
+Proof.
+  induction F; intros n HF.
+  * split. 2: split. 1-2: auto.
+    intros. exists 0. constructor.
+  * split. 2: split. 1-2: auto.
+    intros m Hmn v1 v2 Γ1 Γ2 HV D.
+    destruct a; inversion HF; inversion H1; subst.
+    + admit.
+    + admit.
+    + eapply Frel_FLet; auto. 3: exact HV. 3: exact D. 1: auto.
+      intros m0 v0 v1' Hm0m HV'.
+      eapply Erel_Fundamental.
+Admitted.
 
 
 
 
 
 
-
-
-
-
-
-
+Check Erel_Val_compat.
 
 
 
