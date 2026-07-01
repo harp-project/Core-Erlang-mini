@@ -1733,239 +1733,268 @@ Proof.
     apply (H1 CHole ltac:(constructor)) in H0. apply terminates_eq_terminates_sem in H0.
     destruct H0. exists x. split; auto.
   * unfold equivalent_exps. intros. cbn. assert (CTX 0 e1 e2) as P' by auto.
-    destruct H, H.
+    destruct H as [[Hscope1 Hscope2] He1e2].
     apply ex_intro in H0 as H0'. apply -> terminates_eq_terminates_sem in H0'.
-    pose proof (H1 CHole ltac:(constructor) H0'). simpl in H3.
-    apply terminates_eq_terminates_sem in H3. destruct H3. exists x. split; auto.
+    pose proof (He1e2 CHole ltac:(constructor) H0'). simpl in H.
+    apply terminates_eq_terminates_sem in H. destruct H as [x HD].
+    exists x. split; auto.
     clear H0'.
-    assert (VALCLOSED v1) as Hv by apply H0. assert (VALCLOSED x) as Hv' by apply H3.
     generalize dependent x.
-    destruct v1; intros; try inversion_is_value; try lia.
-    - destruct x; try inversion_is_value; try lia.
-      + epose proof (H1 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** simpl in H14. break_match_hyp. now apply lit_eqb_eq in Heqb. congruence.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-    - destruct x; try inversion_is_value; try lia.
-      + epose proof (H1 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** simpl in H14. congruence.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14. break_match_hyp. inversion H17. subst. now apply Nat.eqb_eq in Heqb. congruence.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-    - destruct x; try inversion_is_value; try lia.
-      + apply ex_intro in H3 as H3'. apply -> terminates_eq_terminates_sem in H3'.
-        destruct P.
-        epose proof (H5 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _).
-        simpl in H6. destruct H6. inversion H6; try inversion_is_value. subst.
-        destruct H0, H7. eapply frame_indep_nil in H7.
-        eapply terminates_step_any_2 in H13. 2: exact H7.
-        inversion H13.
-        ** inversion H16.
-        ** apply inf_diverges in H17. contradiction.
-      + apply ex_intro in H3 as H3'. apply -> terminates_eq_terminates_sem in H3'.
-        destruct P.
-        epose proof (H5 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _).
-        simpl in H6. destruct H6. inversion H6; try inversion_is_value. subst.
-        destruct H0, H7. eapply frame_indep_nil in H7.
-        eapply terminates_step_any_2 in H13. 2: exact H7.
-        inversion H13.
-        ** inversion H16.
-        ** apply inf_diverges in H17. contradiction.
+    destruct v1; intros; try lia.
+    - destruct x; try lia.
+      + epose proof (He1e2 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        ** break_match_hyp. now apply lit_eqb_eq in Heqb. congruence.
+        ** apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _) as X. 
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _) as X. 
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+    - destruct x; try lia.
+      + epose proof (He1e2 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        ** case_match. 2: congruence. inv H2.
+           by apply Nat.eqb_eq in H.
+        ** apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+    - apply step_any_closedness in H0. inv H0. lia. constructor. assumption.
+    - destruct x; try lia.
+      + apply ex_intro in H0 as D.
+        apply -> terminates_eq_terminates_sem in D.
+        destruct P as [HS He2e1].
+        epose proof (He2e1 (CCase1 CHole (PLit l) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct H0 as [ke1 HD1]. eapply frame_indep_nil in HD1.
+        eapply terminates_step_any_2 in H6. 2: exact HD1.
+        inv H6; simpl in *.
+        apply inf_diverges in H7. contradiction.
+      + apply ex_intro in H0 as D.
+        apply -> terminates_eq_terminates_sem in D.
+        destruct P as [HS He2e1].
+        epose proof (He2e1 (CCase1 CHole (PPid p) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct H0 as [ke1 HD1]. eapply frame_indep_nil in HD1.
+        eapply terminates_step_any_2 in H6. 2: exact HD1.
+        inv H6; simpl in *.
+        apply inf_diverges in H7. contradiction.
+      + apply step_any_closedness in HD. inv HD. lia. constructor. assumption.
       + intros. apply IHn.
+        -- 
+        assert (CTX 0 e1 e2). {
+          split. split. all: auto.
+        }
+        assert (CTX 0 (VFun vl0 e0) (VFun vl e)). {
+          apply CTX_eval in H0; auto. apply CTX_eval in HD; auto.
+          assert (Transitive (CTX 0)). { apply CTX_IsPreCtxRel. }
+          destruct H0 as [HH1 HH2], HD as [HH3 HH4].
+          epose proof (H4 _ _ _ HH4 P) as T.
+          epose proof (H4 _ _ _ T HH1). auto.
+        }
+        epose proof CTX_IsPreCtxRel as X. destruct X as [_ [_ [_ [Rtrans [_ [RApp _]]]]]].
+        unfold CompatibleApp in RApp.
+        assert (VALCLOSED (VFun vl e)). {
+          apply step_any_closedness in H0. now inversion H0. constructor. auto.
+        }
+        assert (VALCLOSED (VFun vl0 e0)). {
+          apply step_any_closedness in HD. now inversion HD. constructor. auto.
+        }
+        apply RApp with (vals1 := map VVal vals)
+            (vals2 := map VVal vals) in H4; auto.
+        ** epose proof (CTX_beta_values H5 H (eq_sym H1)) as [CTX1 CTX2].
+           epose proof (CTX_beta_values H6 H (eq_sym H2)) as [CTX3 CTX4].
+           epose proof (Rtrans 0 _ _ _ CTX3 H4) as T.
+           epose proof (Rtrans 0 _ _ _ T CTX2) as T'. assumption.
+        ** eapply Forall_map, Forall_impl. 2: exact H.
+           intros. now constructor.
+        ** eapply Forall_map, Forall_impl. 2: exact H.
+           intros. now constructor.
+        ** apply forall_biforall_refl. apply Forall_map, Forall_forall.
+           intros. apply CTX_refl. constructor.
+           rewrite Forall_forall in H. by auto.
         --
         assert (CTX 0 e1 e2). {
           split. split. all: auto.
         }
-        assert (CTX 0 (VFun vl0 x) (VFun vl v1)). {
-          apply CTX_eval in H0; auto. apply CTX_eval in H3; auto.
+        assert (CTX 0 (VFun vl e) (VFun vl0 e0)). {
+          apply CTX_eval in H0; auto. apply CTX_eval in HD; auto.
           assert (Transitive (CTX 0)). { apply CTX_IsPreCtxRel. }
-          destruct H0, H3.
-          epose proof (H8 _ _ _ H10 P). epose proof (H8 _ _ _ H11 H0). auto.
+          destruct H0 as [HH1 HH2], HD as [HH3 HH4].
+          epose proof (H4 _ _ _ HH2 P') as T.
+          epose proof (H4 _ _ _ T HH3). auto.
         }
-        epose proof CTX_IsPreCtxRel. destruct H9 as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RLet [RLetRec [RPlus RIf]]]]]]]]]. unfold CompatibleApp in RApp.
-        assert (VALCLOSED (VFun vl v1)). {
+        epose proof CTX_IsPreCtxRel as X. destruct X as [_ [_ [_ [Rtrans [_ [RApp _]]]]]].
+        unfold CompatibleApp in RApp.
+        assert (VALCLOSED (VFun vl e)). {
           apply step_any_closedness in H0. now inversion H0. constructor. auto.
         }
-        assert (VALCLOSED (VFun vl0 x)). {
-          apply step_any_closedness in H3. now inversion H3. constructor. auto.
+        assert (VALCLOSED (VFun vl0 e0)). {
+          apply step_any_closedness in HD. now inversion HD. constructor. auto.
         }
-        apply RApp with (vals1 := vals) (vals2 := vals) in H8; auto.
-        ** epose proof (CTX_beta_values H9 H4 (eq_sym H5)). destruct H11.
-           epose proof (CTX_beta_values H10 H4 (eq_sym H6)). destruct H13.
-           epose proof (Rtrans 0 _ _ _ H13 H8).
-           epose proof (Rtrans 0 _ _ _ H15 H12). auto.
-        ** eapply Forall_impl. 2: exact H4. intros. now constructor.
-        ** eapply Forall_impl. 2: exact H4. intros. now constructor.
-        ** apply forall_biforall_refl. apply Forall_forall. intros. apply CTX_refl.
-           rewrite Forall_forall in H4. constructor. now apply H4.
-        --
-        assert (CTX 0 e1 e2). {
-          split. split. all: auto.
-        }
-        assert (CTX 0 (VFun vl v1) (VFun vl0 x)). {
-          apply CTX_eval in H0; auto. apply CTX_eval in H3; auto.
-          assert (Transitive (CTX 0)). { apply CTX_IsPreCtxRel. }
-          destruct H0, H3.
-          epose proof (H8 _ _ _ H9 H7). epose proof (H8 _ _ _ H11 H3). auto.
-        }
-        epose proof CTX_IsPreCtxRel. destruct H9 as [Rscope [Radequate [Rrefl [Rtrans [RFun [RApp [RLet [RLetRec [RPlus RIf]]]]]]]]]. unfold CompatibleApp in RApp.
-        assert (VALCLOSED (VFun vl v1)). {
-          apply step_any_closedness in H0. now inversion H0. constructor. auto.
-        }
-        assert (VALCLOSED (VFun vl0 x)). {
-          apply step_any_closedness in H3. now inversion H3. constructor. auto.
-        }
-        apply RApp with (vals1 := vals) (vals2 := vals) in H8; auto.
-        ** epose proof (CTX_beta_values H9 H4 (eq_sym H5)). destruct H11.
-           epose proof (CTX_beta_values H10 H4 (eq_sym H6)). destruct H13.
-           epose proof (Rtrans 0 _ _ _ H11 H8).
-           epose proof (Rtrans 0 _ _ _ H15 H14). auto.
-        ** eapply Forall_impl. 2: exact H4. intros. now constructor.
-        ** eapply Forall_impl. 2: exact H4. intros. now constructor.
-        ** apply forall_biforall_refl. apply Forall_forall. intros. apply CTX_refl.
-           rewrite Forall_forall in H4. constructor. now apply H4.
-      + apply ex_intro in H3 as H3'. apply -> terminates_eq_terminates_sem in H3'.
-        destruct P.
-        epose proof (H5 (CCase1 CHole PNil (VLit 0%Z) inf) _ _).
-        simpl in H6. destruct H6. inversion H6; try inversion_is_value. subst.
-        destruct H0, H7. eapply frame_indep_nil in H7.
-        eapply terminates_step_any_2 in H13. 2: exact H7.
-        inversion H13.
-        ** inversion H16.
-        ** apply inf_diverges in H17. contradiction.
-      + apply ex_intro in H3 as H3'. apply -> terminates_eq_terminates_sem in H3'.
-        destruct P.
-        epose proof (H5 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _).
-        simpl in H6. destruct H6. inversion H6; try inversion_is_value. subst.
-        destruct H0, H7. eapply frame_indep_nil in H7.
-        eapply terminates_step_any_2 in H13. 2: exact H7.
-        inversion H13.
-        ** inversion H16.
-        ** apply inf_diverges in H17. contradiction.
-    - destruct x; try inversion_is_value; try lia.
-      + epose proof (H1 (CCase1 CHole PNil (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole PNil (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole PNil (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole PNil (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-    - destruct x; try inversion_is_value; try lia.
-      + epose proof (H1 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + epose proof (H1 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _).
-        simpl in H4. destruct H4. inversion H4; try inversion_is_value. subst.
-        destruct H3, H5. eapply frame_indep_nil in H5.
-        eapply terminates_step_any_2 in H11. 2: exact H5.
-        inversion H11.
-        ** inversion H14.
-        ** apply inf_diverges in H15. contradiction.
-      + apply CIU_eval in H0 as [E1_1 E1_2]. apply CIU_eval in H3 as [E2_1 E2_2].
+        apply RApp with (vals1 := map VVal vals)
+            (vals2 := map VVal vals) in H4; auto.
+        ** epose proof (CTX_beta_values H5 H (eq_sym H1)) as [CTX1 CTX2].
+           epose proof (CTX_beta_values H6 H (eq_sym H2)) as [CTX3 CTX4].
+           epose proof (Rtrans 0 _ _ _ CTX1 H4) as T.
+           epose proof (Rtrans 0 _ _ _ T CTX4) as T'. assumption.
+        ** eapply Forall_map, Forall_impl. 2: exact H.
+           intros. now constructor.
+        ** eapply Forall_map, Forall_impl. 2: exact H.
+           intros. now constructor.
+        ** apply forall_biforall_refl. apply Forall_map, Forall_forall.
+           intros. apply CTX_refl. constructor.
+           rewrite Forall_forall in H. by auto.
+      + apply ex_intro in H0 as D.
+        apply -> terminates_eq_terminates_sem in D.
+        destruct P as [HS He2e1].
+        epose proof (He2e1 (CCase1 CHole (PNil) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct H0 as [ke1 HD1]. eapply frame_indep_nil in HD1.
+        eapply terminates_step_any_2 in H6. 2: exact HD1.
+        inv H6; simpl in *.
+        apply inf_diverges in H7. contradiction.
+      + apply ex_intro in H0 as D.
+        apply -> terminates_eq_terminates_sem in D.
+        destruct P as [HS He2e1].
+        epose proof (He2e1 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct H0 as [ke1 HD1]. eapply frame_indep_nil in HD1.
+        eapply terminates_step_any_2 in H6. 2: exact HD1.
+        inv H6; simpl in *.
+        apply inf_diverges in H7. contradiction.
+    - destruct x; try lia.
+      + epose proof (He1e2 (CCase1 CHole PNil (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole PNil (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole PNil (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole PNil (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole PNil (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+    - destruct x; try lia.
+      + epose proof (He1e2 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + epose proof (He1e2 (CCase1 CHole (PCons PVar PVar) (VLit 0%Z) inf) _ _) as X.
+        simpl in X. destruct X as [k X]. inv X.
+        destruct HD as [ke2 HD2]. eapply frame_indep_nil in HD2.
+        eapply terminates_step_any_2 in H6. 2: exact HD2.
+        inv H6; simpl in *.
+        apply inf_diverges in H8. contradiction.
+      + apply CIU_eval in H0 as [E1_1 E1_2].
+        apply CIU_eval in HD as [E2_1 E2_2].
         all: auto.
-        inversion Hv. inversion Hv'. subst.
-        epose proof (CIU_vlist _ _ H4 H5) as [P1 P2].
-        epose proof (CIU_vlist _ _ H8 H9) as [P3 P4].
+        assert (VALCLOSED v1_1 /\ VALCLOSED v1_2
+             /\ VALCLOSED x1 /\ VALCLOSED x2) as [V1 [V2 [V3 V4]]]. {
+          apply CIU_closed in E1_1 as [_ E].
+          apply CIU_closed in E2_1 as [_ F].
+          clear -E F. by repeat destruct_scope.
+        }
+        epose proof (CIU_vlist _ _ V1 V2) as [P1 P2].
+        epose proof (CIU_vlist _ _ V3 V4) as [P3 P4].
         apply CIU_iff_CIU_open in P1. apply CIU_iff_CIU_open in P2.
         apply CIU_iff_CIU_open in P3. apply CIU_iff_CIU_open in P4.
         apply CIU_iff_CIU_open in E1_1. apply CIU_iff_CIU_open in E1_2.
@@ -1995,182 +2024,21 @@ Proof.
         apply equivalent_valexps in J1_1. apply equivalent_valexps in J1_2.
         all: auto.
 Unshelve. (** TODO This is boiler plate basically... *)
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite lit_eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite lit_eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x0).
-     eapply term_case.
-     eapply term_step_term with (k := x0).
-     eapply frame_indep_nil in H4. exact H4. replace (S x0 - x0) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite lit_eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite lit_eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite lit_eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite Nat.eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite Nat.eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x0).
-     eapply term_case.
-     eapply term_step_term with (k := x0).
-     eapply frame_indep_nil in H4. exact H4. replace (S x0 - x0) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite Nat.eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite Nat.eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite Nat.eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H6.
-  ++ simpl. destruct H3, H6. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H6. exact H6. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite lit_eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H6.
-  ++ simpl. destruct H3, H6. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H6. exact H6. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. rewrite Nat.eqb_refl. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H6.
-  ++ simpl. destruct H3, H6. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H6. exact H6. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H6.
-  ++ simpl. destruct H3, H6. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H6. exact H6. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x0).
-     eapply term_case.
-     eapply term_step_term with (k := x0).
-     eapply frame_indep_nil in H4. exact H4. replace (S x0 - x0) with 1 by lia.
-     eapply term_case_true; auto. cbn. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x0).
-     eapply term_case.
-     eapply term_step_term with (k := x0).
-     eapply frame_indep_nil in H4. exact H4. replace (S x0 - x0) with 1 by lia.
-     eapply term_case_true; auto. cbn. reflexivity.
-     constructor.
-     do 3 constructor. lia.
-  ++ repeat constructor. all: inversion H4.
-  ++ simpl. destruct H0, H4. exists (2 + x).
-     eapply term_case.
-     eapply term_step_term with (k := x).
-     eapply frame_indep_nil in H4. exact H4. replace (S x - x) with 1 by lia.
-     eapply term_case_true; auto. cbn. reflexivity.
-     constructor.
-     do 3 constructor. lia.
+  all: try by repeat constructor; simpl; lia. (* solves scopes *)
+  all: try (simpl; destruct H0 as [x DD]; exists (2 + x); constructor;
+            eapply term_step_term;
+              [eapply frame_indep_nil in DD; exact DD
+              | replace (S x - x) with 1 by lia; eapply term_case_true;
+                [cbn; try rewrite Nat.eqb_refl; try rewrite lit_eqb_refl; reflexivity
+                |constructor]
+              | lia]). (* e1-based reductions *)
+  all: try (simpl; destruct HD as [x DD]; exists (2 + x); constructor;
+            eapply term_step_term;
+              [eapply frame_indep_nil in DD; exact DD
+              | replace (S x - x) with 1 by lia; eapply term_case_true;
+                [cbn; try rewrite Nat.eqb_refl; try rewrite lit_eqb_refl; reflexivity
+                |constructor]
+              | lia]). (* e2-based reductions *)
 Qed.
 
 (** MAJOR RESULT: *)
@@ -2189,9 +2057,9 @@ match n with
 | S n' =>
   match v1, v2 with
   | VLit l1, VLit l2 => l1 = l2
-  | EPid p1, EPid p2 => p1 = p2
+  | VPid p1, VPid p2 => p1 = p2
   | VFun vl1 b1, VFun vl2 b2 => forall vals, Forall (fun v => VALCLOSED v) vals ->
-    length vals = length vl1 -> length vals = length vl2 ->
+    length vals = vl1 -> length vals = vl2 ->
     equivalent_exps2 (b1.[list_subst (VFun vl1 b1::vals) idsubst]) (b2.[list_subst (VFun vl2 b2::vals) idsubst]) (equivalent_values2 n')
   | VCons v1 v2, VCons v1' v2' => equivalent_values2 n' v1 v1' /\ equivalent_values2 n' v2 v2'
   | VNil, VNil => True
