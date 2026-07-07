@@ -411,7 +411,7 @@ Proof.
     cbn.
     exists 1. split. 2: lia.
     econstructor. constructor.
-    rewrite subst_comp, subst_extend.
+    rewrite subst_comp, subst_extend, substcomp_id_r.
     constructor.
   * (* red_app: start evaluating first argument *)
     inv HwfFs.
@@ -466,7 +466,7 @@ Proof.
     cbn.
     exists 1. split. 2: lia.
     econstructor. constructor.
-    rewrite subst_comp, subst_extend.
+    rewrite subst_comp, subst_extend, substcomp_id_r.
     constructor.
   * (* red_case_true: pattern matches, extend env with bindings *)
     inv HwfFs.
