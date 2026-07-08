@@ -3,7 +3,7 @@
 
   In this file, we prove properties about concurrent Core Erlang.
 *)
-Require Export ConcurrentFunSemantics.
+From CoreErlang.Subst Require Export ConcurrentFunSemantics.
 Import ListNotations.
 
 Definition internals (n n' : Node) : Prop :=

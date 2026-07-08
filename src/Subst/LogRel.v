@@ -4,7 +4,7 @@
   In this file, we define logical relations for sequential Core Erlang.
 *)
 
-Require Export SemanticProperties.
+From CoreErlang.Subst Require Export SemanticProperties.
 
 Import ListNotations.
 

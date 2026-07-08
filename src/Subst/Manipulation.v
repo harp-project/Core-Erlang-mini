@@ -1,7 +1,5 @@
-(*** migrated ExpManipulation.v: adapt rename/subst to new Exp/Val/NonVal split *)
-
-Require Export ExpSyntax
-               Stdlib.Structures.OrderedType.
+From CoreErlang.Subst Require Export Syntax.
+Require Export Stdlib.Structures.OrderedType.
 
 Import ListNotations.
 

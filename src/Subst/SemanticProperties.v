@@ -1,4 +1,4 @@
-From CoreErlang Require Export SubstSemantics.
+From CoreErlang.Subst Require Export Semantics.
 
 
 (** Example, simple evaluations *)

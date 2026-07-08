@@ -5,7 +5,7 @@
   concurrent Core Erlang.
 *)
 
-Require Export ConcurrentProperties.
+From CoreErlang.Subst Require Export ConcurrentProperties.
 Import ListNotations.
 
 Definition strong_bisimulation (R : Node -> Node -> Prop) :=

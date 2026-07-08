@@ -4,7 +4,7 @@
   We prove the reflexivity and compatibility of the logical relations.
 *)
 
-From CoreErlang Require Export LogRel.
+From CoreErlang.Subst Require Export LogRel.
 Import ListNotations.
 
 Lemma Vrel_Var_compat :

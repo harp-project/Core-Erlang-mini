@@ -6,7 +6,7 @@
   Core Erlang.
 *)
 
-From CoreErlang Require Export Scoping.
+From CoreErlang.Subst Require Export Scoping.
 From Coq Require Export Logic.ProofIrrelevance Program.Equality.
 Export Coq.Arith.Wf_nat.
 Export PeanoNat.

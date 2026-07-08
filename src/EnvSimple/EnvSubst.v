@@ -1,5 +1,5 @@
 From CoreErlang.Env Require Import ClosedScoping.
-From CoreErlang Require Import SubstSemantics.
+From CoreErlang.Subst Require Import Semantics.
 
 (** Module aliases to disambiguate between environment-based and
     substitution-based syntax/semantics types. *)
