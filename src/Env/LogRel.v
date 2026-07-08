@@ -104,10 +104,10 @@ Definition Erel_open (Γ : nat) (e1 e2 : Exp) : Prop :=
     Grel n Γ Γ1 Γ2 ->
     exp_rel n (fun m _ => Vrel m) Γ1 Γ2 e1 e2.
 
-Definition Vrel_open (v1 v2 : Val) : Prop :=
+Definition Vrel_all (v1 v2 : Val) : Prop :=
   forall n,
     Vrel n v1 v2.
-(* Actually it does make sense to have an open Vrel. For this definition, n is bound in a
+(* Actually it does make sense to have an "open" Vrel. For this definition, n is bound in a
    forall. This is essentially the same as the substitution version, but it doesn't use Grel,
    because values do not depend on the environment. This is also why it doesn't need a Γ : nat
    parameter.
@@ -464,13 +464,13 @@ Qed.
 
 Lemma Grel_app :
   forall m Γ Γ' Γ1 Γ1' Γ2 Γ2',
-    length Γ1 = Γ ->
-    length Γ2 = Γ ->
     Grel m Γ Γ1 Γ2 ->
     Grel m Γ' Γ1' Γ2' ->
     Grel m (Γ + Γ') (Γ1 ++ Γ1') (Γ2 ++ Γ2').
 Proof.
-  intros m Γ Γ' Γ1 Γ1' Γ2 Γ2' HΓ1 HΓ2 HG1 HG2.
+  intros m Γ Γ' Γ1 Γ1' Γ2 Γ2' HG1 HG2.
+  pose proof (Grel_length_l _ _ _ _ HG1) as HΓ1.
+  pose proof (Grel_length_r _ _ _ _ HG1) as HΓ2.
   pose proof (Grel_take_drop m Γ Γ' (Γ1 ++ Γ1') (Γ2 ++ Γ2')) as HG.
   subst.
   rewrite <- HΓ2 in HG at 3. do 2 rewrite take_app_length in HG.
@@ -497,9 +497,9 @@ Qed.
 
 Theorem Vrel_VLit_compat :
   forall l,
-    Vrel_open (VLit l) (VLit l).
+    Vrel_all (VLit l) (VLit l).
 Proof.
-  unfold Vrel_open. intros. apply Vrel_VLit_compat_closed.
+  unfold Vrel_all. intros. apply Vrel_VLit_compat_closed.
 Qed.
 
 Theorem Vrel_VPid_compat_closed :
@@ -511,9 +511,9 @@ Qed.
 
 Theorem Vrel_VPid_compat :
   forall p,
-    Vrel_open (VPid p) (VPid p).
+    Vrel_all (VPid p) (VPid p).
 Proof.
-  unfold Vrel_open. intros. apply Vrel_VPid_compat_closed.
+  unfold Vrel_all. intros. apply Vrel_VPid_compat_closed.
 Qed.
 
 Theorem Vrel_VNil_compat_closed :
@@ -524,9 +524,9 @@ Proof.
 Qed.
 
 Theorem Vrel_VNil_compat :
-  Vrel_open VNil VNil.
+  Vrel_all VNil VNil.
 Proof.
-  unfold Vrel_open. intros. apply Vrel_VNil_compat_closed.
+  unfold Vrel_all. intros. apply Vrel_VNil_compat_closed.
 Qed.
 
 Theorem Vrel_VCons_compat_closed :
@@ -544,10 +544,10 @@ Qed.
 
 Theorem Vrel_VCons_compat :
   forall hd hd' tl tl',
-    Vrel_open hd hd' -> Vrel_open tl tl' ->
-    Vrel_open (VCons hd tl) (VCons hd' tl').
+    Vrel_all hd hd' -> Vrel_all tl tl' ->
+    Vrel_all (VCons hd tl) (VCons hd' tl').
 Proof.
-  unfold Vrel_open. intros. apply Vrel_VCons_compat_closed; auto.
+  unfold Vrel_all. intros. apply Vrel_VCons_compat_closed; auto.
 Qed.
 
 (* Theorem Vrel_VClos_compat_closed' :
@@ -556,9 +556,9 @@ Qed.
     Erel_open (S vl1 + min (length Γ1) (length Γ2)) b1 b2 ->
     ENVCLOSED Γ1 -> ENVCLOSED Γ2 ->
     (*Grel m (length Γ1) Γ1 Γ2 ->*)
-    Vrel_open (VClos Γ1 vl1 b1) (VClos Γ2 vl2 b2).
+    Vrel_all (VClos Γ1 vl1 b1) (VClos Γ2 vl2 b2).
 Proof.
-  unfold Vrel_open. intros Γ1 Γ2 vl1 vl2 b1 b2 Hvl HE HEc1 HEc2 n. subst.
+  unfold Vrel_all. intros Γ1 Γ2 vl1 vl2 b1 b2 Hvl HE HEc1 HEc2 n. subst.
   revert Γ1 Γ2 vl2 b1 b2 HE HEc1 HEc2.
   induction n using Wf_nat.lt_wf_ind.
   intros Γ1 Γ2 vl2 b1 b2 HE HEc1 HEc2.
@@ -594,7 +594,7 @@ Lemma Vrel_Clos_compat :
   forall Γ ext1 ext2 id1 id2 vl1 vl2 b1 b2,
   vl1 = vl2 ->
   Erel_open (length ext1 + vl1 + Γ) b1 b2 ->
-  Vrel_open Γ (VClos vl1 b1) (VClos vl2 b2).
+  Vrel_all Γ (VClos vl1 b1) (VClos vl2 b2).
 
  *)
 
@@ -607,14 +607,14 @@ Theorem Vrel_VClos_compat :
       Grel m (length Γ1) Γ1 Γ2 ->
       Vrel m (VClos Γ1 vl1 b1) (VClos Γ2 vl2 b2).
       (* ^^^ This is the same as Vrel_Clos_compat in the subst-semantics, but in that
-             lemma Vrel_open is used. In the subst version, 2 values are related under
-             Vrel_open if for related substitutions the values are related under Vrel.
+             lemma Vrel_all is used. In the subst version, 2 values are related under
+             Vrel_all if for related substitutions the values are related under Vrel.
              
              In the env-semantics the closure stores the environment that the function
              was evaluated in, because it will be needed for the beta reduction. We can
              think of the stored environment as the values that have aready been
              substituted. This is part of the reason why it doesn't make sense to put a
-             Grel inside Vrel_open in this version.
+             Grel inside Vrel_all in this version.
              
              Recall the relevant part from Vrel_rec in the subst and env semantics:
                 
@@ -627,9 +627,9 @@ Theorem Vrel_VClos_compat :
                             (VClos Γ2 vl2 b2 :: vals2 ++ Γ2) b1 b2"
              
              Since Γ1 and Γ2 contain the values aready substituted, the variables to these
-             bindings don't exist in the substitution version. But with Vrel_open, the
+             bindings don't exist in the substitution version. But with Vrel_all, the
              variables are still present, and related variables need to be substituted in.
-             That is why Grel is used in the subst-semantics version of Vrel_open.
+             That is why Grel is used in the subst-semantics version of Vrel_all.
              
              But in the env-semantics, we also need the stored environments to be related.
              This is because even though values do not depend on the environment, expressions
@@ -638,10 +638,7 @@ Theorem Vrel_VClos_compat :
              was used when the closure was created.
              
              All in all, this lemma looks different from the substitution-version, but the
-             last 3 lines are the subst-semantics version of Vrel_open unfolded.
-             
-             TODO: discuss if the env-version of Vrel_open needs to be adjusted, or just
-                   renamed to avoid confusion.
+             last 3 lines are the subst-semantics version of Vrel_all unfolded.
       *)
 Proof.
   intros * Hl HE m. revert Γ1 Γ2 vl1 vl2 b1 b2 Hl HE.
@@ -682,9 +679,9 @@ Qed.
     Erel_open (S vl1 + length Γ1) b1 b2 ->
     (forall m, Grel m (length Γ1) Γ1 Γ2) ->
     (* ^^ is this correct??? *)
-    Vrel_open (VClos Γ1 vl1 b1) (VClos Γ2 vl2 b2).
+    Vrel_all (VClos Γ1 vl1 b1) (VClos Γ2 vl2 b2).
 Proof.
-  unfold Vrel_open. intros. apply Vrel_VClos_compat_closed; auto.
+  unfold Vrel_all. intros. apply Vrel_VClos_compat_closed; auto.
 Qed. *)
 
 Theorem Erel_Val_compat_helper :
@@ -707,10 +704,10 @@ Qed.
 
 Theorem Erel_Val_compat :
   forall {Γ v1 v2},
-    Vrel_open v1 v2 ->
+    Vrel_all v1 v2 ->
     Erel_open Γ (˝v1) (˝v2).
 Proof.
-  unfold Vrel_open, Erel_open. intros.
+  unfold Vrel_all, Erel_open. intros.
   apply Erel_Val_compat_helper.
   auto.
 Qed.
@@ -1347,9 +1344,9 @@ Proof.
   intros e.
   induction e using Exp_ind2 with
   (PN := fun n => forall Γ, NVAL Γ ⊢ n -> Erel_open Γ n n)
-  (PV := fun v => VALCLOSED v -> Vrel_open v v)
+  (PV := fun v => VALCLOSED v -> Vrel_all v v)
   (Q  := Forall (fun e => forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e))
-  (R  := Forall (fun v => VALCLOSED v -> Vrel_open v v)); intros; auto.
+  (R  := Forall (fun v => VALCLOSED v -> Vrel_all v v)); intros; auto.
   * apply IHe. inv H. auto.
   * apply Erel_Val_compat. apply IHe. inv H. auto.
   * inv H. apply Erel_EFun_compat; auto.
@@ -1384,14 +1381,14 @@ Qed.
 
 Theorem Vrel_Fundamental :
   forall (v : Val),
-    VALCLOSED v -> Vrel_open v v.
+    VALCLOSED v -> Vrel_all v v.
 Proof.
   intros v.
   induction v using Val_ind2 with
   (P  := fun e => forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e)
   (PN := fun n => forall Γ, NVAL Γ ⊢ n -> Erel_open Γ n n)
   (Q  := Forall (fun e => forall Γ, EXP Γ ⊢ e -> Erel_open Γ e e))
-  (R  := Forall (fun v => VALCLOSED v -> Vrel_open v v));
+  (R  := Forall (fun v => VALCLOSED v -> Vrel_all v v));
       intros; auto; try (apply Erel_Fundamental; auto).
   * apply Vrel_VLit_compat.
   * apply Vrel_VPid_compat.
@@ -1423,11 +1420,11 @@ Proof.
   apply Vrel_Fundamental_closed. auto.
 Qed.
 
-Lemma Vrel_open_closed :
+Lemma Vrel_all_closed :
   forall {v v'},
-    Vrel_open v v' -> VALCLOSED v /\ VALCLOSED v'.
+    Vrel_all v v' -> VALCLOSED v /\ VALCLOSED v'.
 Proof.
-  (* Since Vrel_open doesn't contain Grel, this is much easier than the subst version. *)
+  (* Since Vrel_all doesn't contain Grel, this is much easier than the subst version. *)
   intros. specialize (H 42). apply Vrel_closed in H. auto.
 Qed.
 
@@ -1720,7 +1717,6 @@ Proof.
       - intros.
         eapply Erel_Fundamental; eauto.
         apply Grel_app; auto.
-        ** apply biforall_length in H3. rewrite <- H3. auto.
         ** split; auto.
         ** apply Grel_Fundamental; auto.
       - intros. eapply Erel_Fundamental; eauto.
@@ -1802,7 +1798,809 @@ Proof.
   apply Erel_EFun_compat; auto.
 Qed.
 
+Definition match_nomatch_pat_gen (v1 : Val) (v2 : Val) : option (Pat * bool) :=
+  match v1 with
+  | VLit l =>
+    match v2 with
+    | VLit _ => None
+    | _ => Some (PLit l, true)
+    end
+  | VPid p =>
+    match v2 with
+    | VPid _ => None
+    | _ => Some (PPid p, true)
+    end
+  | VNil =>
+    match v2 with
+    | VNil => None
+    | _ => Some (PNil, true)
+    end
+  | VCons v1_1 v1_2 =>
+    match v2 with
+    | VCons _ _ => None
+    | _ => Some (PCons PVar PVar, true)
+    end
+  | VClos _ _ _ => 
+    match v2 with
+    | VLit l => Some (PLit l, false)
+    | VPid p => Some (PPid p, false)
+    | VNil => Some (PNil, false)
+    | VCons v1_1 v1_2 => Some (PCons PVar PVar, false)
+    | VClos _ _ _ => None
+    end
+  end.
 
+Lemma match_nomatch_pat_gen_correct :
+  forall v1 v2 p b,
+    (* if the pattern generator function returns a pattern... *)
+    match_nomatch_pat_gen v1 v2 = Some (p, b) ->
+      (* true implies that the direction is forwards, v1 matches but v2 doesn't *)
+      (b = true ->
+      (exists (lv : list Val), match_pattern p v1 = Some lv) /\
+      match_pattern p v2 = None) /\
+      
+      (* false implies that the direction is backwards, v2 matches but v1 doesn't *)
+      (b = false ->
+      (exists (lv : list Val), match_pattern p v2 = Some lv) /\
+      match_pattern p v1 = None).
+Proof.
+  intros; destruct v1, v2; try discriminate;
+    simpl in H; inv H; simpl; split; intros; try discriminate; split; try reflexivity;
+    try rewrite lit_eqb_refl; try rewrite Nat.eqb_refl; eexists; reflexivity.
+Qed.
+
+Definition inf := EApp (EFun 0 (EApp (EVar 0) [])) [].
+
+Lemma inf_diverges :
+  forall n Fs Γ, ~|Γ, Fs, inf| n↓.
+Proof.
+  unfold inf.
+  intros. intro.
+  inv H. inv H5. inv H4. inv H3.
+  induction k using lt_wf_ind.
+  inv H6. inv H5. inv H1. inv H4. inv H5.
+  apply H in H7. destruct H7. lia.
+Qed.
+
+Lemma Grel_nil_len :
+  forall n Γ,
+    Grel n Γ (repeat VNil Γ) (repeat VNil Γ).
+Proof.
+  intros. split. rewrite repeat_length. reflexivity.
+  induction Γ; simpl; constructor; auto. apply Vrel_VNil_compat.
+Qed.
+
+Lemma Erel_match_nomatch_false :
+  forall v1 v2 p b,
+    match_nomatch_pat_gen v1 v2 = Some (p, b) ->
+    forall Γ,
+    Erel_open Γ v1 v2 /\ Erel_open Γ v2 v1 -> False.
+Proof.
+  intros. destruct H0. apply match_nomatch_pat_gen_correct in H.
+  destruct H.
+  unfold Erel_open, exp_rel in H0, H1.
+  pose proof (Grel_nil_len 1 Γ) as Hg.
+  specialize (H0 _ _ _ Hg) as [_ [_ H0]].
+  specialize (H1 _ _ _ Hg) as [_ [_ H1]].
+  assert (Frel 1 [FCase p (˝VNil) inf []] [FCase p (˝VNil) inf []]).
+  { apply Frel_Fundamental. repeat constructor; intros; inv H3. }
+  specialize (H0 1 ltac:(lia) _ _ H3).
+  specialize (H1 1 ltac:(lia) _ _ H3). clear H3.
+  
+  (* this is when we need to check wich direction we're going *)
+  destruct b.
+  * clear H2 H1.
+    specialize (H eq_refl) as [[lv H] H'].
+    assert (| repeat VNil Γ, [FCase p (˝ VNil) (° inf) []], ˝ v1 | 1 ↓).
+    { eapply term_case_true. exact H. constructor. }
+    specialize (H0 H1). clear H1.
+    destruct H0 as [k D]. inv D. apply inf_diverges in H9. assumption.
+  * clear H H0.
+    specialize (H2 eq_refl) as [[lv H] H'].
+    assert (| repeat VNil Γ, [FCase p (˝ VNil) (° inf) []], ˝ v2 | 1 ↓).
+    { eapply term_case_true. exact H. constructor. }
+    specialize (H1 H0). clear H0.
+    destruct H1 as [k D]. inv D. apply inf_diverges in H9. assumption.
+Qed.
+
+Lemma Erel_Val_compat_backwards :
+  forall {Γ v1 v2},
+    Erel_open Γ (˝ v1) (˝ v2) /\ Erel_open Γ (˝ v2) (˝ v1) ->
+    Vrel_all v1 v2 /\ Vrel_all v2 v1.
+Proof.
+  intros Γ v1 v2.
+  remember v1 as v1'.
+  revert Γ v2 v1' Heqv1'.
+  induction v1 using Val_ind2 with
+  (P  := fun e => (1 = 1))
+  (PN := fun n => (2 = 2))
+  (Q  := fun le => (3 = 3))
+  (R  := fun lv => (4 = 4)); auto; intros;
+                             pose proof (Erel_match_nomatch_false v1' v2) as Hmnm;
+                             destruct v2; subst v1';
+                             try (destruct (Hmnm _ _ eq_refl _ H)); clear Hmnm.
+  * destruct (lit_eqb l0 l) eqn:Hleq.
+    + apply lit_eqb_eq in Hleq. subst l0.
+      split; apply Vrel_Fundamental; constructor.
+    + destruct H as [H _]. unfold Erel_open, exp_rel in H.
+      pose proof (Grel_nil_len 1 Γ) as Hg.
+      specialize (H _ _ _ Hg) as [_ [_ H]]. clear Hg.
+      assert (Frel 1 [FCase (PLit l) (˝VNil) inf []] [FCase (PLit l) (˝VNil) inf []]).
+      { apply Frel_Fundamental. repeat constructor; intros; inv H0. }
+      specialize (H 1 ltac:(lia) _ _ H0). clear H0.
+      assert (| repeat VNil Γ, [FCase (PLit l) (˝ VNil) (° inf) []], ˝ VLit l | 1 ↓).
+      { eapply term_case_true. simpl. rewrite lit_eqb_refl. reflexivity. constructor. }
+      specialize (H H0). clear H0.
+      destruct H as [k D]. inv D.
+      - simpl in H7. rewrite Hleq in H7. discriminate.
+      - apply inf_diverges in H8. contradiction.
+  * destruct (p =? n) eqn:Hpn.
+    + apply Nat.eqb_eq in Hpn. subst n.
+      split; apply Vrel_Fundamental; constructor.
+    + destruct H as [H _]. unfold Erel_open, exp_rel in H.
+      pose proof (Grel_nil_len 1 Γ) as Hg.
+      specialize (H _ _ _ Hg) as [_ [_ H]]. clear Hg.
+      assert (Frel 1 [FCase (PPid n) (˝VNil) inf []] [FCase (PPid n) (˝VNil) inf []]).
+      { apply Frel_Fundamental. repeat constructor; intros; inv H0. }
+      specialize (H 1 ltac:(lia) _ _ H0). clear H0.
+      assert (| repeat VNil Γ, [FCase (PPid n) (˝ VNil) (° inf) []], ˝ VPid n | 1 ↓).
+      { eapply term_case_true. simpl. rewrite Nat.eqb_refl. reflexivity. constructor. }
+      specialize (H H0). clear H0.
+      destruct H as [k D]. inv D.
+      - simpl in H7. rewrite Hpn in H7. discriminate.
+      - apply inf_diverges in H8. contradiction.
+  * split; apply Vrel_Fundamental; constructor.
+  * specialize (IHv1_1 Γ v2_1 v1_1 eq_refl).
+    specialize (IHv1_2 Γ v2_2 v1_2 eq_refl).
+    destruct H as [He1 He2].
+    destruct (Erel_open_scope _ _ _ He1) as [Hs1 Hs2].
+    inv Hs1. inv Hs2. inv H0. inv H1.
+    pose proof (Grel_closed _ _ _ _ (Grel_nil_len 1 Γ)) as [HΓ _].
+    assert (length (repeat VNil Γ) = Γ) as Hl by (now apply repeat_length).
+    split; apply Vrel_VCons_compat; try apply IHv1_1; try apply IHv1_2; split.
+    all: apply Erel_implies_CIU in He1, He2.
+    all: specialize (He1 _ Hl HΓ).
+    all: specialize (He2 _ Hl HΓ).
+    all: destruct He1 as [_ [_ [_ He1]]].
+    all: destruct He2 as [_ [_ [_ He2]]].
+    all: apply CIU_implies_Erel; unfold CIU_open, CIU; intros.
+    all: split; auto; split;[constructor; auto|]; split;[constructor; auto|]; intros.
+    all: clear -He1 He2 H1 H6.
+    2,4,6,8: shelve.
+    1: specialize (He1 (FCase (PCons PVar PVar) (EVar 0) (˝VNil) [] :: Fs) 
+                      ltac:(repeat constructor; auto)
+                      ltac:(eapply step_terminates_any with (k :=2);
+                            [repeat econstructor|];
+                            eapply value_terminates_env_indep; exact H6)).
+    2: specialize (He1 (FCase (PCons PVar PVar) (EVar 1) (˝VNil) [] :: Fs) 
+                      ltac:(repeat constructor; auto)
+                      ltac:(eapply step_terminates_any with (k :=2);
+                            [repeat econstructor|];
+                            eapply value_terminates_env_indep; exact H6)).
+    3: specialize (He1 (FCase (PCons PVar PVar) (EVar 0) (˝VNil) [] :: Fs) 
+                      ltac:(repeat constructor; auto)
+                      ltac:(eapply step_terminates_any with (k :=2);
+                            [repeat econstructor|];
+                            eapply value_terminates_env_indep; exact H6)).
+    4: specialize (He1 (FCase (PCons PVar PVar) (EVar 1) (˝VNil) [] :: Fs) 
+                      ltac:(repeat constructor; auto)
+                      ltac:(eapply step_terminates_any with (k :=2);
+                            [repeat econstructor|];
+                            eapply value_terminates_env_indep; exact H6)).
+    all: destruct He1 as [i D];
+         inv D; inv H9; inv H10; inv H0;
+         eapply value_terminates_env_indep; eexists; eauto.
+    Unshelve.
+    1: specialize (He2 (FCase (PCons PVar PVar) (EVar 0) (˝VNil) [] :: Fs) 
+                      ltac:(repeat constructor; auto)
+                      ltac:(eapply step_terminates_any with (k :=2);
+                            [repeat econstructor|];
+                            eapply value_terminates_env_indep; exact H6)).
+    2: specialize (He2 (FCase (PCons PVar PVar) (EVar 1) (˝VNil) [] :: Fs) 
+                      ltac:(repeat constructor; auto)
+                      ltac:(eapply step_terminates_any with (k :=2);
+                            [repeat econstructor|];
+                            eapply value_terminates_env_indep; exact H6)).
+    3: specialize (He2 (FCase (PCons PVar PVar) (EVar 0) (˝VNil) [] :: Fs) 
+                      ltac:(repeat constructor; auto)
+                      ltac:(eapply step_terminates_any with (k :=2);
+                            [repeat econstructor|];
+                            eapply value_terminates_env_indep; exact H6)).
+    4: specialize (He2 (FCase (PCons PVar PVar) (EVar 1) (˝VNil) [] :: Fs) 
+                      ltac:(repeat constructor; auto)
+                      ltac:(eapply step_terminates_any with (k :=2);
+                            [repeat econstructor|];
+                            eapply value_terminates_env_indep; exact H6)).
+    all: destruct He2 as [i D];
+         inv D; inv H9; inv H10; inv H0;
+         eapply value_terminates_env_indep; eexists; eauto.
+  * destruct H as [He1 He2].
+    destruct (vl =? vl0) eqn:Hvl.
+    2: { unfold Erel_open, exp_rel in He1.
+         pose proof Grel_nil_len 
+Admitted.
+
+
+
+
+
+
+
+
+
+
+
+
+Lemma term_eval_open_helper_app :
+  forall hds' hds e' k vals v Γ Γapp Fs v1,
+  (∀ m : nat,
+    m < S k
+    → ∀ (Γ : list Val) (Fs : FrameStack) (e : Exp),
+        | Γ, Fs, e | m ↓
+           → ∃ (v : Val) (k : nat) (Γ' : Env),
+             ⟨ Γ, [], e ⟩ -[ k ]-> ⟨ Γ', [], ˝ v ⟩
+               ∧ k ≤ m) ->
+  | Γ, FApp2 v vals (hds' ++ e' :: hds) Γapp :: Fs, ˝v1 | k ↓ ->
+  exists k0 hds'',
+  ⟨ Γ, [FApp2 v vals (hds' ++ e' :: hds) Γapp], ˝v1 ⟩ -[k0]-> 
+  ⟨ Γapp, [FApp2 v (vals ++ v1 :: hds'') hds Γapp] , e'⟩ /\ k0 <= k.
+Proof.
+  induction hds'; intros; simpl.
+  * inv H0. do 2 eexists. repeat split.
+    1: {
+      econstructor. constructor. constructor.
+    }
+    lia.
+  * inv H0.
+    eapply H in H10 as D'; auto.
+    destruct D' as [v' [k' [Γ' [HD' Hlt']]]].
+    eapply terminates_step_any_2 in H10. 2: {
+      eapply frame_indep_core in HD'. exact HD'.
+    }
+    simpl in H10.
+    apply (IHhds' hds e' (k0 - k') (vals ++ [v1])
+                v Γ' Γapp Fs v') in H10 as D''; try by auto.
+    2: {
+      intros. eapply H; try eassumption. lia.
+    }
+    destruct D'' as [v'' [k'' [HD'' Hlt'']]].
+    eapply terminates_step_any_2 in H10. 2: {
+      eapply frame_indep_core in HD''. exact HD''.
+    }
+    do 2 eexists. repeat split.
+    1: {
+      econstructor. constructor.
+      eapply transitive_eval. eapply frame_indep_core in HD'. exact HD'.
+      simpl. rewrite <- app_assoc in HD''. simpl in HD''.
+      exact HD''.
+    }
+    lia.
+Qed.
+
+Lemma term_eval_open_helper_bif :
+  forall hds' hds e' k vals v Γ Γapp Fs v1,
+  (∀ m : nat,
+    m < S k
+    → ∀ (Γ : list Val) (Fs : FrameStack) (e : Exp),
+      | Γ, Fs, e | m ↓
+        → ∃ (v : Val) (k : nat) (Γ' : Env),
+          ⟨ Γ, [], e ⟩ -[ k ]-> ⟨ Γ', [], ˝ v ⟩
+            ∧ k ≤ m) ->
+  | Γ, FBIF2 v vals (hds' ++ e' :: hds) Γapp :: Fs, ˝v1 | k ↓ ->
+  exists k0 hds'',
+  ⟨ Γ, [FBIF2 v vals (hds' ++ e' :: hds) Γapp], ˝v1 ⟩ -[k0]-> 
+  ⟨ Γapp, [FBIF2 v (vals ++ v1 :: hds'') hds Γapp] , e'⟩ /\ k0 <= k.
+Proof.
+  induction hds'; intros; simpl.
+  * inv H0. do 2 eexists. repeat split.
+    1: {
+      econstructor. constructor. constructor.
+    }
+    lia.
+  * inv H0.
+    eapply H in H10 as D'; auto.
+    destruct D' as [v' [k' [Γ' [HD' Hlt']]]].
+    eapply terminates_step_any_2 in H10. 2: {
+      eapply frame_indep_core in HD'. exact HD'.
+    }
+    simpl in H10.
+    apply (IHhds' hds e' (k0 - k') (vals ++ [v1])
+                v Γ' Γapp Fs v') in H10 as D''; try by auto.
+    2: {
+      intros. eapply H; try eassumption. lia.
+    }
+    destruct D'' as [v'' [k'' [HD'' Hlt'']]].
+    eapply terminates_step_any_2 in H10. 2: {
+      eapply frame_indep_core in HD''. exact HD''.
+    }
+    do 2 eexists. repeat split.
+    1: {
+      econstructor. constructor.
+      eapply transitive_eval. eapply frame_indep_core in HD'. exact HD'.
+      simpl. rewrite <- app_assoc in HD''. simpl in HD''.
+      exact HD''.
+    }
+    lia.
+Qed.
+
+
+
+Theorem term_eval_empty_open :
+  forall x Γ Fs e,
+    | Γ, Fs, e | x ↓ ->
+    exists v k Γ',
+      ⟨ Γ, [], e ⟩ -[k]-> ⟨ Γ', [], ˝v ⟩ /\ k <= x.
+Proof.
+  induction x using lt_wf_ind; intros * D; inv D.
+  all: try by exists v, 0, Γ; repeat split; auto; try constructor; try lia.
+  * exists v0, 0, Γ. repeat split; constructor; lia.
+  * exists v0, 0, Γ. repeat split; constructor; lia.
+  * exists v0, 0, Γ. repeat split; constructor; lia.
+  * exists v0, 0, Γ. repeat split; constructor; lia.
+  * exists val, 0, Γ. repeat split; constructor; lia.
+  * exists v2, 0, Γ. repeat split; constructor; lia.
+  * exists v1, 0, Γ. repeat split; constructor; lia.
+  * eapply H in H0 as D'; auto.
+    destruct D' as [v1 [k1 [Γ1 [HD1 Hlt1]]]].
+    eapply terminates_step_any_2 in H0. 2: {
+      eapply frame_indep_core in HD1. exact HD1.
+    }
+    inv H0.
+    eapply H in H3 as D''; auto. 2: lia.
+    destruct D'' as [v2 [k2 [Γ2 [HD2 Hlt2]]]].
+    do 3 eexists. repeat split.
+    1: {
+      econstructor. constructor.
+      eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+      econstructor. constructor.
+      eapply frame_indep_core in HD2. exact HD2.
+    }
+    lia.
+  * eapply H in H0 as D'; auto.
+    destruct D' as [v1 [k1 [Γ1 [HD1 Hlt1]]]].
+    eapply terminates_step_any_2 in H0. 2: {
+      eapply frame_indep_core in HD1. exact HD1.
+    }
+    inv H0.
+    {
+      eapply H in H8 as D'; auto. 2: {
+        lia.
+      }
+      destruct D' as [v2 [k2 [Γ2 [HD2 Hlt2]]]].
+      eapply terminates_step_any_2 in H8. 2: {
+        eapply frame_indep_core in HD2. exact HD2.
+      }
+      do 3 eexists. repeat split.
+      1: {
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+        econstructor. constructor. eassumption.
+        eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+        constructor.
+      }
+      lia.
+    }
+    { (* inductive case *)
+      eapply H in H3 as D'. 2: {
+        lia.
+      }
+      destruct D' as [v2 [k2 [Γ2 [HD2 Hlt2]]]].
+      eapply terminates_step_any_2 in H3. 2: {
+        eapply frame_indep_core in HD2. exact HD2.
+      }
+      simpl in H3. destruct (length l) eqn:L.
+      * (* single parameter: *)
+        apply length_zero_iff_nil in L. subst.
+        inv H3.
+        eapply H in H10 as X; try eassumption. 2: lia.
+        destruct X as [v5 [k5' [Γ5 [HD5 Hlt5]]]].
+        do 3 eexists. repeat split.
+        1: {
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+          simpl. econstructor. constructor. cbn. eassumption.
+          exact HD5.
+        }
+        lia.
+
+        (* more parameters: *)
+      * apply eq_sym, last_element_exists in L as [l' [x ?]].
+        subst.
+        eapply (term_eval_open_helper_app l' []) in H3 as X; try eassumption.
+        all: try by constructor.
+        2: {
+          intros. eapply H. lia. all: eassumption.
+        }
+        destruct X as [k3 [v3 [HD3 Hlt3]]].
+        eapply terminates_step_any_2 in H3. 2: eapply frame_indep_core in HD3; exact HD3.
+        eapply H in H3 as X; try eassumption. 2: { lia. }
+        destruct X as [v4 [k4 [Γ4 [HD4 Hlt4]]]].
+        simpl in H3.
+        eapply terminates_step_any_2 in H3. 2: eapply frame_indep_core in HD4; exact HD4.
+        simpl in H3. inv H3.
+        
+        eapply H in H10 as X; try eassumption. 2: lia.
+        destruct X as [v5 [k5' [Γ5 [HD5 Hlt5]]]].
+        
+        do 3 eexists. repeat split.
+        1: {
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+          eapply transitive_eval. eapply frame_indep_core in HD3. exact HD3.
+          simpl.
+          eapply transitive_eval. eapply frame_indep_core in HD4. exact HD4.
+          simpl. econstructor. constructor. cbn. eassumption.
+          exact HD5.
+        }
+        lia.
+    }
+  * eapply H in H0 as D'; auto.
+    destruct D' as [v1 [k1 [Γ1 [HD1 Hlt1]]]].
+    eapply terminates_step_any_2 in H0. 2: {
+      eapply frame_indep_core in HD1. exact HD1.
+    }
+    inv H0.
+    {
+      eapply H in H8 as D'; auto. 2: {
+        lia.
+      }
+      destruct D' as [v2 [k2 [Γ2 [HD2 Hlt2]]]].
+      eapply terminates_step_any_2 in H8. 2: {
+        eapply frame_indep_core in HD2. exact HD2.
+      }
+      do 3 eexists. repeat split.
+      1: {
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+        econstructor. constructor. eassumption.
+        eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+        constructor.
+      }
+      lia.
+    }
+    { (* inductive case *)
+      eapply H in H3 as D'. 2: {
+        lia.
+      }
+      destruct D' as [v2 [k2 [Γ2 [HD2 Hlt2]]]].
+      eapply terminates_step_any_2 in H3. 2: {
+        eapply frame_indep_core in HD2. exact HD2.
+      }
+      simpl in H3. destruct (length l) eqn:L.
+      * (* single parameter: *)
+        apply length_zero_iff_nil in L. subst.
+        inv H3.
+        eapply H in H10 as X; try eassumption. 2: lia.
+        destruct X as [v5 [k5' [Γ5 [HD5 Hlt5]]]].
+        do 3 eexists. repeat split.
+        1: {
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+          simpl. econstructor. constructor. cbn. eassumption.
+          exact HD5.
+        }
+        lia.
+
+        (* more parameters: *)
+      * apply eq_sym, last_element_exists in L as [l' [x ?]].
+        subst.
+        eapply (term_eval_open_helper_bif l' []) in H3 as X; try eassumption.
+        all: try by constructor.
+        2: {
+          intros. eapply H. lia. all: eassumption.
+        }
+        destruct X as [k3 [v3 [HD3 Hlt3]]].
+        eapply terminates_step_any_2 in H3. 2: eapply frame_indep_core in HD3; exact HD3.
+        eapply H in H3 as X; try eassumption. 2: { lia. }
+        destruct X as [v4 [k4 [Γ4 [HD4 Hlt4]]]].
+        simpl in H3.
+        eapply terminates_step_any_2 in H3. 2: eapply frame_indep_core in HD4; exact HD4.
+        simpl in H3. inv H3.
+        
+        eapply H in H10 as X; try eassumption. 2: lia.
+
+        destruct X as [v5 [k5' [Γ5 [HD5 Hlt5]]]].
+        
+        do 3 eexists. repeat split.
+        1: {
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+          econstructor. constructor.
+          eapply transitive_eval. eapply frame_indep_core in HD2. exact HD2.
+          eapply transitive_eval. eapply frame_indep_core in HD3. exact HD3.
+          simpl.
+          eapply transitive_eval. eapply frame_indep_core in HD4. exact HD4.
+          simpl. econstructor. constructor. cbn. eassumption.
+          exact HD5.
+        }
+        lia.
+    }
+  * eapply H in H0 as D'; auto.
+    destruct D' as [v1 [k1 [Γ1 [HD1 Hlt1]]]].
+    eapply terminates_step_any_2 in H0. 2: {
+      eapply frame_indep_core in HD1. exact HD1.
+    }
+    inv H0.
+    {
+      eapply H in H10 as D''; auto. 2: lia.
+      destruct D'' as [v2 [k2 [Γ2 [HD2 Hlt2]]]].
+      do 3 eexists. repeat split.
+      1: {
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+        econstructor. apply red_case_true.
+        eapply frame_indep_core in HD2.
+        eassumption. exact HD2.
+      }
+      lia.
+    }
+    {
+      eapply H in H10 as D''; auto. 2: lia.
+      destruct D'' as [v2 [k2 [Γ2 [HD2 Hlt2]]]].
+      do 3 eexists. repeat split.
+      1: {
+        econstructor. constructor.
+        eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+        econstructor. apply red_case_false. assumption.
+        eapply frame_indep_core in HD2.
+        exact HD2.
+      }
+      lia.
+    }
+  * eapply H in H0 as D'; auto.
+    destruct D' as [v1 [k1 [Γ1 [HD1 Hlt1]]]].
+    eapply terminates_step_any_2 in H0. 2: {
+      eapply frame_indep_core in HD1. exact HD1.
+    }
+    inv H0.
+    eapply H in H3 as D''; auto. 2: lia.
+    destruct D'' as [v2 [k2 [Γ2 [HD2 Hlt2]]]].
+    do 3 eexists. repeat split.
+    1: {
+      econstructor. constructor.
+      eapply transitive_eval. eapply frame_indep_core in HD1. exact HD1.
+      econstructor. constructor.
+      eapply transitive_eval.
+      eapply frame_indep_core in HD2. exact HD2.
+      econstructor. constructor.
+      constructor.
+    }
+    eapply terminates_step_any_2 in H3. 2: eapply frame_indep_core in HD2; exact HD2. inv H3.
+    lia.
+  * do 3 eexists. repeat split.
+    1: {
+      econstructor. constructor. constructor.
+    }
+    lia.
+  * do 3 eexists. repeat split.
+    1: {
+      econstructor. constructor. eassumption. constructor.
+    }
+    lia.
+Unshelve.
+  exact [].
+Qed.
+
+Lemma env_ext_clos_helper :
+forall (k : nat) (Γ Γ': Env) (Fs : FrameStack) (vl : nat) (e0 : Exp),
+  (∀ m : nat,
+    m < S k
+    → ∀ (Γ : Env) (Fs : FrameStack) (e : Exp),
+        | Γ, Fs, e | m ↓ → ∀ Γ' : list Val, | Γ ++ Γ', Fs, e | ↓) ->
+    | Γ, Fs, ˝ VClos Γ vl e0 | k ↓ ->
+  | Γ ++ Γ', Fs, ˝ VClos (Γ ++ Γ') vl e0 | ↓.
+Proof.
+  intros.
+  apply value_terminates_env_indep with (Γ1 := []).
+  apply value_terminates_in_k_env_indep with (Γ2 := []) in H0.
+  
+  inv H0.
+  * exists 0. constructor.
+  * exists (S k0). constructor. admit.
+  * admit.
+  * admit.
+  * simpl in H2. destruct vl; try discriminate. inv H2.
+    exists (S k0). econstructor. reflexivity. simpl.
+Admitted.
+
+(*
+1 goal
+k : nat
+H :
+  ∀ m : nat,
+    m < S k
+    → ∀ (Γ : Env) (Fs : FrameStack) (e : Exp),
+        | Γ, Fs, e | m ↓ → ∀ Γ' : list Val, | Γ ++ Γ', Fs, e | ↓
+Γ : Env
+Fs : FrameStack
+Γ' : list Val
+vl : nat
+e0 : Exp
+H0 : | Γ, Fs, ˝ VClos Γ vl e0 | k ↓
+______________________________________(1/1)
+| Γ ++ Γ', Fs, ° EFun vl e0 | ↓
+
+*)
+
+
+Lemma env_ext :
+  forall Γ Fs e,
+    | Γ, Fs, e | ↓ ->
+    forall Γ',
+      | Γ ++ Γ', Fs, e | ↓.
+Proof.
+  intros. destruct H. exists x.
+  revert Γ Fs e H Γ'.
+  induction x using lt_wf_ind; intros Γ Fs e D Γ'; inv D.
+  1: constructor.
+  1-13: econstructor; eassumption.
+  * constructor. apply H. lia.
+    eapply term_eval_empty_open in H0 as Ho.
+    destruct Ho as [v [k0 [Γ'' [Ho Hk]]]].
+    eapply terminates_step_any_2 in H0.
+    2: eapply frame_indep_core in Ho; eauto.
+    eapply step_term_term.
+    1: eapply frame_indep_core in Ho; eauto.
+    2: lia.
+    simpl in *.
+    inv H0. constructor.
+    rewrite app_comm_cons.
+    apply H. lia. auto.
+  * constructor. apply H. lia.
+    eapply term_eval_empty_open in H0 as Ho.
+    destruct Ho as [v [k0 [Γ'' [Ho Hk]]]].
+    eapply terminates_step_any_2 in H0.
+    2: eapply frame_indep_core in Ho; eauto.
+    eapply step_term_term.
+    1: eapply frame_indep_core in Ho; eauto.
+    2: lia.
+    simpl in *.
+    inv H0.
+    + (* 0 arguments *)
+      econstructor. eassumption. eassumption.
+    + econstructor. apply H. lia.
+      clear e0 Γ'' Ho.
+      eapply term_eval_empty_open in H3 as Ho.
+      destruct Ho as [v' [k' [Γ'' [Ho Hk']]]].
+      eapply terminates_step_any_2 in H3.
+      2: eapply frame_indep_core in Ho; eauto.
+      eapply step_term_term.
+      1: eapply frame_indep_core in Ho; eauto. 2: lia.
+      simpl in *.
+      
+      remember (k1 - k') as k''.
+      remember (@nil Val) as lv.
+      clear Heqlv Ho.
+      assert (k'' <= k1 - k') as Heq by lia. clear Heqk''.
+      generalize dependent lv.
+      generalize dependent k''.
+      generalize dependent v'.
+      generalize dependent Γ''.
+      generalize dependent Γ'.
+      induction l; intros.
+      - (* 1 argument *)
+        inv H3. econstructor. eauto. eauto. 
+      - (* >1 argument *)
+        inv H3. constructor.
+        apply H. lia.
+        eapply term_eval_empty_open in H11 as Ho.
+        destruct Ho as [v'' [k'' [Γ''' [Ho Hk'']]]].
+        eapply terminates_step_any_2 in H11.
+        2: eapply frame_indep_core in Ho; eauto.
+        eapply step_term_term.
+        1: eapply frame_indep_core in Ho; eauto. 2: lia. simpl in *.
+        eapply IHl. lia. auto.
+  * constructor. apply H. lia.
+    eapply term_eval_empty_open in H0 as Ho.
+    destruct Ho as [v [k0 [Γ'' [Ho Hk]]]].
+    eapply terminates_step_any_2 in H0.
+    2: eapply frame_indep_core in Ho; eauto.
+    eapply step_term_term.
+    1: eapply frame_indep_core in Ho; eauto.
+    2: lia.
+    simpl in *.
+    inv H0.
+    + (* 0 arguments *)
+      econstructor. eassumption.
+      apply H. lia. auto.
+    + econstructor. apply H. lia.
+      clear Γ'' Ho.
+      eapply term_eval_empty_open in H3 as Ho.
+      destruct Ho as [v' [k' [Γ'' [Ho Hk']]]].
+      eapply terminates_step_any_2 in H3.
+      2: eapply frame_indep_core in Ho; eauto.
+      eapply step_term_term.
+      1: eapply frame_indep_core in Ho; eauto. 2: lia.
+      simpl in *.
+      
+      remember (k1 - k') as k''.
+      remember (@nil Val) as lv.
+      clear Heqlv Ho.
+      assert (k'' <= k1 - k') as Heq by lia. clear Heqk''.
+      generalize dependent lv.
+      generalize dependent k''.
+      generalize dependent v'.
+      generalize dependent Γ''.
+      generalize dependent Γ'.
+      induction l; intros.
+      - (* 1 argument *)
+        inv H3. econstructor. eauto.
+        apply H. lia. auto.
+      - (* >1 argument *)
+        inv H3. constructor.
+        apply H. lia.
+        eapply term_eval_empty_open in H11 as Ho.
+        destruct Ho as [v'' [k'' [Γ''' [Ho Hk'']]]].
+        eapply terminates_step_any_2 in H11.
+        2: eapply frame_indep_core in Ho; eauto.
+        eapply step_term_term.
+        1: eapply frame_indep_core in Ho; eauto. 2: lia. simpl in *.
+        eapply IHl. lia. auto.
+  * constructor. apply H. lia.
+    eapply term_eval_empty_open in H0 as Ho.
+    destruct Ho as [v [k0 [Γ'' [Ho Hk]]]].
+    eapply terminates_step_any_2 in H0.
+    2: eapply frame_indep_core in Ho; eauto.
+    eapply step_term_term.
+    1: eapply frame_indep_core in Ho; eauto.
+    2: lia.
+    simpl in *.
+    inv H0.
+    + eapply term_case_true. eauto.
+      rewrite app_assoc.
+      apply H. lia. assumption.
+    + eapply term_case_false. eauto.
+      apply H. lia. assumption.
+  * constructor. apply H. lia.
+    eapply term_eval_empty_open in H0 as Ho.
+    destruct Ho as [v [k0 [Γ'' [Ho Hk]]]].
+    eapply terminates_step_any_2 in H0.
+    2: eapply frame_indep_core in Ho; eauto.
+    eapply step_term_term.
+    1: eapply frame_indep_core in Ho; eauto.
+    2: lia.
+    simpl in *.
+    inv H0. constructor.
+    apply H. lia.
+    eapply term_eval_empty_open in H3 as Ho'.
+    destruct Ho' as [v1 [k'1 [Γ1 [Ho1 Hk1]]]].
+    eapply terminates_step_any_2 in H3.
+    2: eapply frame_indep_core in Ho1; eauto.
+    eapply step_term_term.
+    1: eapply frame_indep_core in Ho1; eauto.
+    2: lia.
+    simpl in *.
+    inv H3. constructor. apply H. lia. auto.
+  * constructor.
+(*     | VClos Γ vl e0 :: Γ2, Fs, e | k ↓
+       ________________________________________________
+       | VClos (Γ ++ Γ') vl e0 :: Γ2, Fs, e | k ↓
+   *)
+  
+  apply H. lia.
+    admit.
+  * econstructor. apply lookup_app_l_Some. eauto.
+    apply H. lia. auto.
+Admitted.
+
+
+Lemma term_scope_nottrue :
+  ~ (forall Γ Fs (e : NonVal),
+    | Γ, Fs, ° e | ↓ -> EXP (length Γ) ⊢ ° e).
+Proof.
+  intros H.
+  specialize (H [] [] (ECase (VLit 0%Z) (PLit (Int 0%Z)) (VNil) (EVar 1))).
+  assert (| [], [], ° ECase (˝ VLit 0%Z) (PLit 0%Z) (˝ VNil) (° EVar 1) | ↓).
+  { eexists. constructor. eapply term_case_true. reflexivity. simpl. constructor. }
+  specialize (H H0). clear H0.
+  inv H. inv H1. clear -H7. inv H7. inv H0. lia.
+Qed.
 
 
 
@@ -1820,7 +2618,7 @@ Check Erel_Val_compat.
 Lemma Erel_Val_compat_backwards :
   forall {Γ v v'},
     Erel_open Γ (˝ v) (˝ v') ->
-    Vrel_open v v'.
+    Vrel_all v v'.
 Proof.
   intros Γ v. revert Γ.
   induction v using Val_ind2 with
@@ -1978,7 +2776,7 @@ Definition get_frame_env (F : Frame) : Env :=
 (* It's not true that expressions need to be scopen in the env to terminate.
    And this is not just true for values, non-closed expressions can terminate as well.
 *)
-Lemma term_scope_nottrue :
+Lemma term_scope_nottrue' :
   ~ (forall Γ Fs (e : NonVal),
     | Γ, Fs, ° e | ↓ -> EXP (length Γ) ⊢ ° e).
 Proof.
@@ -2054,6 +2852,37 @@ Proof.
     destruct H' as [He' [HFs' Hg']].
     specialize (IHD He' HFs' Hg' Γ'0).
     admit.
+Admitted.
+
+Lemma env_ext' :
+  forall Γ Fs e,
+(*     AEXP (length Γ) ⊢ e ->
+    FSCLOSED Fs ->
+    ENVCLOSED Γ -> *)
+    | Γ, Fs, e | ↓ ->
+    forall Γ',
+      | Γ ++ Γ', Fs, e | ↓.
+Proof.
+  intros Γ Fs e(*  He HFs Hg *) D.
+  inv D. exists x. revert Fs e Γ H Γ'.
+  
+  induction x using lt_wf_ind; intros.
+  inv H0.
+  15: {
+  constructor. apply H. lia.
+  
+  eapply term_eval_empty in H1 as H1'.
+  2-3: admit.
+  destruct H1' as [v [k' [Γ'' [HV [H' Hk]]]]].
+  eapply terminates_step_any_2 in H1.
+  2: { eapply frame_indep_core in H'. exact H'. }
+  inv H1.
+  eapply step_term_term.
+  1: { eapply frame_indep_core in H'. exact H'. }
+  2: { lia. }
+  simpl. rewrite <- H7. constructor.
+  eapply H in H3. 2: lia. 
+  simpl in H3. exact H3.
 Admitted.
   
 (*   intros Γ Fs e He Hg D.
