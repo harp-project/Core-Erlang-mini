@@ -12,7 +12,7 @@
   which will be used by the frame stack semantics in `SubstSemantics.v`.
 *)
 
-Require Export ExpManipulation.
+From CoreErlang.Subst Require Export Manipulation.
 Export Relations.Relations.
 Export Classes.RelationClasses.
 

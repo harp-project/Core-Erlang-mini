@@ -5,7 +5,7 @@
   In this file, we describe the syntax of Core Erlang.
 
 *)
-Require Export SyntaxBasics.
+From CoreErlang Require Export SyntaxBasics.
 
 Import ListNotations.
 

@@ -4,7 +4,7 @@
   In this file, we show example program evaluation in concurrent Core Erlang.
 *)
 
-Require Import ConcurrentFunSemantics.
+From CoreErlang.Subst Require Import ConcurrentFunSemantics.
 Import ListNotations.
 Import PeanoNat.
 (*

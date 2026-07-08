@@ -3,7 +3,7 @@
 
   In this file, we show example program equivalences in sequential Core Erlang.
 *)
-Require Import CTX.
+From CoreErlang.Subst Require Import CTX.
 Import ListNotations.
 
 Lemma Equiv_refl :

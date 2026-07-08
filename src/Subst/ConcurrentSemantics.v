@@ -1,5 +1,5 @@
 (* This part of the work is based on https://dl.acm.org/doi/10.1145/3123569.3123576 *)
-Require Export SubstSemantics.
+From CoreErlang.Subst Require Export Semantics.
 Require Export Coq.Sorting.Permutation.
 
 Import ListNotations.
