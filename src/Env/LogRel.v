@@ -2010,18 +2010,181 @@ Proof.
     all: destruct He2 as [i D];
          inv D; inv H9; inv H10; inv H0;
          eapply value_terminates_env_indep; eexists; eauto.
-  * destruct H.
-    destruct (Erel_open_scope _ _ _ H) as [Hc1 Hc2].
-    inv Hc1. inv Hc2.
-    split.
-    + intro. rewrite Vrel_Fix_eq. simpl. split. 2: split. 1-2: auto.
-      destruct (vl =? vl0) eqn:Hl.
-      2: admit.
-      rewrite Nat.eqb_eq in Hl. subst vl0.
-      intros. unfold exp_rel. 
-      clear H0.
-      apply Erel_implies_CIU in H. unfold CIU_open, CIU in H.
-    +
+  * (* doing closures in an assert to deal with the symmetry *)
+    assert (forall Γ Γ1 Γ2 vl1 vl2 e1 e2,
+                   Erel_open Γ (˝ VClos Γ1 vl1 e1) (˝ VClos Γ2 vl2 e2) ->
+                   Vrel_all (VClos Γ1 vl1 e1) (VClos Γ2 vl2 e2)) as Hdir.
+    { clear. intros * He.
+      intro n. rewrite Vrel_Fix_eq. simpl.
+      destruct (Erel_open_scope _ _ _ He).
+      inv H. inv H0. split. 2: split. 1-2: auto.
+      destruct (vl1 =? vl2) eqn:Hl.
+      2: admit. (* serious question, is there a way in this mini formalization to
+                   disprove this? Without something like funinfo, I can't guarentee
+                   a way that the first closure *always* terminates and the second doesn't *)
+      apply Nat.eqb_eq in Hl. subst vl2.
+      split;auto.
+      intros m Hmn vals1 vals2 Hvl1 Hvl2 Hbfa.
+      destruct (Vrel_biforall_closed _ _ _ Hbfa) as [HCv1 HCv2].
+      unfold exp_rel. split. 2:split.
+      1-2: simpl; rewrite length_app; inv H1; inv H2;
+           simpl in *; auto; rewrite Hvl2; auto.
+      intros m0 Hm0m F1 F2 HF D.
+      destruct (Frel_closed _ _ _ HF) as [HFc1 HFc2].
+      unfold Erel_open, exp_rel in He.
+      pose proof (Grel_nil_len (S vl1 + n) Γ) as Hg.
+      specialize (He _ _ _ Hg). clear Hg.
+      destruct He as [_ [_ He]].
+      specialize (He (S vl1 + m0) ltac:(lia)).
+      specialize (He (FApp1 (map VVal vals1) [] :: F1)).
+      specialize (He (FApp1 (map VVal vals2) [] :: F2)).
+      assert (frame_rel (S vl1 + m0) (λ (m' : nat) (_ : m' ≤ S vl1 + m0), Vrel m')
+         (FApp1 (map VVal vals1) [] :: F1) (FApp1 (map VVal vals2) [] :: F2)) as HF'.
+      { split. 2: split. 1-2: constructor; auto; constructor; try constructor.
+        1: { clear - HCv1. induction vals1; constructor; inv HCv1; auto. }
+        1: { clear - HCv2. induction vals2; constructor; inv HCv2; auto. }
+        intros m1 Hm1 v1 v2 Γ0 Γ3 HV D'.
+        destruct vals1.
+        * inv Hbfa. inv D'.
+          destruct v1; try discriminate. simpl in H5.
+          destruct vl; try discriminate. inv H5.
+          rewrite Vrel_Fix_eq in HV. destruct HV as [_ [_ HV]].
+          destruct v2; try contradiction.
+          destruct HV as [Hl HV]. subst vl.
+          specialize (HV k ltac:(lia) [] [] ltac:(reflexivity) ltac:(reflexivity)
+                         ltac:(constructor)).
+          simpl in *.
+          eapply HV in H7 as [i D']; eauto.
+          exists (S i). econstructor. reflexivity. exact D'.
+          eapply Frel_downclosed. exact HF. Unshelve. lia.
+        * inv Hbfa. inv D'. simpl. eapply step_terminates_one. constructor.
+          clear -H10 H5 H3 HV Hm0m Hm1 HF.
+          remember (@nil Val) as done1.
+          remember (@nil Val) as done2.
+          rewrite Heqdone1 in H10 at 1 3. rewrite Heqdone2 in H10.
+          rewrite Heqdone1. rewrite Heqdone2 at 1 3.
+          assert (list_biforall (Vrel m) done1 done2) as Hvcd by (subst; constructor).
+          clear Heqdone1 Heqdone2.
+          generalize dependent done1.
+          generalize dependent done2.
+          generalize dependent hd'.
+          generalize dependent v.
+          generalize dependent tl'.
+          generalize dependent k.
+          induction vals1; intros.
+          + inv H5. inv H10. destruct v1; try discriminate.
+            apply biforall_length in Hvcd as Hbfal.
+            simpl in H7. destruct (length (done1 ++ [v]) =? vl) eqn:Hl; try discriminate.
+            rewrite Nat.eqb_eq in Hl. rewrite length_app in Hl. simpl in Hl.
+            inv H7.
+            rewrite Vrel_Fix_eq in HV. destruct HV as [_ [_ HV]].
+            destruct v2; try contradiction. destruct HV as [Hl' HV].
+            eapply step_terminates_one. constructor.
+            simpl. rewrite length_app in *. simpl in *.
+            rewrite <- Hbfal. rewrite Hl'. rewrite Nat.eqb_refl.
+            reflexivity.
+            eapply HV.
+            7: exact H8.
+            6: { eapply Frel_downclosed. exact HF. }
+            2: { rewrite length_app. reflexivity. }
+            2: { rewrite length_app. rewrite <- Hbfal. auto. }
+            3: reflexivity.
+            1: lia.
+            apply biforall_app.
+            - clear -Hvcd Hm1 Hm0m.
+              generalize dependent done2.
+              induction done1; intros; inv Hvcd; constructor; auto.
+              eapply Vrel_downclosed. eauto.
+              Unshelve. simpl in Hm1. lia. simpl in Hm1. lia.
+            - constructor. 2: constructor. eapply Vrel_downclosed. exact H3.
+            Unshelve. simpl in Hm1. lia.
+          + inv H5. inv H10. simpl. eapply step_terminates_one. constructor.
+            eapply IHvals1 in H12; eauto.
+            - eapply Vrel_downclosed. eauto. Unshelve. lia.
+            - simpl. simpl in Hm1. lia.
+            - apply biforall_app; auto. constructor. auto. constructor.
+      }
+      specialize (He HF'). clear HF'.
+      assert (| repeat VNil Γ, FApp1 (map VVal vals1) [] :: F1,
+                    ˝ VClos Γ1 vl1 e1 | S vl1 + m0 ↓) as HD.
+      { clear -D Hvl1.
+        destruct vals1.
+        * simpl in *. subst. econstructor. reflexivity. auto.
+        * simpl in *. constructor.
+          remember (@nil Val) as done. rewrite Heqdone at 1 3.
+          assert (VClos Γ1 vl1 e1 :: v :: vals1 ++ Γ1 =
+                  VClos Γ1 vl1 e1 :: done ++ [v] ++ vals1 ++ Γ1).
+          { subst. simpl. reflexivity. }
+          rewrite H in D. clear H.
+          assert (vl1 = vl1 + (length done)) by (subst;simpl;lia).
+          rewrite H at 1.
+          rewrite H in D. clear H.
+          clear Heqdone.
+          generalize dependent vl1.
+          generalize dependent v.
+          generalize dependent done.
+          induction vals1; intros.
+          + simpl in *. subst. simpl. econstructor.
+            simpl.
+            rewrite length_app. rewrite Nat.add_comm. simpl. rewrite Nat.eqb_refl.
+            reflexivity.
+            simpl in *. rewrite <- app_assoc. assumption.
+          + simpl in *. subst. simpl.
+            constructor.
+            assert ((S (S (length vals1 + length done))) =
+                    S (length vals1) + length (done ++ [v])).
+            { rewrite length_app. simpl. lia. }
+            rewrite H. clear H.
+            assert (S (length vals1 + m0) = S (length vals1) + m0) by lia.
+            rewrite H. clear H.
+            apply IHvals1.
+            reflexivity.
+            simpl. rewrite length_app. simpl.
+            assert ((S (length vals1 + (length done + 1))) =
+                    (S (S (length vals1)) + length done)) by lia.
+            rewrite H. clear H.
+            rewrite <- app_assoc. exact D.
+      }
+      specialize (He HD). clear HD.
+      clear -He Hvl2.
+      subst.
+      destruct vals2.
+      * simpl in *. inv He. inv H. inv H4. exists k. auto.
+      * simpl in He. eapply terminates_step_one in He. 2:constructor.
+        simpl.
+        remember [] as done.
+        rewrite Heqdone in He at 1 3.
+        assert (S (length vals2) = S (length vals2 + length done)) by (subst; simpl; lia).
+        rewrite H in He. rewrite H. clear H.
+        assert (VClos Γ2 (S (length vals2 + length done)) e2 :: v :: vals2 ++ Γ2 =
+                VClos Γ2 (S (length vals2 + length done)) e2 :: done ++ [v] ++ vals2 ++ Γ2).
+        { subst. reflexivity. }
+        rewrite H. clear H.
+        clear Heqdone.
+        generalize dependent done.
+        generalize dependent e2.
+        generalize dependent v.
+        induction vals2; intros.
+        + simpl in *. inv He. inv H. inv H7.
+          rewrite length_app in H0. simpl in H0.
+          rewrite Nat.add_comm in H0. simpl in H0. rewrite Nat.eqb_refl in H0. inv H0.
+          rewrite <- app_assoc in H8. simpl in H8. exists k. assumption.
+        + simpl in *.
+          assert (VClos Γ2 (S (S (length vals2 + length done))) 
+                    e2 :: done ++ v :: a :: vals2 ++ Γ2 =
+                  VClos Γ2 (S (length vals2 + length (done ++ [v]))) 
+                    e2 :: (done ++ [v]) ++ a :: vals2 ++ Γ2).
+          { rewrite <- app_assoc. simpl. f_equal.
+            rewrite length_app. simpl. f_equal. lia. }
+          rewrite H. clear H.
+          apply IHvals2.
+          inv He. inv H. rewrite length_app. simpl.
+          assert ((S (length vals2 + (length done + 1))) =
+                  (S (S (length vals2 + length done)))) by lia.
+          rewrite H. clear H.
+          exists k. assumption.
+    }
+    destruct H. split; eauto.
 Admitted.
 
 
