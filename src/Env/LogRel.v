@@ -78,14 +78,13 @@ Fixpoint Vrel_rec (n : nat)
   | VCons v11 v12, VCons v21 v22 => 
         Vrel_rec n Vrel v11 v21 /\ Vrel_rec n Vrel v12 v22
   | VClos Γ1 vl1 b1, VClos Γ2 vl2 b2 =>
-    if vl1 =? vl2 then
+      vl1 = vl2 /\
       forall m (Hmn : m < n), forall (vals1 vals2 : list Val),
         length vals1 = vl1 -> length vals2 = vl2 ->
         list_biforall (Vrel m Hmn) vals1 vals2
       ->
         exp_rel m (fun m' H => Vrel m' (Nat.le_lt_trans _ _ _ H Hmn)) 
           (VClos Γ1 vl1 b1 :: vals1 ++ Γ1) (VClos Γ2 vl2 b2 :: vals2 ++ Γ2) b1 b2
-    else False
   | _, _ => False
   end.
 
@@ -142,8 +141,7 @@ Proof.
         (fun v1 => forall v2, Vrel_rec n f v1 v2 = Vrel_rec n g v1 v2)); auto;
   intros; try destruct v2; unfold Vrel_rec; intros; try reflexivity.
   * f_equal. f_equal. rewrite IHv1_1. rewrite IHv1_2. reflexivity.
-  * f_equal. f_equal.
-    destruct (vl =? vl0). 2:reflexivity.
+  * f_equal. f_equal. f_equal.
     extensionality m.
     extensionality Hmn.
     extensionality vals1.
@@ -195,9 +193,8 @@ Proof.
     destruct H. split; auto.
   * rewrite Vrel_Fix_eq. rewrite Vrel_Fix_eq in H.
     unfold Vrel_rec at 1. unfold Vrel_rec at 1 in H.
-    intuition. destruct (vl =? vl0); auto.
-    intros.
-    apply H2; auto. lia.
+    intuition.
+    apply H3; auto. lia.
 Qed.
 
 Corollary Vrel_biforall_downclosed :
@@ -655,7 +652,7 @@ Proof.
       apply ENVCLOSED_nth; auto.
     + apply Erel_open_scope_r in HE.
       apply Grel_length_eq in HG. rewrite <- HG. auto.
-  * rewrite Nat.eqb_refl.
+  * split;[auto|].
     intros m0 Hm0 vals1 vals2 Hl1 Hl2 Hlbfa.
     epose proof (nH0 := HE m0 _ _ _).
     destruct nH0 as [nCl1 [nCl2 nH0]].
@@ -1095,8 +1092,7 @@ Proof.
     inv H6. apply Nat.eqb_eq in Htlvl.
     rewrite Vrel_Fix_eq in Hv. destruct Hv as [Hvc1 [Hvc2 Hv]].
     destruct v2; try contradiction.
-    destruct (vl =? vl0) eqn:Hvlvl0; try contradiction.
-    apply Nat.eqb_eq in Hvlvl0. subst.
+    destruct Hv as [Hvlvl0 Hv]. subst.
     eapply step_terminates_one.
     constructor. simpl. do 2 rewrite length_app. rewrite <- Hl. simpl.
     rewrite Nat.eqb_refl. reflexivity. rewrite length_app in H7. simpl in H7.
@@ -1141,7 +1137,7 @@ Proof.
     destruct vl; try discriminate. inv H3.
     rewrite Vrel_Fix_eq in HV. destruct HV as [HVc1 [HVc2 HV]].
     destruct v2; try contradiction.
-    destruct vl; try contradiction. simpl in HV.
+    destruct HV as [Hl HV]. subst vl.
     eapply step_terminates_one. constructor. reflexivity. simpl.
     assert ((VClos Γ0 0 e :: Γ0) = (VClos Γ0 0 e :: [] ++ Γ0)) by reflexivity.
     rewrite H. clear H.
@@ -1593,7 +1589,7 @@ Proof.
     destruct vl; try discriminate. inv H7.
     rewrite Vrel_Fix_eq in HV. destruct HV as [_ [_ HV]].
     destruct v2; try contradiction.
-    destruct vl; try contradiction. simpl in HV.
+    destruct HV as [Hl HV]. subst vl.
     eapply step_terminates_one. constructor. reflexivity.
     assert (VClos Γ0 0 res :: Γ0 = VClos Γ0 0 res :: [] ++ Γ0) by reflexivity.
     rewrite H1 in H8. clear H1.
@@ -2014,10 +2010,18 @@ Proof.
     all: destruct He2 as [i D];
          inv D; inv H9; inv H10; inv H0;
          eapply value_terminates_env_indep; eexists; eauto.
-  * destruct H as [He1 He2].
-    destruct (vl =? vl0) eqn:Hvl.
-    2: { unfold Erel_open, exp_rel in He1.
-         pose proof Grel_nil_len 
+  * destruct H.
+    destruct (Erel_open_scope _ _ _ H) as [Hc1 Hc2].
+    inv Hc1. inv Hc2.
+    split.
+    + intro. rewrite Vrel_Fix_eq. simpl. split. 2: split. 1-2: auto.
+      destruct (vl =? vl0) eqn:Hl.
+      2: admit.
+      rewrite Nat.eqb_eq in Hl. subst vl0.
+      intros. unfold exp_rel. 
+      clear H0.
+      apply Erel_implies_CIU in H. unfold CIU_open, CIU in H.
+    +
 Admitted.
 
 
