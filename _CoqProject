@@ -21,6 +21,12 @@ src/Subst/Equivs.v
 
 src/Env/EnvSubst.v
 
+src/A/Syntax.v
+src/A/SubstDeterministic.v
+src/A/Examples.v
+
+
+
 src/Subst/ConcurrentFunSemantics.v
 src/Subst/Examples.v
 src/Subst/ConcurrentProperties.v
@@ -35,4 +41,3 @@ src/EnvSimple/CIU.v
 src/EnvSimple/Compatibility.v
 src/EnvSimple/EnvSubst.v
 
-src/A/Examples.v
