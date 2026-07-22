@@ -103,31 +103,31 @@ Notation "'call' e1 ( e2 ; e3 ; .. ; en )" := (EBIF e1 (cons e2 (cons e3 .. (con
 
 (** Goals verifying each ANF example normalizes correctly *)
 Lemma anf_bif_args_goal :
-  normalize_term anf_bif_args_src = anf_bif_args_anf.
+  normalize_exp 1000 anf_bif_args_src NCHole = Some anf_bif_args_anf.
 Proof.
   cbv. reflexivity.
 Qed.
 
 Lemma anf_case_scrutinee_goal :
-  A_normalize 1000 1000 anf_case_scrutinee_src = Some anf_case_scrutinee_anf.
+  normalize_exp 1000 anf_case_scrutinee_src NCHole = Some anf_case_scrutinee_anf.
 Proof.
-  reflexivity.
+  cbv. reflexivity.
 Qed.
 
 Lemma anf_app_arg_goal :
-  A_normalize 1000 1000 anf_app_arg_src = Some anf_app_arg_anf.
+   normalize_exp 1000 anf_app_arg_src NCHole = Some anf_app_arg_anf.
 Proof.
-  reflexivity.
+  cbv. reflexivity.
 Qed.
 
 Lemma anf_nested_let_goal :
-  A_normalize 1000 1000 anf_nested_let_src = Some anf_nested_let_anf.
+  normalize_exp 1000 anf_nested_let_src NCHole = Some anf_nested_let_anf.
 Proof.
-  reflexivity.
+  cbv. reflexivity.
 Qed.
 
 Lemma anf_case_branch_goal :
-  A_normalize 1000 1000 anf_case_branch_src = Some anf_case_branch_anf.
+  normalize_exp 1000 anf_case_branch_src NCHole = Some anf_case_branch_anf.
 Proof.
-  reflexivity.
+  cbv. reflexivity.
 Qed.
