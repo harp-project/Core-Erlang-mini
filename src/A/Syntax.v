@@ -1228,9 +1228,75 @@ Proof.
         ** apply IHfuel in H; [assumption | lia ].
 Qed.
 
+(* NOTE:
+   This version won't hold, even though, it shows promising progress. The issue
+   is with i) scoping and ii) closures.
 
+   i) introduce_let is used inside a let expression, and therefore, the scope
+      of the normalisation is 1 + (the scope of the original expression). This
+      scope extension is not expressed in the statement.
+   ii) the syntax of closures get altered---the closure body is adjusted to be
+      in ANF form. Therefore, the final results (if they are closures) could
+      not be proven equal. This could be avoided by the use of CIU.
 
-
+ *)
+Lemma normalize_preserves_semantics fuel : forall k e anf v,
+  ⟨k, e⟩ -->* v ->
+  normalize_exp fuel e k = Some anf ->
+  ⟨[], anf⟩ -->* v.
+Proof.
+Abort.
+(*   induction fuel using lt_wf_ind. rename H into IHfuel.
+  destruct fuel; intros * (* Hpre *) D H; simpl in H. congruence.
+  destruct e; simpl in H; try congruence.
+  * destruct e; simpl in H; try congruence.
+    - eapply IHfuel in H. eassumption. lia.
+      inv D. inv H0. inv H1.
+      by eexists.
+    - eapply IHfuel in H. eassumption. lia.
+      inv D. inv H0. inv H1.
+      by eexists.
+    - eapply IHfuel in H. eassumption. lia.
+      inv D. inv H0. inv H1.
+      by eexists.
+    - eapply IHfuel in H. eassumption. lia.
+      inv D. inv H0. inv H1.
+      by eexists.
+    - eapply IHfuel in H. eassumption. lia.
+      inv D. inv H0. inv H1.
+      by eexists.
+  * destruct v0; simpl in H; try congruence.
+    (* The following technique is repeated for almost all values: ("-" bullets) *)
+    - destruct fuel; simpl in *; try congruence.
+      destruct k; simpl in *. 2: destruct f.
+      + inv H. assumption.
+      + destruct l0.
+        ** unfold introduce_let in H.
+           destruct k.
+           1: { inv H. inv D. eexists. econstructor. constructor. eassumption. }
+           destruct f; simpl in *.
+           all: destruct normalize_exp eqn:Hexp in H; simpl in H.
+           
+           
+            inv H.
+           -- destruct fuel; simpl in *; try congruence.
+              destruct fuel; simpl in *; try congruence.
+        ** eapply IHfuel in H. eassumption. lia.
+           inv D. inv H0. inv H1.
+           by eexists.
+      +
+      +
+      +
+      +
+      +
+      +
+      +
+    -
+    -
+    -
+    -
+    - *)
+Qed.
 
 
 
@@ -1264,9 +1330,6 @@ end.
 
 
 
-Lemma normalize_preserves_semantics :
-  ⟨, e⟩ --> ⟨⟩
-  normalize_exp fuel e k = Some anf ->
   
 
 
