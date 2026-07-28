@@ -90,16 +90,32 @@ end.
 
 Definition normalize_term (e : Exp) : Exp := normalize e id.
 
+(** This function is used to simplify proofs - eliminate redundant matches *)
+Definition extract_Flet (F : Frame) : option Exp :=
+match F with
+| FLet e2 => Some e2
+| _ => None
+end.
+
 Definition introduce_let  (normalize_exp : Exp -> FrameStack -> option Exp) 
                           (k : FrameStack) (e : Exp) : option Exp :=
 match k with
 | [] => Some e
-| FLet e2 :: k' =>
-    fmap (fun e2' => EExp (ELet e e2')) (normalize_exp e2 k')
-| _ => if is_value e
-       then normalize_exp e k
-       else fmap (fun e' => EExp (ELet e e'))
-            (normalize_exp (VVar 0) (rename_framestack (fun n => S n) k))
+| F :: k' =>
+   match extract_Flet F with
+   | Some e2 => fmap (fun e2' => EExp (ELet e e2')) (normalize_exp e2 (rename_framestack (fun n => S n) k'))
+   | None => if is_value e
+             then normalize_exp e k
+             else fmap (fun e' => EExp (ELet e e'))
+                  (normalize_exp (VVar 0) (rename_framestack (fun n => S n) k))
+   end
+end.
+
+(** This function is used to simplify proofs - eliminate redundant matches *)
+Definition extract_VFun (v : Val) : option (nat * Exp) :=
+match v with
+| VFun vl body => Some (vl, body)
+| _ => None
 end.
 
 Fixpoint normalize_exp (fuel : nat) (e : Exp) (k : FrameStack) : option Exp :=
@@ -107,11 +123,13 @@ Fixpoint normalize_exp (fuel : nat) (e : Exp) (k : FrameStack) : option Exp :=
   | 0 => None
   | S fuel' =>
       match e with
-      | VVal (VFun vl body) =>
-          mbind (fun body' =>
-          normalize_val fuel' (VFun vl body') k)
-          (normalize_exp fuel' body [])
-      | VVal v => normalize_val fuel' v k
+      | VVal v => match extract_VFun v with
+                  | Some (vl, body) =>
+                        mbind (fun body' =>
+                        normalize_val fuel' (VFun vl body') k)
+                        (normalize_exp fuel' body [])
+                  | None => normalize_val fuel' v k
+                  end
       | EExp (ELet e1 e2) => normalize_exp fuel' e1 (FLet e2 :: k)
       | EExp (ECase e0 p e1 e2) =>
           normalize_exp fuel' e0 (FCase p e1 e2 :: k)
@@ -129,12 +147,13 @@ with normalize_val (fuel : nat) (e : Val) (k : FrameStack) : option Exp :=
       match k with
       | [] => Some (VVal e)
       | FLet e2 :: k' =>
-          fmap (fun e2' => EExp (ELet e e2')) (normalize_exp fuel' e2 k')
+          fmap (fun e2' => EExp (ELet e e2'))
+               (normalize_exp fuel' e2 (rename_framestack (fun n => S n) k'))
       | FCase p e1 e2 :: k' =>
           mbind (fun e1' =>
             fmap (fun e2' => EExp (ECase e p e1' e2'))
             (normalize_exp fuel' e2 k'))
-          (normalize_exp fuel' e1 k')
+          (normalize_exp fuel' e1 (rename_framestack (fun n => pat_vars p + n) k'))
       | FApp1 [] :: k' =>
           introduce_let (normalize_exp fuel') k' (EApp e [])
       | FApp1 (f::args) :: k' => 
@@ -221,6 +240,13 @@ Definition anf_case_branch_anf : Exp :=
       (EBIF (VLit "+"%string) [˝VVar 0; ˝VLit 5%Z]))
     (VLit 9%Z).
 
+Definition flet_bug_example : Exp :=
+  ELet (VLit 1000%Z)
+    (ECase (°ELet (°EBIF (VLit "+") [˝VLit 10%Z; ˝VLit 20%Z]) (˝VVar 0))
+       (PVar)
+       (°EBIF (VLit "+") [˝VVar 0; ˝VVar 1])
+       (˝VLit 9%Z)).
+
 Definition anf_examples : list (Exp * Exp) :=
   [ (anf_bif_args_src, anf_bif_args_anf)
   ; (anf_case_scrutinee_src, anf_case_scrutinee_anf)
@@ -260,6 +286,17 @@ Qed.
 
 Lemma anf_case_branch_goal :
   normalize_exp 1000 anf_case_branch_src [] = Some anf_case_branch_anf.
+Proof.
+  cbv. reflexivity.
+Qed.
+
+Lemma flet_bug_examplegoal :
+  normalize_exp 1000 flet_bug_example [] = Some
+         (° ELet (˝ VLit 1000%Z)
+              (° ELet (° EBIF (˝ VLit "+") [˝ VLit 10%Z; ˝ VLit 20%Z])
+                   (° ECase (˝ VVar 0) PVar
+                        (° EBIF (˝ VLit "+") [˝ VVar 0; ˝ VVar 2])
+                        (˝ VLit 9%Z)))).
 Proof.
   cbv. reflexivity.
 Qed.
@@ -356,170 +393,8 @@ Proof.
   destruct e; simpl in H; try congruence.
   * destruct e; simpl in H; try congruence.
     all: eapply IHfuel in H; [assumption| lia (* | by constructor *)].
-  * destruct v; simpl in H; try congruence.
-    (* The following technique is repeated for almost all values: ("-" bullets) *)
-    - destruct fuel; simpl in *; try congruence.
-      destruct k; simpl in *. 2: destruct f.
-      + inv H. constructor.
-      + destruct l0.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { by epose proof anf_app _ []. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [by epose proof anf_let_app _ [] _ Hexp|lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct l2.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { rewrite <- map_app with (l' := [VLit l]).
-                apply anf_app. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VLit l]); apply anf_let_app |lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct normalize_exp eqn:Hexp in H; simpl in H; inv H.
-        constructor. (* inv Hpre. *) apply IHfuel in Hexp; [assumption|lia(* |assumption *)].
-      + destruct normalize_exp eqn:Hexp1 in H at 2; simpl in H; inv H.
-        destruct normalize_exp eqn:Hexp2 in H1; simpl in H1; inv H1.
-        (* inv Hpre. *)
-        constructor.
-          apply IHfuel in Hexp1; [assumption|lia(* |assumption *)].
-          apply IHfuel in Hexp2; [assumption|lia(* |assumption *)].
-      + destruct normalize_exp eqn:Hexp in H; simpl in H; inv H.
-        apply IHfuel in Hexp; [assumption|lia].
-      + unfold introduce_let in H.
-        destruct k;inv H.
-        1: { apply anf_val. }
-        destruct f.
-        all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-            apply IHfuel in Hexp; [ repeat constructor; assumption |lia].
-      + destruct l0.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { by epose proof anf_bif _ []. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [by epose proof anf_let_bif _ [] _ Hexp|lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct l2.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { rewrite <- map_app with (l' := [VLit l]).
-                apply anf_bif. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VLit l]); apply anf_let_bif |lia].
-        ** apply IHfuel in H; [assumption | lia ].
-    - destruct fuel; simpl in *; try congruence.
-      destruct k; simpl in *. 2: destruct f.
-      + inv H. constructor.
-      + destruct l.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { by epose proof anf_app _ []. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [by epose proof anf_let_app _ [] _ Hexp|lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct l2.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { rewrite <- map_app with (l' := [VPid p]).
-                apply anf_app. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VPid p]); apply anf_let_app |lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct normalize_exp eqn:Hexp in H; simpl in H; inv H.
-        constructor. (* inv Hpre. *) apply IHfuel in Hexp; [assumption|lia(* |assumption *)].
-      + destruct normalize_exp eqn:Hexp1 in H at 2; simpl in H; inv H.
-        destruct normalize_exp eqn:Hexp2 in H1; simpl in H1; inv H1.
-        (* inv Hpre. *)
-        constructor.
-          apply IHfuel in Hexp1; [assumption|lia(* |assumption *)].
-          apply IHfuel in Hexp2; [assumption|lia(* |assumption *)].
-      + destruct normalize_exp eqn:Hexp in H; simpl in H; inv H.
-        apply IHfuel in Hexp; [assumption|lia].
-      + unfold introduce_let in H.
-        destruct k;inv H.
-        1: { apply anf_val. }
-        destruct f.
-        all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-            apply IHfuel in Hexp; [ repeat constructor; assumption |lia].
-      + destruct l.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { by epose proof anf_bif _ []. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [by epose proof anf_let_bif _ [] _ Hexp|lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct l2.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { rewrite <- map_app with (l' := [VPid p]).
-                apply anf_bif. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VPid p]); apply anf_let_bif |lia].
-        ** apply IHfuel in H; [assumption | lia ].
-    - destruct fuel; simpl in *; try congruence.
-      destruct k; simpl in *. 2: destruct f.
-      + inv H. constructor.
-      + destruct l.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { by epose proof anf_app _ []. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [by epose proof anf_let_app _ [] _ Hexp|lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct l2.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { rewrite <- map_app with (l' := [VVar n]).
-                apply anf_app. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VVar n]); apply anf_let_app |lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct normalize_exp eqn:Hexp in H; simpl in H; inv H.
-        constructor. (* inv Hpre. *) apply IHfuel in Hexp; [assumption|lia(* |assumption *)].
-      + destruct normalize_exp eqn:Hexp1 in H at 2; simpl in H; inv H.
-        destruct normalize_exp eqn:Hexp2 in H1; simpl in H1; inv H1.
-        (* inv Hpre. *)
-        constructor.
-          apply IHfuel in Hexp1; [assumption|lia(* |assumption *)].
-          apply IHfuel in Hexp2; [assumption|lia(* |assumption *)].
-      + destruct normalize_exp eqn:Hexp in H; simpl in H; inv H.
-        apply IHfuel in Hexp; [assumption|lia].
-      + unfold introduce_let in H.
-        destruct k;inv H.
-        1: { apply anf_val. }
-        destruct f.
-        all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-            apply IHfuel in Hexp; [ repeat constructor; assumption |lia].
-      + destruct l.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { by epose proof anf_bif _ []. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [by epose proof anf_let_bif _ [] _ Hexp|lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct l2.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { rewrite <- map_app with (l' := [VVar n]).
-                apply anf_bif. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VVar n]); apply anf_let_bif |lia].
-        ** apply IHfuel in H; [assumption | lia ].
-
-
-    - (* VFun!!! *)
+  * destruct extract_VFun eqn:X.
+    - destruct v; inv X.
       destruct normalize_exp eqn:Hexp0 in H; simpl in H; inv H.
       apply IHfuel in Hexp0. 2: lia.
       rename H1 into H.
@@ -530,7 +405,7 @@ Proof.
         ** unfold introduce_let in H.
            destruct k;inv H.
            1: { by epose proof anf_app _ []. }
-           destruct f.
+           destruct extract_Flet eqn:X.
            all: destruct normalize_exp eqn:Hexp in H1; inv H1;
                 apply IHfuel in Hexp; [by epose proof anf_let_app _ [] _ Hexp|lia].
         ** apply IHfuel in H; [assumption | lia ].
@@ -539,7 +414,7 @@ Proof.
            destruct k;inv H.
            1: { rewrite <- map_app with (l' := [VFun vl e0]).
                 apply anf_app. }
-           destruct f.
+           destruct extract_Flet eqn:X.
            all: destruct normalize_exp eqn:Hexp in H1; inv H1;
                 apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VFun vl e0]); apply anf_let_app |lia].
         ** apply IHfuel in H; [assumption | lia ].
@@ -556,14 +431,14 @@ Proof.
       + unfold introduce_let in H.
         destruct k;inv H.
         1: { apply anf_val. }
-        destruct f.
+        destruct extract_Flet eqn:X.
         all: destruct normalize_exp eqn:Hexp in H1; inv H1;
             apply IHfuel in Hexp; [ repeat constructor; assumption |lia].
       + destruct l.
         ** unfold introduce_let in H.
            destruct k;inv H.
            1: { by epose proof anf_bif _ []. }
-           destruct f.
+           destruct extract_Flet eqn:X.
            all: destruct normalize_exp eqn:Hexp in H1; inv H1;
                 apply IHfuel in Hexp; [by epose proof anf_let_bif _ [] _ Hexp|lia].
         ** apply IHfuel in H; [assumption | lia ].
@@ -572,13 +447,11 @@ Proof.
            destruct k;inv H.
            1: { rewrite <- map_app with (l' := [VFun vl e0]).
                 apply anf_bif. }
-           destruct f.
+           destruct extract_Flet eqn:X.
            all: destruct normalize_exp eqn:Hexp in H1; inv H1;
                 apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VFun vl e0]); apply anf_let_bif |lia].
         ** apply IHfuel in H; [assumption | lia ].
-
-
-
+    (* every other value *)
     - destruct fuel; simpl in *; try congruence.
       destruct k; simpl in *. 2: destruct f.
       + inv H. constructor.
@@ -586,18 +459,18 @@ Proof.
         ** unfold introduce_let in H.
            destruct k;inv H.
            1: { by epose proof anf_app _ []. }
-           destruct f.
+           destruct extract_Flet eqn:Y.
            all: destruct normalize_exp eqn:Hexp in H1; inv H1;
                 apply IHfuel in Hexp; [by epose proof anf_let_app _ [] _ Hexp|lia].
         ** apply IHfuel in H; [assumption | lia ].
       + destruct l2.
         ** unfold introduce_let in H.
            destruct k;inv H.
-           1: { rewrite <- map_app with (l' := [VNil]).
+           1: { rewrite <- map_app with (l' := [v]).
                 apply anf_app. }
-           destruct f.
+           destruct extract_Flet eqn:Y.
            all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VNil]); apply anf_let_app |lia].
+                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [v]); apply anf_let_app |lia].
         ** apply IHfuel in H; [assumption | lia ].
       + destruct normalize_exp eqn:Hexp in H; simpl in H; inv H.
         constructor. (* inv Hpre. *) apply IHfuel in Hexp; [assumption|lia(* |assumption *)].
@@ -612,78 +485,25 @@ Proof.
       + unfold introduce_let in H.
         destruct k;inv H.
         1: { apply anf_val. }
-        destruct f.
+        destruct extract_Flet eqn:Y.
         all: destruct normalize_exp eqn:Hexp in H1; inv H1;
             apply IHfuel in Hexp; [ repeat constructor; assumption |lia].
       + destruct l.
         ** unfold introduce_let in H.
            destruct k;inv H.
            1: { by epose proof anf_bif _ []. }
-           destruct f.
+           destruct extract_Flet eqn:Y.
            all: destruct normalize_exp eqn:Hexp in H1; inv H1;
                 apply IHfuel in Hexp; [by epose proof anf_let_bif _ [] _ Hexp|lia].
         ** apply IHfuel in H; [assumption | lia ].
       + destruct l2.
         ** unfold introduce_let in H.
            destruct k;inv H.
-           1: { rewrite <- map_app with (l' := [VNil]).
+           1: { rewrite <- map_app with (l' := [v]).
                 apply anf_bif. }
-           destruct f.
+           destruct extract_Flet eqn:Y.
            all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VNil]); apply anf_let_bif |lia].
-        ** apply IHfuel in H; [assumption | lia ].
-    - destruct fuel; simpl in *; try congruence.
-      destruct k; simpl in *. 2: destruct f.
-      + inv H. constructor.
-      + destruct l.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { by epose proof anf_app _ []. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [by epose proof anf_let_app _ [] _ Hexp|lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct l2.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { rewrite <- map_app with (l' := [VCons v1 v2]).
-                apply anf_app. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VCons v1 v2]); apply anf_let_app |lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct normalize_exp eqn:Hexp in H; simpl in H; inv H.
-        constructor. (* inv Hpre. *) apply IHfuel in Hexp; [assumption|lia(* |assumption *)].
-      + destruct normalize_exp eqn:Hexp1 in H at 2; simpl in H; inv H.
-        destruct normalize_exp eqn:Hexp2 in H1; simpl in H1; inv H1.
-        (* inv Hpre. *)
-        constructor.
-          apply IHfuel in Hexp1; [assumption|lia(* |assumption *)].
-          apply IHfuel in Hexp2; [assumption|lia(* |assumption *)].
-      + destruct normalize_exp eqn:Hexp in H; simpl in H; inv H.
-        apply IHfuel in Hexp; [assumption|lia].
-      + unfold introduce_let in H.
-        destruct k;inv H.
-        1: { apply anf_val. }
-        destruct f.
-        all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-            apply IHfuel in Hexp; [ repeat constructor; assumption |lia].
-      + destruct l.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { by epose proof anf_bif _ []. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [by epose proof anf_let_bif _ [] _ Hexp|lia].
-        ** apply IHfuel in H; [assumption | lia ].
-      + destruct l2.
-        ** unfold introduce_let in H.
-           destruct k;inv H.
-           1: { rewrite <- map_app with (l' := [VCons v1 v2]).
-                apply anf_bif. }
-           destruct f.
-           all: destruct normalize_exp eqn:Hexp in H1; inv H1;
-                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [VCons v1 v2]); apply anf_let_bif |lia].
+                apply IHfuel in Hexp; [ by rewrite <- map_app with (l' := [v]); apply anf_let_bif |lia].
         ** apply IHfuel in H; [assumption | lia ].
 Qed.
 
