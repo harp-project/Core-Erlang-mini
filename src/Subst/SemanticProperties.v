@@ -1174,3 +1174,64 @@ Proof.
     eapply transitive_eval. exact D.
     econstructor. constructor; auto. constructor.
 Qed.
+
+Print foldl.
+Definition plug_fs (Fs : FrameStack) (e : Exp) :=
+  foldl (fun e f => plug_f f e) e Fs.
+
+Definition subst_frame (ξ : Substitution) (f : Frame) : Frame :=
+match f with
+ | FApp1 l => FApp1 (map (subst ξ) l)
+ | FApp2 v l1 l2 =>
+      FApp2 (subst_val ξ v) (map (subst_val ξ) l1) (map (subst ξ) l2)
+ | FLet e2 => FLet (subst (up_subst ξ) e2)
+ | FCase p e2 e3 => FCase p (subst (upn (pat_vars p) ξ) e2) (subst ξ e3)
+ | FCons1 e1 => FCons1 (subst ξ e1)
+ | FCons2 v2 => FCons2 (subst_val ξ v2)
+ | FBIF1 l => FBIF1 (map (subst ξ) l)
+ | FBIF2 v l1 l2 =>
+      FBIF2 (subst_val ξ v) (map (subst_val ξ) l1) (map (subst ξ) l2)
+end.
+Definition subst_framestack (ξ : Substitution) (fs: FrameStack) : FrameStack := map (subst_frame ξ) fs.
+
+
+Notation "f .ₜ[ σ ]" := (subst_frame σ f)
+  (at level 2, σ at level 200, left associativity,
+   format "f .ₜ[ σ ]" ).
+Notation "f .ₖ[ σ ]" := (subst_framestack σ f)
+  (at level 2, σ at level 200, left associativity,
+   format "f .ₖ[ σ ]" ).
+
+Lemma plug_f_subst :
+  forall F e ξ, (plug_f F e).[ξ] = plug_f F.ₜ[ξ] e.[ξ].
+Proof.
+  destruct F; intros; cbn; try reflexivity.
+  * rewrite map_app, map_map, map_map. cbn. reflexivity.
+  * rewrite map_app, map_map, map_map. cbn. reflexivity.
+Qed.
+
+Lemma plug_fs_subst :
+  forall k e ξ, (plug_fs k e).[ξ] = plug_fs k.ₖ[ξ] e.[ξ].
+Proof.
+  induction k; intros; simpl.
+  * reflexivity.
+  * rewrite IHk, plug_f_subst. reflexivity.
+Qed.
+
+Corollary put_back_fs Fs Fs' e :
+  | Fs ++ Fs', e | ↓ -> | Fs', plug_fs Fs e | ↓.
+Proof.
+  revert Fs' e.
+  induction Fs; simpl; intros.
+  * assumption.
+  * apply IHFs. by apply put_back.
+Qed.
+
+Corollary put_back_rev_fs Fs Fs' e :
+  | Fs', plug_fs Fs e | ↓ -> | Fs ++ Fs', e | ↓.
+Proof.
+  revert Fs' e.
+  induction Fs; simpl; intros.
+  * assumption.
+  * apply IHFs in H. by apply put_back_rev in H.
+Qed.
