@@ -1,5 +1,4 @@
 From CoreErlang.A Require Import Syntax.
-From Coq Require Import Lia.
 
 Import ListNotations.
 Open Scope sub_scope.
@@ -972,52 +971,14 @@ Qed.
   [FCons1], [FCons2], [FBIF1], [FBIF2]).
 *)
 
-Lemma rename_subst_gen : forall e v ξ,
-  (rename (fun n => S n) e).[v .: ξ] = e.[ξ].
-Proof.
-  intros.
-  rewrite renaming_is_subst, subst_comp.
-  pose proof (ren_scons ξ (fun n => n) v) as H.
-  cbn in H. rewrite H.
-  rewrite <- subst_comp, <- renaming_is_subst.
-  replace (fun n : nat => n) with (@id nat) by reflexivity.
-  rewrite idrenaming_is_id. reflexivity.
-Qed.
-
-Lemma rename_subst_gen_val : forall (e : Val) v ξ,
-  (rename_val (fun n => S n) e).ᵥ[v .: ξ] = e.ᵥ[ξ].
-Proof.
-  intros.
-  rewrite renaming_is_subst_val, subst_comp_val.
-  pose proof (ren_scons ξ (fun n => n) v) as H.
-  cbn in H. rewrite H.
-  rewrite <- subst_comp_val, <- renaming_is_subst_val.
-  replace (fun n : nat => n) with (@id nat) by reflexivity.
-  rewrite idrenaming_is_id_val. reflexivity.
-Qed.
-
-Lemma rename_subst_gen_list : forall l v ξ,
-  map (subst (v .: ξ)) (map (rename (fun n => S n)) l) = map (subst ξ) l.
-Proof.
-  induction l as [|x xs IH]; intros; cbn; auto.
-  rewrite rename_subst_gen, IH. reflexivity.
-Qed.
-
-Lemma rename_subst_gen_list_val : forall l v ξ,
-  map (subst_val (v .: ξ)) (map (rename_val (fun n => S n)) l) = map (subst_val ξ) l.
-Proof.
-  induction l as [|x xs IH]; intros; cbn; auto.
-  rewrite rename_subst_gen_val, IH. reflexivity.
-Qed.
-
 Lemma rename_subst_core_frame : forall f v ξ,
   (rename_frame (fun n => S n) f).ₜ[v .: ξ] = f.ₜ[ξ].
 Proof.
   destruct f; intros; cbn.
-  - f_equal. apply rename_subst_gen_list.
-  - rewrite rename_subst_gen_val. f_equal.
-    apply rename_subst_gen_list_val.
-    apply rename_subst_gen_list.
+  - f_equal. apply rename_subst_list.
+  - rewrite rename_subst_core_val. f_equal.
+    apply rename_subst_list_val.
+    apply rename_subst_list.
   - f_equal.
     rewrite renaming_is_subst, subst_ren, upren_subst_up.
     assert (Hcomp : (fun n : nat => S n) >>> (v .: ξ) = ξ) by (extensionality n; reflexivity).
@@ -1026,13 +987,13 @@ Proof.
     + rewrite renaming_is_subst, subst_ren, uprenn_subst_upn.
       assert (Hcomp : (fun n : nat => S n) >>> (v .: ξ) = ξ) by (extensionality n; reflexivity).
       rewrite Hcomp. reflexivity.
-    + apply rename_subst_gen.
-  - f_equal. apply rename_subst_gen.
-  - f_equal. apply rename_subst_gen_val.
-  - f_equal. apply rename_subst_gen_list.
-  - rewrite rename_subst_gen_val. f_equal.
-    apply rename_subst_gen_list_val.
-    apply rename_subst_gen_list.
+    + apply rename_subst_core.
+  - f_equal. apply rename_subst_core.
+  - f_equal. apply rename_subst_core_val.
+  - f_equal. apply rename_subst_list.
+  - rewrite rename_subst_core_val. f_equal.
+    apply rename_subst_list_val.
+    apply rename_subst_list.
 Qed.
 
 Lemma rename_subst_core_framestack : forall k v ξ,
@@ -1043,8 +1004,90 @@ Proof.
   rewrite rename_subst_core_frame, IH. reflexivity.
 Qed.
 
-(* Lemma var0_subst : forall v (ξ : Substitution), (˝ VVar 0).[v .: ξ] = ˝ v.
-Proof. reflexivity. Qed. *)
+Lemma rename_frame_id f :
+  rename_frame id f = f.
+Proof.
+  destruct f; simpl;
+    try (f_equal; rewrite <- map_id at 2; apply map_ext; intros; apply idrenaming_is_id).
+  1: { f_equal.
+       transitivity (map id l).
+       apply map_ext, idrenaming_is_id.
+       apply map_id. }
+  rewrite idrenaming_is_id_val.
+  f_equal.
+  transitivity (map id l1).
+  apply map_ext, idrenaming_is_id_val.
+  apply map_id.
+  transitivity (map id l2).
+  apply map_ext, idrenaming_is_id.
+  apply map_id.
+  rewrite idrenaming_up, idrenaming_is_id.
+  reflexivity.
+  rewrite idrenaming_upn, idrenaming_is_id, idrenaming_is_id.
+  reflexivity.
+  rewrite idrenaming_is_id.
+  reflexivity.
+  rewrite idrenaming_is_id_val.
+  reflexivity.
+  f_equal.
+  transitivity (map id l).
+  apply map_ext, idrenaming_is_id.
+  apply map_id.
+  rewrite idrenaming_is_id_val.
+  f_equal.
+  transitivity (map id l1).
+  apply map_ext, idrenaming_is_id_val.
+  apply map_id.
+  transitivity (map id l2).
+  apply map_ext, idrenaming_is_id.
+  apply map_id.
+Qed.
+
+Lemma rename_framestack_id k :
+  rename_framestack id k = k.
+Proof.
+  unfold rename_framestack.
+  transitivity (map id k).
+  apply map_ext, rename_frame_id.
+  apply map_id.
+Qed.
+
+Lemma rename_subst_core_framestack_list_subst : forall k l ξ m,
+  m = length l ->
+  (rename_framestack (fun n => m + n) k).ₖ[list_subst l ξ] = k.ₖ[ξ].
+Proof.
+  induction l; simpl; intros; subst.
+  { replace (fun n : nat => 0 + n) with (@id nat) by (extensionality n; reflexivity).
+    rewrite rename_framestack_id.
+    reflexivity. }
+  specialize (IHl ξ (length l) eq_refl).
+  rewrite <- IHl.
+  rewrite <- rename_subst_core_framestack with (v := a) (k := (rename_framestack (λ n : nat, base.length l + n) k)).
+  f_equal.
+  unfold rename_framestack.
+  rewrite map_map.
+  f_equal. f_equal. clear.
+  extensionality f. destruct f; simpl; repeat rewrite map_map.
+  { f_equal.
+    apply map_ext. intros x. rewrite rename_comp. f_equal. }
+  { f_equal.
+    rewrite rename_comp_val. f_equal.
+    apply map_ext. intros x. rewrite rename_comp_val. f_equal.
+    apply map_ext. intros x. rewrite rename_comp. f_equal. }
+  { f_equal.
+    rewrite rename_comp, upren_comp. f_equal. }
+  f_equal.
+  rewrite rename_comp, uprenn_comp. f_equal.
+  rewrite rename_comp. f_equal.
+  f_equal. rewrite rename_comp. f_equal.
+  f_equal. rewrite rename_comp_val. f_equal.
+  f_equal.
+  apply map_ext. intros x. rewrite rename_comp. f_equal.
+  f_equal.
+  rewrite rename_comp_val. f_equal.
+  apply map_ext. intros x. rewrite rename_comp_val. f_equal.
+  apply map_ext. intros x. rewrite rename_comp. f_equal.
+Qed.
 
 Lemma plug_f_rename_subst_core : forall f0 v ξ,
   (plug_f (rename_frame (fun n => S n) f0) (˝ VVar 0)).[v .: ξ] = plug_f (f0.ₜ[ξ]) (˝ v).
@@ -1052,26 +1095,26 @@ Proof.
   intros. rewrite plug_f_subst, rename_subst_core_frame. reflexivity.
 Qed.
 
-Lemma plug_fs_rename_subst_core : forall k f0 v ξ,
-  (plug_fs (rename_framestack (fun n => S n) k) (plug_f (rename_frame (fun n => S n) f0) (˝ VVar 0))).[v .: ξ]
-  = plug_fs (k.ₖ[ξ]) (plug_f (f0.ₜ[ξ]) (˝ v)).
+Lemma plug_fs_rename_subst_core : forall k v ξ,
+  (plug_fs (rename_framestack (fun n => S n) k) (˝ VVar 0)).[v .: ξ]
+  = plug_fs (k.ₖ[ξ]) (˝ v).
 Proof.
-  intros. rewrite plug_fs_subst, plug_f_rename_subst_core, rename_subst_core_framestack. reflexivity.
+  intros. rewrite plug_fs_subst, rename_subst_core_framestack. reflexivity.
 Qed.
 
 (** ["A rename by [f0's] own binder-lifting is undone by weakening"]:
     scope side of the same story, needed for [introduce_let]'s recursive
     call's own premise (that the renamed continuation is well-scoped). *)
 
-Lemma plug_f_hole_scope : forall f Γ X Y,
-  EXP Γ ⊢ plug_f f X -> EXP Γ ⊢ Y -> EXP Γ ⊢ plug_f f Y.
+Lemma plug_f_hole_scope : forall f Γ e1 e2,
+  EXP Γ ⊢ plug_f f e1 -> EXP Γ ⊢ e2 -> EXP Γ ⊢ plug_f f e2.
 Proof.
-  intros f Γ X Y HX HY.
-  destruct f; cbn in *; inv HX; try constructor; auto.
+  intros f Γ e1 e2 He1 He2.
+  destruct f; cbn in *; inv He1; try constructor; auto.
   all: inv H0; constructor; auto.
   all: intros i Hi; destruct (Nat.eq_dec i (base.length (map VVal l1))) as [Heq|Hneq].
   1,3: subst; rewrite app_nth2 by lia; rewrite Nat.sub_diag; cbn; auto.
-  all: assert (Hi' : i < base.length (map VVal l1 ++ X :: l2)) by (rewrite length_app in *; cbn in *; lia);
+  all: assert (Hi' : i < base.length (map VVal l1 ++ e1 :: l2)) by (rewrite length_app in *; cbn in *; lia);
        specialize (H3 i Hi'); revert H3;
        destruct (Nat.lt_ge_cases i (base.length (map VVal l1))) as [Hlt|Hge].
   all: intros H3''.
@@ -1080,10 +1123,10 @@ Proof.
        replace (i - base.length (map VVal l1)) with (S (i - base.length (map VVal l1) - 1)) in * by lia; cbn in *; auto.
 Qed.
 
-Lemma plug_f_extract_hole_scope : forall f Γ X, EXP Γ ⊢ plug_f f X -> EXP Γ ⊢ X.
+Lemma plug_f_extract_hole_scope : forall f Γ e, EXP Γ ⊢ plug_f f e -> EXP Γ ⊢ e.
 Proof.
-  intros f Γ X HX.
-  destruct f; cbn in *; inv HX; inv H0; auto.
+  intros f Γ e He.
+  destruct f; cbn in *; inv He; inv H0; auto.
   all: specialize (H3 (base.length (map VVal l1)));
        rewrite length_app in H3; cbn in H3; rewrite length_map in H3;
        specialize (H3 ltac:(lia));
@@ -1091,29 +1134,35 @@ Proof.
        rewrite length_map, Nat.sub_diag in H3; exact H3.
 Qed.
 
-Lemma plug_fs_extract_hole_scope : forall k Γ X, EXP Γ ⊢ plug_fs k X -> EXP Γ ⊢ X.
+Lemma plug_fs_extract_hole_scope : forall k Γ e, EXP Γ ⊢ plug_fs k e -> EXP Γ ⊢ e.
 Proof.
-  induction k as [|f k IH]; intros Γ X HX; cbn in *.
-  - exact HX.
-  - apply plug_f_extract_hole_scope with f. eapply IH. exact HX.
+  induction k as [|f k IH]; intros Γ e He; cbn in *.
+  - exact He.
+  - apply plug_f_extract_hole_scope with f. eapply IH. exact He.
 Qed.
 
-Lemma plug_fs_hole_scope : forall k Γ X Y,
-  EXP Γ ⊢ plug_fs k X -> EXP Γ ⊢ Y -> EXP Γ ⊢ plug_fs k Y.
+Lemma plug_fs_hole_scope : forall k Γ e1 e2,
+  EXP Γ ⊢ plug_fs k e1 -> EXP Γ ⊢ e2 -> EXP Γ ⊢ plug_fs k e2.
 Proof.
-  induction k as [|f k IH]; intros Γ X Y HkX HY; cbn in *.
-  - exact HY.
-  - apply IH with (X := plug_f f X).
-    + exact HkX.
-    + apply plug_f_hole_scope with X; auto.
-      eapply plug_fs_extract_hole_scope; exact HkX.
+  induction k as [|f k IH]; intros Γ e1 e2 Hke1 He2; cbn in *.
+  - exact He2.
+  - apply IH with (e1 := plug_f f e1).
+    + exact Hke1.
+    + apply plug_f_hole_scope with e1; auto.
+      eapply plug_fs_extract_hole_scope; exact Hke1.
 Qed.
 
-Lemma shift_renscope : forall Γ, RENSCOPE Γ ⊢ (fun n => S n) ∷ (S Γ).
-Proof. intros Γ n Hn. cbn. lia. Qed.
+Lemma shift_renscope : forall Γ m, RENSCOPE Γ ⊢ (fun n => m + n) ∷ (m + Γ).
+Proof. intros Γ n m Hn. cbn. lia. Qed.
 
-Lemma rename_scope_S : forall Γ e, EXP Γ ⊢ e -> EXP (S Γ) ⊢ rename (fun n => S n) e.
-Proof. intros. apply -> ren_preserves_scope; eauto using shift_renscope. Qed.
+Lemma rename_scope_add : forall Γ m e, EXP Γ ⊢ e -> EXP (m + Γ) ⊢ rename (fun n => m + n) e.
+Proof.
+  intros.
+  apply -> ren_preserves_scope; try eassumption.
+  apply shift_renscope.
+Qed.
+
+
 
 Lemma plug_f_rename : forall f e ρ, plug_f (rename_frame ρ f) (rename ρ e) = rename ρ (plug_f f e).
 Proof.
@@ -1131,17 +1180,13 @@ Qed.
 (** The scope side-condition [introduce_let]'s recursive call needs:
     the renamed continuation, with a fresh [VVar 0] plugged into the hole
     left by [f0], is well-scoped one level up. *)
-Lemma introduce_let_side_scope : forall Γ (f0 : Frame) k e0,
-  EXP Γ ⊢ plug_fs k (plug_f f0 e0) ->
-  EXP (S Γ) ⊢ plug_fs (rename_framestack (fun n => S n) k) (plug_f (rename_frame (fun n => S n) f0) (˝ VVar 0)).
+Lemma introduce_let_side_scope : forall Γ k e0,
+  EXP Γ ⊢ plug_fs k e0 ->
+  EXP (S Γ) ⊢ plug_fs (rename_framestack (fun n => S n) k) (˝ VVar 0).
 Proof.
-  intros Γ f0 k e0 D.
-  pose proof (rename_scope_S Γ (plug_fs k (plug_f f0 e0)) D) as H1.
-  rewrite <- plug_fs_rename, <- plug_f_rename in H1.
-  change (plug_fs (rename_framestack (fun n => S n) k) (plug_f (rename_frame (fun n => S n) f0) (rename (fun n => S n) e0)))
-    with (plug_fs (rename_frame (fun n => S n) f0 :: rename_framestack (fun n => S n) k) (rename (fun n => S n) e0)) in H1.
-  change (plug_fs (rename_framestack (fun n => S n) k) (plug_f (rename_frame (fun n => S n) f0) (˝ VVar 0)))
-    with (plug_fs (rename_frame (fun n => S n) f0 :: rename_framestack (fun n => S n) k) (˝ VVar 0)).
+  intros Γ k e0 D.
+  pose proof (rename_scope_add Γ 1 (plug_fs k e0) D) as H1.
+  rewrite <- plug_fs_rename in H1.
   eapply plug_fs_hole_scope. exact H1.
   constructor. constructor. lia.
 Qed.
@@ -1149,55 +1194,46 @@ Qed.
 (** The main congruence: [introduce_let]'s "wrap the redex in a fresh let,
     continue with the shifted continuation" step preserves CIU. Generic in
     [f0] -- covers every non-[FLet] frame constructor identically. *)
-Lemma introduce_let_CIU_cong : forall Γ (f0 : Frame) k e0 e,
-  EXP Γ ⊢ plug_fs k (plug_f f0 e0) ->
-  EXP Γ ⊢ e0 ->
-  CIU_open (S Γ) (plug_fs (rename_framestack (fun n => S n) k) (plug_f (rename_frame (fun n => S n) f0) (˝ VVar 0))) e ->
-  CIU_open Γ (plug_fs k (plug_f f0 e0)) (° ELet e0 e).
+Lemma introduce_let_CIU_cong : forall Γ k e0 e,
+  EXP Γ ⊢ plug_fs k e0 ->
+  CIU_open (S Γ) (plug_fs (rename_framestack (fun n => S n) k) (˝ VVar 0)) e ->
+  CIU_open Γ (plug_fs k e0) (° ELet e0 e).
 Proof.
-  intros Γ f0 k e0 e D De0 Hexp ξ Hξ.
-  assert (Hclosed1 : EXPCLOSED (plug_fs k (plug_f f0 e0)).[ξ])
+  intros Γ k e0 e D Hexp ξ Hξ.
+  assert (Hclosed1 : EXPCLOSED (plug_fs k e0).[ξ])
     by (apply -> subst_preserves_scope_exp; eauto).
   assert (He : EXP (S Γ) ⊢ e) by (eapply CIU_open_scope_r; eauto).
-  assert (Hclosed2 : EXPCLOSED (° ELet e0 e).[ξ])
-    by (apply -> subst_preserves_scope_exp; [constructor|]; eauto).
-  assert (Hclosed_e0 : EXPCLOSED e0.[ξ])
-    by (apply -> subst_preserves_scope_exp; eauto).
+  assert (Hclosed2 : EXPCLOSED (° ELet e0 e).[ξ]). {
+    apply -> subst_preserves_scope_exp. 2: eassumption.
+    do 2 constructor; eauto.
+    by apply plug_fs_extract_hole_scope in D.
+  }
+  assert (Hclosed_e0 : EXPCLOSED e0.[ξ]). {
+    apply -> subst_preserves_scope_exp; eauto.
+    by apply plug_fs_extract_hole_scope in D.
+  }
   split. 2: split. 1-2: assumption.
   intros F HF HT.
-  assert (Heq : (plug_fs k (plug_f f0 e0)).[ξ] = plug_fs (f0.ₜ[ξ] :: k.ₖ[ξ]) e0.[ξ])
-    by (cbn; rewrite plug_fs_subst, plug_f_subst; reflexivity).
-  rewrite Heq in HT.
+  rewrite plug_fs_subst in HT.
   apply put_back_rev_fs in HT.
   destruct HT as [x HT2].
-  pose proof (term_eval_both x ((f0.ₜ[ξ] :: k.ₖ[ξ]) ++ F) (e0.[ξ]) HT2) as [v0 [j [D1 D2]]].
+  pose proof (term_eval_both x (k.ₖ[ξ] ++ F) (e0.[ξ]) HT2) as [v0 [j [D1 D2]]].
   assert (Hv0cl : VALCLOSED v0)
     by (eapply step_any_closedness; [exists j; exact D1 | constructor | exact Hclosed_e0]).
   pose proof (terminates_step_any_2 j x _ _ HT2 _ _ D2) as HT3.
-  assert (HT3' : | (f0.ₜ[ξ] :: k.ₖ[ξ]) ++ F, ˝ v0 | ↓) by (exists (x - j); exact HT3).
-  assert (HT4 : | k.ₖ[ξ] ++ F, plug_f (f0.ₜ[ξ]) (˝ v0) | ↓) by (apply put_back; exact HT3').
-  assert (HT5 : | F, plug_fs (k.ₖ[ξ]) (plug_f (f0.ₜ[ξ]) (˝ v0)) | ↓) by (apply put_back_fs; exact HT4).
+
+  apply ex_intro with (x := x - j) in HT3.
+  eapply put_back_fs in HT3. rewrite <- plug_fs_rename_subst_core in HT3.
   assert (Hscope0 : SUBSCOPE (S Γ) ⊢ v0 .: ξ ∷ 0) by (apply cons_scope; auto).
   pose proof (Hexp (v0 .: ξ) Hscope0) as [_ [_ Hcont]].
-  assert (HT6 : | F, e.[v0 .: ξ] | ↓)
-    by (apply (Hcont F HF); rewrite plug_fs_rename_subst_core; exact HT5).
-  destruct HT6 as [y HT6].
-  exists (S (S (j + y))).
-  econstructor.
-  apply terminates_in_k_eq_terminates_in_k_sem.
-  apply terminates_in_k_eq_terminates_in_k_sem in HT6.
-  destruct HT6 as [vres HT6].
-  exists vres.
-  eapply frame_indep_nil with (Fs' := FLet (e.[up_subst ξ]) :: F) in D1.
-  simpl in D1.
-  replace (S (j + y)) with (j + S y) by lia.
-  eapply transitive_eval.
-  exact D1.
-  econstructor.
-  apply red_let.
-  replace (e.[up_subst ξ].[v0/]) with (e.[v0 .: ξ]) by (rewrite subst_comp, subst_extend_id; reflexivity).
-  exact HT6.
+  specialize (Hcont F HF HT3) as [limit DD].
+  eexists. simpl.
+  constructor. eapply term_step_term_plus.
+  eapply frame_indep_core in D1. exact D1.
+  simpl. constructor.
+  rewrite subst_comp, subst_extend_id. eassumption.
 Qed.
+
 
 (** [FLet]'s own branch (in both [normalize_val] and [introduce_let]) is
     NOT an instance of [introduce_let_CIU_cong]/[introduce_let_side_scope]:
@@ -1205,61 +1241,49 @@ Qed.
     continuation, rather than synthesizing a fresh [ELet _ (VVar 0)]. Same
     operational proof technique (pop the [FLet] frame, undo the shift via
     [v0 .: ξ]), just without the extra "wrap in a fresh let" indirection. *)
-Lemma flet_CIU_cong : forall Γ k e0 e2 e,
+Lemma plug_fs_CIU_let_compat : forall Γ k e0 e2 e,
   EXP Γ ⊢ plug_fs k (° ELet e0 e2) ->
-  EXP Γ ⊢ e0 ->
   CIU_open (S Γ) (plug_fs (rename_framestack (fun n => S n) k) e2) e ->
   CIU_open Γ (plug_fs k (° ELet e0 e2)) (° ELet e0 e).
 Proof.
-  intros Γ k e0 e2 e D De0 Hexp ξ Hξ.
+  intros Γ k e0 e2 e D Hexp ξ Hξ.
   assert (Hclosed1 : EXPCLOSED (plug_fs k (° ELet e0 e2)).[ξ])
     by (apply -> subst_preserves_scope_exp; eauto).
   assert (He : EXP (S Γ) ⊢ e) by (eapply CIU_open_scope_r; eauto).
-  assert (Hclosed2 : EXPCLOSED (° ELet e0 e).[ξ])
-    by (apply -> subst_preserves_scope_exp; [constructor|]; eauto).
+  assert (Hclosed2 : EXPCLOSED (° ELet e0 e).[ξ]). {
+    apply -> subst_preserves_scope_exp. 2: eassumption.
+    apply plug_fs_extract_hole_scope in D. repeat destruct_scope.
+    by do 2 constructor.
+  }
   split. 2: split. 1-2: assumption.
   intros F HF HT.
-  assert (Heq : (plug_fs k (° ELet e0 e2)).[ξ] = plug_fs (k.ₖ[ξ]) (° ELet (e0.[ξ]) (e2.[up_subst ξ])))
-    by (rewrite plug_fs_subst; reflexivity).
-  rewrite Heq in HT.
+  rewrite plug_fs_subst in HT.
   apply put_back_rev_fs in HT.
   destruct HT as [x HT2].
-  inversion HT2; subst.
-  assert (HT2' : | (FLet (e2.[up_subst ξ]) :: k.ₖ[ξ]) ++ F, e0.[ξ] | k0 ↓) by exact H3.
-  pose proof (term_eval_both k0 ((FLet (e2.[up_subst ξ]) :: k.ₖ[ξ]) ++ F) (e0.[ξ]) HT2') as [v0 [j [D1 D2]]].
-  pose proof (terminates_step_any_2 j k0 _ _ HT2' _ _ D2) as HT3.
-  assert (HT3' : | (FLet (e2.[up_subst ξ]) :: k.ₖ[ξ]) ++ F, ˝ v0 | ↓) by (exists (k0 - j); exact HT3).
-  destruct HT3' as [k1 HT3''].
-  inversion HT3''; subst.
-  assert (HT4 : | k.ₖ[ξ] ++ F, e2.[up_subst ξ].[v0/] | ↓) by (exists k2; exact H4).
-  replace (e2.[up_subst ξ].[v0/]) with (e2.[v0 .: ξ]) in HT4 by (rewrite subst_comp, subst_extend_id; reflexivity).
-  assert (HT5 : | F, plug_fs (k.ₖ[ξ]) (e2.[v0 .: ξ]) | ↓) by (apply put_back_fs; exact HT4).
-  assert (Hclosed_e0 : EXPCLOSED e0.[ξ]) by (apply -> subst_preserves_scope_exp; eauto).
-  assert (Hv0cl : VALCLOSED v0)
-    by (eapply step_any_closedness; [exists j; exact D1 | constructor | exact Hclosed_e0]).
-  assert (Hscope0 : SUBSCOPE (S Γ) ⊢ v0 .: ξ ∷ 0) by (apply cons_scope; auto).
+  inv HT2; subst.
+  pose proof (term_eval_both k0 ((FLet (e2.[up_subst ξ]) :: k.ₖ[ξ]) ++ F) (e0.[ξ]) H3) as [v0 [j [D1 D2]]].
+  pose proof (terminates_step_any_2 j k0 _ _ H3 _ _ D2) as HT3.
+  inv HT3.
+  apply ex_intro with (x := k1) in H0.
+  apply put_back_fs in H0.
+  
+  assert (Hscope0 : SUBSCOPE (S Γ) ⊢ v0 .: ξ ∷ 0). {
+    apply cons_scope; auto.
+    apply ex_intro with (x := j) in D1.
+    apply step_any_closedness in D1. assumption. constructor.
+    inv Hclosed2. inv H1. assumption.
+  }
   pose proof (Hexp (v0 .: ξ) Hscope0) as [_ [_ Hcont]].
-  assert (HT6 : | F, e.[v0 .: ξ] | ↓).
-  { apply (Hcont F HF).
-    rewrite plug_fs_subst.
-    rewrite rename_subst_core_framestack.
-    exact HT5. }
-  destruct HT6 as [y HT6].
-  exists (S (S (j + y))).
-  econstructor.
-  apply terminates_in_k_eq_terminates_in_k_sem.
-  apply terminates_in_k_eq_terminates_in_k_sem in HT6.
-  destruct HT6 as [vres HT6].
-  exists vres.
-  eapply frame_indep_nil with (Fs' := FLet (e.[up_subst ξ]) :: F) in D1.
-  simpl in D1.
-  replace (S (j + y)) with (j + S y) by lia.
-  eapply transitive_eval.
-  exact D1.
-  econstructor.
-  apply red_let.
-  replace (e.[up_subst ξ].[v0/]) with (e.[v0 .: ξ]) by (rewrite subst_comp, subst_extend_id; reflexivity).
-  exact HT6.
+  specialize (Hcont F HF).
+  rewrite plug_fs_subst, rename_subst_core_framestack in Hcont.
+  rewrite subst_comp, subst_extend_id in H0.
+  specialize (Hcont H0) as [limit DD]. 
+
+  eexists. simpl.
+  constructor. eapply term_step_term_plus.
+  eapply frame_indep_core in D1. exact D1.
+  simpl. constructor.
+  rewrite subst_comp, subst_extend_id. eassumption.
 Qed.
 
 Lemma flet_side_scope : forall Γ k e0 e2,
@@ -1269,12 +1293,92 @@ Proof.
   intros Γ k e0 e2 D.
   assert (D' : EXP Γ ⊢ ° ELet e0 e2) by (eapply plug_fs_extract_hole_scope; exact D).
   inv D'. inv H0.
-  pose proof (rename_scope_S Γ (plug_fs k (° ELet e0 e2)) D) as H1.
+  pose proof (rename_scope_add Γ 1 (plug_fs k (° ELet e0 e2)) D) as H1.
   rewrite <- plug_fs_rename in H1.
   cbn in H1.
   eapply plug_fs_hole_scope.
   exact H1.
   exact H3.
+Qed.
+
+Lemma plug_fs_CIU_case_compat : forall Γ k p e0 e2 e2' e3 e3',
+  EXP Γ ⊢ plug_fs k (° ECase e0 p e2 e3) ->
+  CIU_open (pat_vars p + Γ) (plug_fs (rename_framestack (fun n => pat_vars p + n) k) e2) e2' ->
+  CIU_open Γ (plug_fs k e3) e3' ->
+  CIU_open Γ (plug_fs k (° ECase e0 p e2 e3)) (° ECase e0 p e2' e3').
+Proof.
+  intros Γ k p e0 e2 e2' e3 e3' D Hexp2 Hexp3 ξ Hξ.
+  assert (Hclosed1 : EXPCLOSED (plug_fs k (° ECase e0 p e2 e3)).[ξ])
+    by (apply -> subst_preserves_scope_exp; eauto).
+  assert (He2 : EXP (pat_vars p + Γ) ⊢ e2') by (eapply CIU_open_scope_r in Hexp2; eauto).
+  assert (He3 : EXP Γ ⊢ e3') by (eapply CIU_open_scope_r in Hexp3; eauto).
+  assert (Hclosed2 : EXPCLOSED (° ECase e0 p e2' e3').[ξ]). {
+    apply -> subst_preserves_scope_exp. 2: eassumption.
+    apply plug_fs_extract_hole_scope in D. repeat destruct_scope.
+    do 2 constructor; eassumption.
+  }
+  split. 2: split. 1-2: assumption.
+  intros F HF HT.
+  rewrite plug_fs_subst in HT.
+  apply put_back_rev_fs in HT.
+  destruct HT as [x HT2].
+  inv HT2; subst.
+  eapply term_eval_both in H5 as H5'. destruct H5' as [v0 [j [D1 D2]]].
+  pose proof (terminates_step_any_2 j k0 _ _ H5 _ _ D2) as HT3.
+  inv HT3.
+  * apply ex_intro with (x := k1) in H7.
+    apply put_back_fs in H7.
+
+    assert (Hscope0 : SUBSCOPE pat_vars p + Γ ⊢ list_subst l ξ ∷ 0). {
+      apply scoped_list_subscoped_eq. 2: assumption.
+      2: by apply match_pattern_length in H1.
+      eapply match_pattern_scoped in H1. exact H1.
+      apply ex_intro with (x := j) in D1.
+      apply step_any_closedness in D1. assumption. constructor.
+      inv Hclosed2. inv H0. assumption.
+    }
+    pose proof (Hexp2 (list_subst l ξ) Hscope0) as [_ [_ Hcont]].
+    specialize (Hcont F HF).
+    pose proof rename_subst_core_framestack_list_subst k l ξ (pat_vars p)
+      ltac:(by apply match_pattern_length in H1) as X.
+    rewrite plug_fs_subst, X in Hcont. clear X.
+    rewrite subst_comp, subst_list_extend in H7.
+    2: by apply match_pattern_length in H1.
+    specialize (Hcont H7) as [limit DD].
+
+    eexists. simpl.
+    constructor. eapply term_step_term_plus.
+    eapply frame_indep_core in D1. exact D1.
+    simpl. eapply term_case_true. eassumption.
+    rewrite subst_comp, subst_list_extend. eassumption.
+    by apply match_pattern_length in H1.
+  * apply ex_intro with (x := k1) in H7.
+    apply put_back_fs in H7.
+
+    pose proof (Hexp3 ξ Hξ) as [_ [_ Hcont]].
+    specialize (Hcont F HF).
+    rewrite plug_fs_subst in Hcont.
+    specialize (Hcont H7) as [limit DD].
+
+    eexists. simpl.
+    constructor. eapply term_step_term_plus.
+    eapply frame_indep_core in D1. exact D1.
+    simpl. eapply term_case_false. eassumption. eassumption.
+Qed.
+
+Lemma fcase_side_scope : forall Γ k e0 p e1 e2,
+  EXP Γ ⊢ plug_fs k (° ECase e0 p e1 e2) ->
+  EXP pat_vars p + Γ ⊢ plug_fs (rename_framestack (fun n => pat_vars p + n) k) e1.
+Proof.
+  intros Γ k e0 p e1 e2 D.
+  assert (D' : EXP Γ ⊢ ° ECase e0 p e1 e2) by (eapply plug_fs_extract_hole_scope; exact D).
+  inv D'. inv H0.
+  pose proof (rename_scope_add Γ (pat_vars p) (plug_fs k (° ECase e0 p e1 e2)) D) as H1.
+  rewrite <- plug_fs_rename in H1.
+  cbn in H1.
+  eapply plug_fs_hole_scope.
+  exact H1.
+  exact H5.
 Qed.
 
 (** [CIU_open] is transitive: lets us chain a "re-split without changing
@@ -1383,6 +1487,178 @@ Proof.
 Qed.
 
 (** ----------------------------------------------------------------- *)
+(** * General "CIU is a context congruence" for value holes
+
+  [normalize_exp]'s own [VFun] case recurses into the function *body*
+  first, then re-runs [normalize_val] on the resulting [VFun vl body'] --
+  a value that is CIU-*equivalent* to (not syntactically equal to) the
+  original [VFun vl body]. None of the earlier compatibility lemmas
+  ([introduce_let_CIU_cong], [plug_fs_CIU_let_compat],
+  [plug_fs_CIU_case_compat], [cons_val_CIU_ctx]) apply here: they all
+  relate a redex to *the thing it operationally reduces to* within [k],
+  using [put_back]/[term_eval_both] to walk the machine forward. Here
+  there is no reduction at all -- [VFun vl body] and [VFun vl e] are both
+  already values, and the whole content differs only inside a closure
+  that hasn't been (and may never be) called. This needs a genuine
+  "plugging a CIU-related value into an arbitrary context preserves CIU"
+  congruence, which for values reduces to: pop [k] down to a flat frame
+  stack via [put_back_fs]/[put_back_rev_fs] (no evaluation phase needed,
+  since a value is already "there"), then defer directly to the
+  hypothesis at that frame stack. That needs [FSCLOSED] of the popped
+  stack, which the earlier lemmas never had to establish (they always
+  walked back down to the *original*, already-known-closed [F] before
+  invoking any hypothesis). [plug_f_frame_closed]/[plug_fs_framestack_closed]
+  below supply exactly that missing piece. *)
+
+Lemma plug_f_frame_closed : forall f Γ e ξ,
+  EXP Γ ⊢ plug_f f e -> SUBSCOPE Γ ⊢ ξ ∷ 0 -> FCLOSED (f.ₜ[ξ]).
+Proof.
+  destruct f; intros Γ e0 ξ D Hξ; cbn in *; inv D; inv H0.
+  { constructor.
+    apply Forall_map.
+    apply indexed_to_forall with (def := ˝ VLit 0%Z).
+    intros i Hi.
+    apply -> subst_preserves_scope_exp; eauto. }
+  { inv H2.
+    constructor.
+    - apply -> subst_preserves_scope_val; eauto.
+    - apply Forall_map.
+      apply indexed_to_forall with (def := VLit 0%Z).
+      intros i Hi.
+      apply -> subst_preserves_scope_val; eauto.
+      assert (Hi' : i < base.length (map VVal l1 ++ e0 :: l2))
+        by (rewrite length_app, length_map; lia).
+      specialize (H3 i Hi').
+      rewrite app_nth1 in H3 by (rewrite length_map; lia).
+      rewrite map_nth in H3.
+      inv H3. exact H1.
+    - apply Forall_map.
+      apply indexed_to_forall with (def := ˝ VLit 0%Z).
+      intros i Hi.
+      apply -> subst_preserves_scope_exp; eauto.
+      assert (Hi' : S (base.length l1 + i) < base.length (map VVal l1 ++ e0 :: l2))
+        by (rewrite length_app, length_map; cbn; lia).
+      specialize (H3 (S (base.length l1 + i)) Hi').
+      rewrite app_nth2 in H3 by (rewrite length_map; lia).
+      rewrite length_map in H3.
+      replace (S (base.length l1 + i) - base.length l1) with (S i) in H3 by lia.
+      cbn in H3. exact H3. }
+  { constructor.
+    apply -> subst_preserves_scope_exp.
+    exact H3.
+    apply up_scope.
+    exact Hξ. }
+  { constructor.
+    - apply -> subst_preserves_scope_exp.
+      exact H5.
+      assert (Hup : SUBSCOPE pat_vars p + Γ ⊢ upn (pat_vars p) ξ ∷ pat_vars p + 0)
+        by (apply upn_scope; exact Hξ).
+      rewrite Nat.add_0_r in Hup.
+      exact Hup.
+    - apply -> subst_preserves_scope_exp; eauto. }
+  { constructor. apply -> subst_preserves_scope_exp; eauto. }
+  { inv H3. constructor. apply -> subst_preserves_scope_val; eauto. }
+  { constructor.
+    apply Forall_map.
+    apply indexed_to_forall with (def := ˝ VLit 0%Z).
+    intros i Hi.
+    apply -> subst_preserves_scope_exp; eauto. }
+  { inv H2.
+    constructor.
+    - apply -> subst_preserves_scope_val; eauto.
+    - apply Forall_map.
+      apply indexed_to_forall with (def := VLit 0%Z).
+      intros i Hi.
+      apply -> subst_preserves_scope_val; eauto.
+      assert (Hi' : i < base.length (map VVal l1 ++ e0 :: l2))
+        by (rewrite length_app, length_map; lia).
+      specialize (H3 i Hi').
+      rewrite app_nth1 in H3 by (rewrite length_map; lia).
+      rewrite map_nth in H3.
+      inv H3. exact H1.
+    - apply Forall_map.
+      apply indexed_to_forall with (def := ˝ VLit 0%Z).
+      intros i Hi.
+      apply -> subst_preserves_scope_exp; eauto.
+      assert (Hi' : S (base.length l1 + i) < base.length (map VVal l1 ++ e0 :: l2))
+        by (rewrite length_app, length_map; cbn; lia).
+      specialize (H3 (S (base.length l1 + i)) Hi').
+      rewrite app_nth2 in H3 by (rewrite length_map; lia).
+      rewrite length_map in H3.
+      replace (S (base.length l1 + i) - base.length l1) with (S i) in H3 by lia.
+      cbn in H3. exact H3. }
+Qed.
+
+Lemma plug_fs_framestack_closed : forall k Γ e ξ,
+  EXP Γ ⊢ plug_fs k e -> SUBSCOPE Γ ⊢ ξ ∷ 0 -> FSCLOSED (k.ₖ[ξ]).
+Proof.
+  induction k as [|f k IH]; intros Γ e ξ D Hξ; cbn.
+  - constructor.
+  - constructor.
+    + eapply plug_f_frame_closed. 2: exact Hξ.
+      eapply plug_fs_extract_hole_scope. exact D.
+    + eapply IH. 2: exact Hξ.
+      exact D.
+Qed.
+
+(** [CIU_open] embedded via [plug_fs] into a context [k] is preserved when
+    both sides are already *values* -- unlike [cons_val_CIU_ctx] (which
+    needs 3 machine steps to turn a compound [ECons] redex into a value
+    before it can "hand off" to [k]), a value hands off to [k] immediately
+    ([put_back_rev_fs] alone gets us to the popped frame stack, with no
+    [term_eval_both] detour needed), so the two sides' behaviors from that
+    point on are governed entirely by the (given, closed) [CIU_open]
+    hypothesis at the popped stack -- which is exactly what
+    [plug_fs_framestack_closed] supplies. *)
+Lemma val_CIU_ctx : forall Γ k v1 v2,
+  EXP Γ ⊢ plug_fs k (˝ v1) ->
+  CIU_open Γ (˝ v1) (˝ v2) ->
+  CIU_open Γ (plug_fs k (˝ v1)) (plug_fs k (˝ v2)).
+Proof.
+  intros Γ k v1 v2 D Hciu ξ Hξ.
+  assert (Hclosed1 : EXPCLOSED (plug_fs k (˝ v1)).[ξ])
+    by (apply -> subst_preserves_scope_exp; eauto).
+  assert (Hv2 : EXP Γ ⊢ ˝ v2) by (eapply CIU_open_scope_r; eauto).
+  assert (D2 : EXP Γ ⊢ plug_fs k (˝ v2))
+    by (eapply plug_fs_hole_scope; [exact D | exact Hv2]).
+  assert (Hclosed2 : EXPCLOSED (plug_fs k (˝ v2)).[ξ])
+    by (apply -> subst_preserves_scope_exp; eauto).
+  split. 2: split. 1-2: assumption.
+  intros F HF HT.
+  rewrite plug_fs_subst in HT |- *.
+  apply put_back_rev_fs in HT.
+  apply put_back_fs.
+  pose proof (Hciu ξ Hξ) as [_ [_ Hcont]].
+  apply Hcont.
+  - apply Forall_app. split; auto.
+    eapply plug_fs_framestack_closed; eauto.
+  - exact HT.
+Qed.
+
+(** The "compatibility property of CIU ... from Erel" this whole section
+    exists for: [normalize_exp]'s [VVal (VFun vl body)] case doesn't
+    reduce anything to relate [body] and its normalized form [e] -- it
+    just needs [VFun vl body] and [VFun vl e] to be CIU-related given
+    [body ~ e] (CIU-related, one level up, self-reference plus [vl]
+    arguments deeper). CIU_open itself has no compositional principle for
+    this (it is defined purely contextually), so we go through
+    [CIU_iff_Erel] to the step-indexed logical relation, where
+    [Vrel_Fun_compat] (from [Compatibility.v], "we get from Erel") gives
+    exactly this congruence, and convert back. *)
+Lemma vfun_body_CIU_cong : forall Γ vl body e,
+  CIU_open (S vl + Γ) body e ->
+  CIU_open Γ (˝ VFun vl body) (˝ VFun vl e).
+Proof.
+  intros Γ vl body e Hbody.
+  apply CIU_iff_Erel.
+  apply Erel_Val_compat.
+  eapply Vrel_Fun_compat.
+  reflexivity.
+  apply CIU_iff_Erel.
+  exact Hbody.
+Qed.
+
+(** ----------------------------------------------------------------- *)
 (** * Main theorem
 
   [FApp1] and [FBIF1]'s non-empty-list "shift" cases as well as [FApp2]'s
@@ -1392,9 +1668,30 @@ Qed.
   [FApp1]/[FApp2]'s "introduce a let" cases are closed via
   [introduce_let_CIU_cong]/[introduce_let_side_scope] above (verified in
   full; the identical two lines close [FCase]/[FCons1]/[FCons2]/[FBIF1]/
-  [FBIF2] too, since those lemmas are generic in the frame). [FLet]'s
-  "introduce a let" case is blocked by the second bug documented above, so
-  the theorem is [Admitted] rather than [Qed] until that's fixed.
+  [FBIF2] too, since those lemmas are generic in the frame).
+
+  The [VVal (VFun vl body)] case needs its own explanation: it normalizes
+  the closure's *body* first (via [IHfuel], recursing into [normalize_exp]
+  on [body] with an empty stack) and only then re-runs [normalize_val] on
+  the resulting [VFun vl body']. Unlike every other case here, [IHfuel]
+  can't finish the job on its own: [normalize_val fuel (VFun vl body') k]
+  is a hypothesis about [normalize_val], not [normalize_exp], so it isn't
+  literally an instance of [IHfuel] (which is stated purely in terms of
+  [normalize_exp]) -- and [body'] is only CIU-*equivalent* to [body], not
+  syntactically equal, so none of the "redex reduces to X" compatibility
+  lemmas above apply either (there is no reduction at all: [VFun vl body]
+  and [VFun vl body'] are both already values). What's needed is: (1) a
+  standalone statement of "[normalize_val] preserves CIU", proved by
+  literally the same argument as the sibling ["-" (normalize_val)] case
+  below (this is [ValPart], asserted once, at this same [fuel] level, and
+  shared by both branches of the [extract_VFun] split -- since it depends
+  on [IHfuel] but not on which branch we're in, it doesn't need its own
+  separate top-level lemma/induction); and (2) a genuine "CIU is a context
+  congruence" fact for the [VFun vl body ~ VFun vl body'] step itself,
+  which is [val_CIU_ctx] composed with [vfun_body_CIU_cong] (the latter
+  gets the [VFun body ~ VFun body'] compatibility from [Vrel_Fun_compat]
+  via [CIU_iff_Erel] -- "the compatibility properties of CIU ... from
+  Erel").
 *)
 Lemma normalize_preserves_semantics fuel : forall Γ k e anf,
   EXP Γ ⊢ plug_fs k e ->
@@ -1406,11 +1703,17 @@ Proof.
   destruct e; simpl in H; try congruence.
   * destruct e; simpl in H; try congruence.
     all: eapply IHfuel in H; [ simpl in H; eassumption | lia | by simpl ].
-  * destruct extract_VFun eqn:X.
-    - destruct p as [vl body]. admit.
-    - destruct fuel; simpl in *; try congruence.
+  * (* Main assertion - reused for fun and normal vals too *)
+    assert (ValPart : forall Γ k v anf,
+      EXP Γ ⊢ plug_fs k (˝ v) ->
+      normalize_val fuel v k = Some anf ->
+      CIU_open Γ (plug_fs k (˝ v)) anf).
+    { clear -IHfuel.
+      intros Γ k v anf D H.
+      destruct fuel; simpl in *; try congruence.
       destruct k. 2: destruct f. all: simpl in *.
       + inv H. simpl. apply CIU_open_refl. assumption.
+      (* FApp1 *)
       + destruct l.
         ** unfold introduce_let in H; destruct k; simpl in *; inv H.
            1: by apply CIU_open_refl.
@@ -1418,328 +1721,167 @@ Proof.
              inv H1; simpl in *; try congruence.
            all: eapply IHfuel in Hexp; try lia; cbn in *.
            -- destruct f; inv Y. cbn.
-              eapply (flet_CIU_cong Γ k (° EApp (˝ v) []) e).
-              exact D. 2: exact Hexp.
+              eapply (plug_fs_CIU_let_compat Γ k (° EApp (˝ v) []) e).
+              exact D.
               apply plug_fs_extract_hole_scope in D.
               by apply plug_f_extract_hole_scope in D.
            -- destruct f; inv Y. cbn.
               eapply (flet_side_scope Γ k (° EApp (˝ v) []) e). simpl in *.
               exact D.
-           -- eapply (introduce_let_CIU_cong Γ f k (° EApp (˝ v) [])).
-              exact D. 2: exact Hexp.
+           -- eapply (introduce_let_CIU_cong Γ (f::k) (° EApp (˝ v) [])).
+              exact D.
               apply plug_fs_extract_hole_scope in D.
               by apply plug_f_extract_hole_scope in D.
            -- cbn.
-              eapply (introduce_let_side_scope Γ f k (° EApp (˝ v) [])).
+              eapply (introduce_let_side_scope Γ (f::k) (° EApp (˝ v) [])).
               exact D.
-        ** 
-
-
-
-
-
-
-
-
-
+        ** eapply IHfuel in H; [ simpl in H; eassumption | lia | by simpl ].
+      (* FApp2 *)
       + destruct l2.
         ** unfold introduce_let in H; destruct k; simpl in *; inv H.
            1: by apply CIU_open_refl.
-           destruct f; simpl in H1; destruct normalize_exp eqn:Hexp in H1;
+           destruct extract_Flet eqn:Y; simpl in H1; destruct normalize_exp eqn:Hexp in H1;
              inv H1; simpl in *; try congruence.
            all: eapply IHfuel in Hexp; try lia; cbn in *.
-           -- eapply (introduce_let_CIU_cong Γ (FApp1 l0) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-              exact D. 2: exact Hexp.
-              apply plug_fs_extract_hole_scope in D. inv D. inv H0. assumption.
-           -- cbn.
-              eapply (introduce_let_side_scope Γ (FApp1 l0) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
+           -- destruct f; inv Y. cbn.
+              eapply (plug_fs_CIU_let_compat Γ k (° EApp (˝ v0) (map VVal l1 ++ [˝v])) e).
               exact D.
-           -- eapply (introduce_let_CIU_cong Γ (FApp2 v0 l0 l2) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-              exact D. 2: exact Hexp.
-              apply plug_fs_extract_hole_scope in D. inv D. inv H0.
-              specialize (H3 (length (map VVal l0)) ltac:(rewrite length_app;simpl;lia)).
-              by rewrite nth_middle in H3.
-           -- cbn.
-              eapply (introduce_let_side_scope Γ (FApp2 v0 l0 l2) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
+              apply plug_fs_extract_hole_scope in D.
+              by apply plug_f_extract_hole_scope in D.
+           -- destruct f; inv Y. cbn.
+              eapply (flet_side_scope Γ k (° EApp (˝ v0) (map VVal l1 ++ [˝v])) e). simpl in *.
               exact D.
-           -- eapply (flet_CIU_cong Γ k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l])) e2).
-              exact D. 2: exact Hexp.
-              apply plug_fs_extract_hole_scope in D. inv D. inv H0. assumption.
-           -- cbn.
-              eapply (flet_side_scope Γ k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l])) e2).
+           -- eapply (introduce_let_CIU_cong Γ (f::k) (° EApp (˝ v0) (map VVal l1 ++ [˝v]))).
               exact D.
-           -- eapply (introduce_let_CIU_cong Γ (FCase p e2 e3) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-              exact D. 2: exact Hexp.
-              apply plug_fs_extract_hole_scope in D. inv D. inv H0. assumption.
+              apply plug_fs_extract_hole_scope in D.
+              by apply plug_f_extract_hole_scope in D.
            -- cbn.
-              eapply (introduce_let_side_scope Γ (FCase p e2 e3) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
+              eapply (introduce_let_side_scope Γ (f::k) (° EApp (˝ v0) (map VVal l1 ++ [˝v]))).
               exact D.
-           -- eapply (introduce_let_CIU_cong Γ (FCons1 e1) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-              exact D. 2: exact Hexp.
-              apply plug_fs_extract_hole_scope in D. inv D. inv H0. assumption.
+        ** eapply IHfuel in H; [ simpl in H | lia | simpl ].
+           -- by rewrite map_app, <- app_assoc in H.
+           -- by rewrite map_app, <- app_assoc.
+      (* FLet *)
+      + destruct normalize_exp eqn:Hexp in H; inv H.
+        eapply (plug_fs_CIU_let_compat Γ k (˝ v) e2).
+        ** exact D.
+        ** eapply (IHfuel fuel).
+           lia.
+           eapply (flet_side_scope Γ k (˝ v) e2).
+           exact D.
+           exact Hexp.
+      (* FCase *)
+      + destruct normalize_exp eqn:Hexp1 in H; inv H.
+        ** destruct normalize_exp eqn:Hexp2 in H1; inv H1.
+           apply plug_fs_extract_hole_scope in D as Dscope. repeat destruct_scope.
+           eapply IHfuel with (Γ := Γ) in Hexp1. 2: lia.
+           2: {
+             eapply plug_fs_hole_scope. exact D. assumption.
+           }
+           eapply IHfuel with (Γ := pat_vars p + Γ) in Hexp2. 2: lia.
+           2: {
+             eapply fcase_side_scope. eassumption.
+           }
+           eapply plug_fs_CIU_case_compat; eassumption.
+        ** destruct normalize_exp in H1; simpl in H1; congruence.
+      (* FCons1 *)
+      + eapply IHfuel in H; try lia; by simpl in *.
+      (* FCons2 *)
+      + unfold introduce_let in H; destruct k; simpl in *; inv H.
+        ** intros ξ Hξ. simpl. apply CIU_eval.
+           repeat destruct_scope.
+           do 3 constructor; apply -> subst_preserves_scope_val; eassumption.
+           eexists. repeat econstructor.
+        ** destruct extract_Flet eqn:Y; simpl in H1; destruct normalize_exp eqn:Hexp in H1;
+             inv H1; simpl in *; try congruence.
+           -- destruct f; inv Y; cbn.
+              apply plug_fs_extract_hole_scope in D as Dscope.
+              apply plug_f_extract_hole_scope in Dscope. repeat destruct_scope.
+              eapply IHfuel with (Γ := S Γ) in Hexp; try lia; cbn in *.
+              2: {
+                eapply flet_side_scope. eassumption.
+              }
+              apply CIU_open_scope_r in Hexp as He0.
+              pose proof let_cons_val_CIU Γ v v2 e0 H1 H0 He0 as T2.
+              epose proof plug_fs_CIU_let_compat Γ k _ _ _ _ Hexp as T1.
+              eapply CIU_open_trans. exact T1. exact T2.
+              Unshelve. assumption.
+           -- eapply IHfuel in Hexp; try lia; cbn in *.
+              apply plug_fs_extract_hole_scope in D as Dscope.
+              apply plug_f_extract_hole_scope in Dscope. repeat destruct_scope.
+              eapply CIU_open_trans.
+              apply (cons_val_CIU_ctx _ (f::k)); try eassumption.
+              cbn. eassumption.
+              eapply (plug_fs_hole_scope (f::k)). exact D.
+              apply plug_fs_extract_hole_scope, plug_f_extract_hole_scope in D.
+              repeat destruct_scope. by do 2 constructor.
+      (* FBIF1 *)
+      + destruct l.
+        ** unfold introduce_let in H; destruct k; simpl in *; inv H.
+           1: by apply CIU_open_refl.
+           destruct extract_Flet eqn:Y; simpl in H1; destruct normalize_exp eqn:Hexp in H1;
+             inv H1; simpl in *; try congruence.
+           all: eapply IHfuel in Hexp; try lia; cbn in *.
+           -- destruct f; inv Y. cbn.
+              eapply (plug_fs_CIU_let_compat Γ k (° EBIF (˝ v) []) e).
+              exact D.
+              apply plug_fs_extract_hole_scope in D.
+              by apply plug_f_extract_hole_scope in D.
+           -- destruct f; inv Y. cbn.
+              eapply (flet_side_scope Γ k (° EBIF (˝ v) []) e). simpl in *.
+              exact D.
+           -- eapply (introduce_let_CIU_cong Γ (f::k) (° EBIF (˝ v) [])).
+              exact D.
+              apply plug_fs_extract_hole_scope in D.
+              by apply plug_f_extract_hole_scope in D.
            -- cbn.
-              eapply (introduce_let_side_scope Γ (FCons1 e1) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
+              eapply (introduce_let_side_scope Γ (f::k) (° EBIF (˝ v) [])).
               exact D.
-           -- eapply (introduce_let_CIU_cong Γ (FCons2 v2) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-              exact D. 2: exact Hexp.
-              apply plug_fs_extract_hole_scope in D. inv D. inv H0. assumption.
-           -- cbn.
-              eapply (introduce_let_side_scope Γ (FCons2 v2) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-              exact D.
-           -- eapply (introduce_let_CIU_cong Γ (FBIF1 l0) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-              exact D. 2: exact Hexp.
-              apply plug_fs_extract_hole_scope in D. inv D. inv H0. assumption.
-           -- cbn.
-              eapply (introduce_let_side_scope Γ (FBIF1 l0) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-              exact D.
-           -- eapply (introduce_let_CIU_cong Γ (FBIF2 v0 l0 l2) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-              exact D. 2: exact Hexp.
-              apply plug_fs_extract_hole_scope in D. inv D. inv H0.
-              specialize (H3 (length (map VVal l0)) ltac:(rewrite length_app;simpl;lia)).
-              by rewrite nth_middle in H3.
-           -- cbn.
-              eapply (introduce_let_side_scope Γ (FBIF2 v0 l0 l2) k (° EApp (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-              exact D.
-        ** eapply IHfuel in H. 2: lia.
-           simpl in *. by rewrite map_app, <- app_assoc in H.
-           simpl. by rewrite map_app, <- app_assoc.
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
-      + (* FLet *)
-        destruct normalize_exp eqn:Hexp in H; inv H.
-        eapply (flet_CIU_cong Γ k (˝ VLit l) e2).
-        exact D.
-        repeat constructor.
-        eapply (IHfuel fuel).
-        lia.
-        eapply (flet_side_scope Γ k (˝ VLit l) e2).
-        exact D.
-        exact Hexp.
-      + (* FCase *)
-        admit.
-      + (* FCons1 *)
-        eapply IHfuel in H; [ simpl in H; eassumption | lia | by simpl ].
-      + (* FCons2: unlike the other frames, [introduce_let]'s synthesized
-           atom here ([VCons e e2]) is already a *value*, so the wildcard
-           branch of [introduce_let] takes the [is_value] shortcut
-           (recursing directly on [normalize_exp e0 k], not wrapping in a
-           fresh [ELet]) for every [k]-head except [FLet] itself. This
-           means the bridge from the original [ECons] redex (as it appears
-           in [D]) to the [VCons] value ([introduce_let]'s own e0) has to
-           be established explicitly via [cons_val_CIU_ctx], then composed
-           (via [CIU_open_trans]) with either [IHfuel] directly (for the
-           is_value-shortcut frames) or [flet_CIU_cong] (for [FLet]). *)
-        assert (Dtop : EXP Γ ⊢ ° ECons (˝ VLit l) (˝ v2))
-          by (eapply plug_fs_extract_hole_scope; exact D).
-        assert (Dtop2 : EXP Γ ⊢ ° ECons (˝ VLit l) (˝ v2)) by exact Dtop.
-        inv Dtop2. inv H1. inv H3. inv H4.
-        rename H1 into Hv1. rename H2 into Hv2.
-        unfold introduce_let in H.
-        destruct k as [|f k'].
-        { inv H. apply cons_val_CIU_ctx; auto. }
-        destruct f; simpl in H.
-        { eapply CIU_open_trans.
-          apply cons_val_CIU_ctx; auto.
-          eapply IHfuel.
-          3: exact H.
-          lia.
-          eapply plug_fs_hole_scope.
-          exact D.
-          repeat constructor; auto. }
-        { eapply CIU_open_trans.
-          apply cons_val_CIU_ctx; auto.
-          eapply IHfuel.
-          3: exact H.
-          lia.
-          eapply plug_fs_hole_scope.
-          exact D.
-          repeat constructor; auto. }
-        { destruct normalize_exp eqn:Hexp in H; inv H.
-          assert (HVC : EXP Γ ⊢ ˝ VCons (VLit l) v2) by (repeat constructor; auto).
-          assert (Dtop3 : EXP Γ ⊢ ° ELet (° ECons (˝ VLit l) (˝ v2)) e2)
-            by (eapply plug_fs_extract_hole_scope; exact D).
-          assert (He2 : EXP (S Γ) ⊢ e2) by (inv Dtop3; inv H0; auto).
-          eapply CIU_open_trans.
-          apply cons_val_CIU_ctx; auto.
-          cbn.
-          eapply (flet_CIU_cong Γ k' (˝ VCons (VLit l) v2) e2).
-          - eapply plug_fs_hole_scope. exact D. do 2 constructor. exact HVC. exact He2.
-          - exact HVC.
-          - eapply IHfuel.
-            3: exact Hexp.
-            lia.
-            eapply (flet_side_scope Γ k' (˝ VCons (VLit l) v2) e2).
-            eapply plug_fs_hole_scope. exact D. do 2 constructor. exact HVC. exact He2. }
-        { eapply CIU_open_trans.
-          apply cons_val_CIU_ctx; auto.
-          eapply IHfuel.
-          3: exact H.
-          lia.
-          eapply plug_fs_hole_scope.
-          exact D.
-          repeat constructor; auto. }
-        { eapply CIU_open_trans.
-          apply cons_val_CIU_ctx; auto.
-          eapply IHfuel.
-          3: exact H.
-          lia.
-          eapply plug_fs_hole_scope.
-          exact D.
-          repeat constructor; auto. }
-        { eapply CIU_open_trans.
-          apply cons_val_CIU_ctx; auto.
-          eapply IHfuel.
-          3: exact H.
-          lia.
-          eapply plug_fs_hole_scope.
-          exact D.
-          repeat constructor; auto. }
-        { eapply CIU_open_trans.
-          apply cons_val_CIU_ctx; auto.
-          eapply IHfuel.
-          3: exact H.
-          lia.
-          eapply plug_fs_hole_scope.
-          exact D.
-          repeat constructor; auto. }
-        { eapply CIU_open_trans.
-          apply cons_val_CIU_ctx; auto.
-          eapply IHfuel.
-          3: exact H.
-          lia.
-          eapply plug_fs_hole_scope.
-          exact D.
-          repeat constructor; auto. }
-      + (* FBIF1: mirrors [FApp1] exactly (empty/nonempty split on its own
-           args list, [EBIF] instead of [EApp]). *)
-        destruct l0 as [|f0 args].
-        ** assert (Dv : EXP Γ ⊢ ° EBIF (˝ VLit l) [])
-            by (eapply plug_fs_extract_hole_scope; exact D).
-          unfold introduce_let in H; destruct k; simpl in *; inv H.
-          1: by apply CIU_open_refl.
-          destruct f; simpl in H1; destruct normalize_exp eqn:Hexp in H1; inv H1; simpl in *; try congruence.
-          1-8: eapply IHfuel in Hexp; try lia; cbn in *.
-          { eapply (introduce_let_CIU_cong Γ (FApp1 l0) k (° EBIF (˝ VLit l) [])).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FApp1 l0) k (° EBIF (˝ VLit l) [])).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FApp2 v l1 l2) k (° EBIF (˝ VLit l) [])).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FApp2 v l1 l2) k (° EBIF (˝ VLit l) [])).
-            exact D. }
-          { eapply (flet_CIU_cong Γ k (° EBIF (˝ VLit l) []) e2).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (flet_side_scope Γ k (° EBIF (˝ VLit l) []) e2).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FCase p e2 e3) k (° EBIF (˝ VLit l) [])).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FCase p e2 e3) k (° EBIF (˝ VLit l) [])).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FCons1 e1) k (° EBIF (˝ VLit l) [])).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FCons1 e1) k (° EBIF (˝ VLit l) [])).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FCons2 v2) k (° EBIF (˝ VLit l) [])).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FCons2 v2) k (° EBIF (˝ VLit l) [])).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FBIF1 l0) k (° EBIF (˝ VLit l) [])).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FBIF1 l0) k (° EBIF (˝ VLit l) [])).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FBIF2 v l1 l2) k (° EBIF (˝ VLit l) [])).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FBIF2 v l1 l2) k (° EBIF (˝ VLit l) [])).
-            exact D. }
         ** eapply IHfuel in H; [ simpl in H; eassumption | lia | by simpl ].
-      + (* FBIF2: mirrors [FApp2] exactly (empty/nonempty split on its own
-           todo list, [EBIF] instead of [EApp]). *)
-        destruct l2 as [|fe l2].
-        ** assert (Dv : EXP Γ ⊢ ° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))
-            by (eapply plug_fs_extract_hole_scope; exact D).
-          unfold introduce_let in H; destruct k; simpl in *; inv H.
-          1: by apply CIU_open_refl.
-          destruct f; simpl in H1; destruct normalize_exp eqn:Hexp in H1; inv H1; simpl in *; try congruence.
-          1-8: eapply IHfuel in Hexp; try lia; cbn in *.
-          { eapply (introduce_let_CIU_cong Γ (FApp1 l0) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FApp1 l0) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FApp2 v0 l0 l2) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FApp2 v0 l0 l2) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. }
-          { eapply (flet_CIU_cong Γ k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l])) e2).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (flet_side_scope Γ k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l])) e2).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FCase p e2 e3) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FCase p e2 e3) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FCons1 e1) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FCons1 e1) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FCons2 v2) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FCons2 v2) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FBIF1 l0) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FBIF1 l0) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. }
-          { eapply (introduce_let_CIU_cong Γ (FBIF2 v0 l0 l2) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. exact Dv. cbn. exact Hexp. }
-          { cbn.
-            eapply (introduce_let_side_scope Γ (FBIF2 v0 l0 l2) k (° EBIF (˝ v) (map VVal l1 ++ [˝ VLit l]))).
-            exact D. }
-        ** unshelve eapply IHfuel in H.
-          1: exact Γ.
-          2: lia.
-          2: { cbn.
-               assert (Hlist2 : map VVal l1 ++ ˝ VLit l :: fe :: l2 = map VVal (l1 ++ [VLit l]) ++ fe :: l2)
-                 by (rewrite map_app; cbn; rewrite <- app_assoc; reflexivity).
-               rewrite <- Hlist2. exact D. }
-          cbn in H |- *.
-          assert (Hlist : map VVal l1 ++ ˝ VLit l :: fe :: l2 = map VVal (l1 ++ [VLit l]) ++ fe :: l2)
-            by (rewrite map_app; cbn; rewrite <- app_assoc; reflexivity).
-          rewrite Hlist. exact H.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-Admitted.
-
-
-
-
-
+      (* FBIF2 *)
+      + destruct l2.
+        ** unfold introduce_let in H; destruct k; simpl in *; inv H.
+           1: by apply CIU_open_refl.
+           destruct extract_Flet eqn:Y; simpl in H1; destruct normalize_exp eqn:Hexp in H1;
+             inv H1; simpl in *; try congruence.
+           all: eapply IHfuel in Hexp; try lia; cbn in *.
+           -- destruct f; inv Y. cbn.
+              eapply (plug_fs_CIU_let_compat Γ k (° EBIF (˝ v0) (map VVal l1 ++ [˝v])) e).
+              exact D.
+              apply plug_fs_extract_hole_scope in D.
+              by apply plug_f_extract_hole_scope in D.
+           -- destruct f; inv Y. cbn.
+              eapply (flet_side_scope Γ k (° EBIF (˝ v0) (map VVal l1 ++ [˝v])) e). simpl in *.
+              exact D.
+           -- eapply (introduce_let_CIU_cong Γ (f::k) (° EBIF (˝ v0) (map VVal l1 ++ [˝v]))).
+              exact D.
+              apply plug_fs_extract_hole_scope in D.
+              by apply plug_f_extract_hole_scope in D.
+           -- cbn.
+              eapply (introduce_let_side_scope Γ (f::k) (° EBIF (˝ v0) (map VVal l1 ++ [˝v]))).
+              exact D.
+        ** eapply IHfuel in H; [ simpl in H | lia | simpl ].
+           -- by rewrite map_app, <- app_assoc in H.
+           -- by rewrite map_app, <- app_assoc.
+    }
+    (* Now, we finish with the two value-based branches *)
+    destruct extract_VFun eqn:X.
+    - destruct p as [vl body].
+      destruct v; inv X.
+      destruct normalize_exp eqn:Hexp0 in H; inv H.
+      eapply IHfuel in Hexp0. 2: lia.
+      2: {
+        simpl. apply plug_fs_extract_hole_scope in D. inv D. inv H0.
+        exact H2.
+      } cbn in Hexp0.
+      eapply CIU_open_trans.
+      apply val_CIU_ctx. exact D. apply vfun_body_CIU_cong. exact Hexp0.
+      apply ValPart.
+      + eapply plug_fs_hole_scope. exact D. constructor. constructor.
+        eapply CIU_open_scope_r. exact Hexp0.
+      + exact H1.
+    - apply (ValPart Γ k v anf D H).
+Qed.
 
 (* NOTE:
    This version won't hold, even though, it shows promising progress. The issue

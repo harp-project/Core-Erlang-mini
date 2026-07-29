@@ -557,12 +557,12 @@ Proof. by apply Private_subst_comp. Qed.
 Corollary subst_comp_val : (forall e ξ η, e.ᵥ[ξ].ᵥ[η] = e.ᵥ[ξ >> η]).
 Proof. by apply Private_subst_comp. Qed.
 
-Corollary rename_subst_core : forall e v,
-  (rename (fun n : nat => S n) e).[v .:: idsubst] = e.
+Corollary rename_subst_core : forall e v ξ,
+  (rename (fun n : nat => S n) e).[v .:: ξ] = e.[ξ].
 Proof.
   intros.
   rewrite renaming_is_subst, subst_comp. cbn.
-  unfold substcomp, ren. cbn. rewrite idsubst_is_id. reflexivity.
+  unfold substcomp, ren. by cbn.
 Qed.
 
 Corollary rename_subst_core_val : forall e v ξ,
@@ -579,18 +579,18 @@ Proof.
   intros. rewrite rename_subst_core_val. by rewrite idsubst_is_id_val.
 Qed.
 
-Corollary rename_subst_core_nonval : forall e v,
-  (rename_nonval (fun n : nat => S n) e).ₙ[v .:: idsubst] = e.
+Corollary rename_subst_core_nonval : forall e v ξ,
+  (rename_nonval (fun n : nat => S n) e).ₙ[v .:: ξ] = e.ₙ[ξ].
 Proof.
   intros.
   rewrite renaming_is_subst_nonval, subst_comp_nonval. cbn.
-  unfold substcomp, ren. cbn. rewrite idsubst_is_id_nonval. reflexivity.
+  unfold substcomp, ren. by cbn.
 Qed.
 
 Corollary rename_subst : forall e v,
   (rename (fun n : nat => S n) e).[v/] = e.
 Proof.
-  intros. apply rename_subst_core.
+  intros. rewrite rename_subst_core. by rewrite idsubst_is_id.
 Qed.
 
 Corollary rename_subst_val : forall e v,
@@ -602,7 +602,7 @@ Qed.
 Corollary rename_subst_nonval : forall e v,
   (rename_nonval (fun n : nat => S n) e).ₙ[v/] = e.
 Proof.
-  intros. apply rename_subst_core_nonval.
+  intros. rewrite rename_subst_core_nonval. by rewrite idsubst_is_id_nonval.
 Qed.
 
 
@@ -783,4 +783,18 @@ Proof.
   intros. extensionality x. unfold ">>".
   destruct (ξ x) eqn:D1; auto.
   rewrite subst_comp_val. reflexivity.
+Qed.
+
+Lemma rename_subst_list : forall l v ξ,
+  map (subst (v .: ξ)) (map (rename (fun n => S n)) l) = map (subst ξ) l.
+Proof.
+  induction l as [|x xs IH]; intros; cbn; auto.
+  rewrite rename_subst_core, IH. reflexivity.
+Qed.
+
+Lemma rename_subst_list_val : forall l v ξ,
+  map (subst_val (v .: ξ)) (map (rename_val (fun n => S n)) l) = map (subst_val ξ) l.
+Proof.
+  induction l as [|x xs IH]; intros; cbn; auto.
+  rewrite rename_subst_core_val, IH. reflexivity.
 Qed.
